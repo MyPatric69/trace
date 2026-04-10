@@ -80,14 +80,13 @@ trace/
 **Done:**
 - `trace_config.yaml` – project registry, model prices, budget thresholds ✓
 - `engine/store.py` – SQLite schema: projects + sessions tables ✓
-- `server/main.py` – minimal FastMCP bootstrap with placeholder tools ✓
+- `server/main.py` – FastMCP server with real tool implementations ✓
+- `server/tools/costs.py` – `log_session()` + `get_costs()` fully implemented ✓
 - Folder structure: `server/`, `server/tools/`, `engine/`, `hooks/`, `tests/` ✓
+- End-to-end test passed: project registered, session logged, costs queried ✓
 
 **Next steps:**
-- Implement `log_session()` in `server/tools/costs.py` (wires to `TraceStore.add_session`)
-- Implement `get_costs()` in `server/tools/costs.py` (wires to `TraceStore.get_cost_summary`)
-- Wire both tools into `server/main.py`
-- Test: register a project, log a session, query costs
+- Write tests in `tests/` (test_store.py, test_costs.py)
 - First commit: Phase 1 complete
 
 **Out of scope (Phase 2+):**
@@ -123,11 +122,12 @@ trace/
 - [x] Create `trace_config.yaml` with model price table
 - [x] Implement `engine/store.py` (SQLite schema)
 - [x] Implement `server/main.py` (FastMCP bootstrap)
-- [ ] Implement `server/tools/costs.py` (`log_session`, `get_costs`)
-- [ ] Test: register a project, log a session, query costs
+- [x] Implement `server/tools/costs.py` (`log_session`, `get_costs`)
+- [x] End-to-end test: project registered, session logged, costs queried
+- [ ] Write tests (`tests/test_store.py`, `tests/test_costs.py`)
 - [ ] First commit: Phase 1 complete
 
 ---
 
 ## Last updated
-2026-04-10 – Phase 1 in progress: foundation files created, tools pending
+2026-04-10 – Phase 1 tools complete; tests pending

@@ -82,7 +82,8 @@ class TraceStore:
         input_tokens: int,
         output_tokens: int,
         notes: str = "",
-    ) -> int:
+    ) -> tuple[int, float]:
+        """Returns (session_id, cost_usd)."""
         project = self.get_project(project_name)
         if project is None:
             raise ValueError(f"Project '{project_name}' not found.")
@@ -97,40 +98,67 @@ class TraceStore:
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (project["id"], today, model, input_tokens, output_tokens, cost_usd, notes),
             )
-            return cursor.lastrowid
+            return cursor.lastrowid, cost_usd
 
-    def get_sessions(self, project_name: str, limit: int = 50) -> list[dict]:
-        project = self.get_project(project_name)
-        if project is None:
-            return []
+    def get_sessions(
+        self,
+        project_name: str | None = None,
+        limit: int = 50,
+        since_date: str | None = None,
+    ) -> list[dict]:
+        """Returns sessions, optionally filtered by project and/or date (ISO string)."""
         with self._connect() as conn:
+            conditions: list[str] = []
+            params: list = []
+
+            if project_name is not None:
+                project = self.get_project(project_name)
+                if project is None:
+                    return []
+                conditions.append("project_id = ?")
+                params.append(project["id"])
+
+            if since_date is not None:
+                conditions.append("date >= ?")
+                params.append(since_date)
+
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+            params.append(limit)
+
             rows = conn.execute(
-                """SELECT * FROM sessions
-                   WHERE project_id = ?
-                   ORDER BY created_at DESC
-                   LIMIT ?""",
-                (project["id"], limit),
+                f"SELECT * FROM sessions {where} ORDER BY created_at DESC LIMIT ?",
+                params,
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def get_cost_summary(self, project_name: str | None = None) -> dict:
+    def get_cost_summary(
+        self,
+        project_name: str | None = None,
+        since_date: str | None = None,
+    ) -> dict:
         with self._connect() as conn:
+            conditions: list[str] = []
+            params: list = []
+
             if project_name:
                 project = self.get_project(project_name)
                 if project is None:
                     return {"total_cost": 0.0, "session_count": 0, "avg_cost_per_session": 0.0}
-                row = conn.execute(
-                    """SELECT COALESCE(SUM(cost_usd), 0) AS total_cost,
-                              COUNT(*) AS session_count
-                       FROM sessions WHERE project_id = ?""",
-                    (project["id"],),
-                ).fetchone()
-            else:
-                row = conn.execute(
-                    """SELECT COALESCE(SUM(cost_usd), 0) AS total_cost,
-                              COUNT(*) AS session_count
-                       FROM sessions""",
-                ).fetchone()
+                conditions.append("project_id = ?")
+                params.append(project["id"])
+
+            if since_date is not None:
+                conditions.append("date >= ?")
+                params.append(since_date)
+
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+            row = conn.execute(
+                f"""SELECT COALESCE(SUM(cost_usd), 0) AS total_cost,
+                           COUNT(*) AS session_count
+                    FROM sessions {where}""",
+                params,
+            ).fetchone()
 
             total = row["total_cost"]
             count = row["session_count"]
