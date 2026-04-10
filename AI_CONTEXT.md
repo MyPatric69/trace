@@ -91,8 +91,8 @@ trace/
 - [x] Implement `check_drift()` MCP tool – `server/tools/context.py` ✓
 - [ ] Install git hook template in `hooks/post-commit`
 
-**Phase 3 (next):**
-- [ ] Implement `engine/context_compressor.py` – session summary generation
+**Phase 3 (in progress):**
+- [x] Implement `engine/context_compressor.py` – session summary generation, 24 tests passing ✓
 - [ ] Implement `new_session()` MCP tool – guided session reset with compressed handoff
 - [ ] Implement `get_tips()` MCP tool – active cost optimization recommendations
 
@@ -142,8 +142,8 @@ trace/
 - [x] Implement `check_drift()` MCP tool
 - [x] Install git hook in `hooks/post-commit` template
 
-**Phase 3 (next):**
-- [ ] Implement `engine/context_compressor.py` – session summary generation
+**Phase 3 (in progress):**
+- [x] Implement `engine/context_compressor.py` – session summary generation
 - [ ] Implement `new_session()` MCP tool – guided session reset with compressed handoff
 - [ ] Implement `get_tips()` MCP tool – active cost optimization recommendations
 
@@ -151,4 +151,4 @@ trace/
 
 ## Last updated
 
-2026-04-10 – Auto-synced 1 commit(s) to 3740172
+2026-04-10 – Auto-synced 1 commit(s) to 6af973c

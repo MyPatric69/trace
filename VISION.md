@@ -49,7 +49,7 @@ Developers who use AI coding assistants daily and want to stop hemorrhaging toke
 
 ### Phase 3 – Optimization Layer
 - `context_compressor.py` – session summary generation
-- `new_session()` – guided session reset with compressed handoff
+- `new_session()` – guided session reset with compressed handoff. Directly addresses Claude Code's reactive Auto-Compact behaviour by giving developers proactive control over session boundaries and cost exposure.
 - `get_tips()` – active cost optimization recommendations
 
 ### Phase 4 – Observability (future)
