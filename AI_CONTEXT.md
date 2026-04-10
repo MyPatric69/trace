@@ -85,7 +85,7 @@ trace/
 - `tests/` – 24 passing tests (unit + integration)
 
 **Phase 2 next steps:**
-- [ ] Implement `engine/git_watcher.py` – post-commit hook integration
+- [x] Implement `engine/git_watcher.py` – `GitWatcher` class, 30 tests passing ✓
 - [ ] Implement `engine/doc_synthesizer.py` – `AI_CONTEXT.md` auto-update
 - [ ] Implement `update_context()` MCP tool
 - [ ] Implement `check_drift()` MCP tool
@@ -132,7 +132,7 @@ trace/
 - [x] Final validation: 24/24 tests green, server starts clean
 
 **Phase 2 (next):**
-- [ ] Implement `engine/git_watcher.py` – post-commit hook
+- [x] Implement `engine/git_watcher.py` – post-commit hook
 - [ ] Implement `engine/doc_synthesizer.py` – `AI_CONTEXT.md` auto-update
 - [ ] Implement `update_context()` MCP tool
 - [ ] Implement `check_drift()` MCP tool
@@ -141,4 +141,4 @@ trace/
 ---
 
 ## Last updated
-2026-04-10 – Phase 1 complete and verified: bugs fixed, 24/24 tests green, Phase 2 ready to start
+2026-04-10 – Phase 2 started: engine/git_watcher.py complete, 54/54 tests green
