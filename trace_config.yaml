@@ -8,6 +8,15 @@ budgets:
   default_monthly_usd: 20.0
   alert_threshold_pct: 80
 
+session:
+  # Warn when a single session approaches this token count
+  warn_at_tokens: 30000
+  # Recommend new_session() at this threshold
+  recommend_reset_at: 50000
+  # Claude Code auto-compact kicks in around 180000 tokens
+  # TRACE acts proactively well before that point
+  claude_autocompact_approx: 180000
+
 models:
   claude-sonnet-4-5:
     input_per_1k: 0.003
