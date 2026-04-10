@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# TRACE post-commit hook template
+# Installed by hooks/install_hook.sh – do not edit this copy directly.
+#
+# TRACE_HOME can be set in your shell profile to override the default.
+# Default: ~/Documents/github/trace
+
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+TRACE_HOME="${TRACE_HOME:-$HOME/Documents/github/trace}"
+
+python3 "$TRACE_HOME/engine/hook_runner.py" "$PROJECT_ROOT" 2>/dev/null || true

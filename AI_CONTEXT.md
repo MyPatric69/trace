@@ -11,7 +11,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** Phase 1 complete – Phase 2 ready to start
+**Status:** Phase 2 complete – Phase 3 ready to start
 
 ---
 
@@ -91,8 +91,12 @@ trace/
 - [x] Implement `check_drift()` MCP tool – `server/tools/context.py` ✓
 - [ ] Install git hook template in `hooks/post-commit`
 
-**Out of scope (Phase 3+):**
-- Context compression / session handoff
+**Phase 3 (next):**
+- [ ] Implement `engine/context_compressor.py` – session summary generation
+- [ ] Implement `new_session()` MCP tool – guided session reset with compressed handoff
+- [ ] Implement `get_tips()` MCP tool – active cost optimization recommendations
+
+**Out of scope (Phase 4+):**
 - Web dashboard
 - Multi-MCP proxy
 
@@ -131,14 +135,20 @@ trace/
 - [x] Write tests (`tests/test_store.py`, `tests/test_costs.py`) – 24 passing
 - [x] Final validation: 24/24 tests green, server starts clean
 
-**Phase 2 (next):**
+**Phase 2 (complete):**
 - [x] Implement `engine/git_watcher.py` – post-commit hook
 - [x] Implement `engine/doc_synthesizer.py` – `AI_CONTEXT.md` auto-update
 - [x] Implement `update_context()` MCP tool
 - [x] Implement `check_drift()` MCP tool
-- [ ] Install git hook in `hooks/post-commit` template
+- [x] Install git hook in `hooks/post-commit` template
+
+**Phase 3 (next):**
+- [ ] Implement `engine/context_compressor.py` – session summary generation
+- [ ] Implement `new_session()` MCP tool – guided session reset with compressed handoff
+- [ ] Implement `get_tips()` MCP tool – active cost optimization recommendations
 
 ---
 
 ## Last updated
-2026-04-10 – Phase 2: all engine + MCP tools complete, 87/87 tests green; next: hooks/post-commit
+
+2026-04-10 – Auto-synced 11 commit(s) to bee2e8e
