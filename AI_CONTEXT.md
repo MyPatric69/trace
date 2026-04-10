@@ -77,9 +77,9 @@ trace/
 
 **Goal:** Automate `AI_CONTEXT.md` updates via git hook integration.
 
-**Phase 1 delivered (complete ✓):**
+**Phase 1 delivered (complete and verified – all bugs fixed, 24/24 tests green ✓):**
 - `trace_config.yaml` – project registry, model prices, budget thresholds
-- `engine/store.py` – SQLite schema: projects + sessions tables
+- `engine/store.py` – SQLite schema, `TraceStore` with `add_session()` → `int`, `calculate_cost()` → `float`
 - `server/main.py` – FastMCP server, runnable via `python server/main.py`
 - `server/tools/costs.py` – `log_session()` + `get_costs()` with period filters
 - `tests/` – 24 passing tests (unit + integration)
@@ -116,6 +116,7 @@ trace/
 - **SQLite over flat files** – queryable, no extra dependencies, single file per workspace
 - **FastMCP over raw MCP** – reduces boilerplate, Pythonic, well-maintained
 - **Delta-based doc updates** – never full rewrites, only targeted patches (Phase 2)
+- **`add_session()` returns `session_id` only** – cost is retrieved separately via `store.calculate_cost(model, input_tokens, output_tokens) → float`, which reads prices from `trace_config.yaml` and returns `0.0` for unknown models
 
 ---
 
@@ -140,4 +141,4 @@ trace/
 ---
 
 ## Last updated
-2026-04-10 – Phase 1 validated and closed; Phase 2 ready to start
+2026-04-10 – Phase 1 complete and verified: bugs fixed, 24/24 tests green, Phase 2 ready to start
