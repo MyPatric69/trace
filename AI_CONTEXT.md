@@ -11,7 +11,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** Phase 2 complete – Phase 3 ready to start
+**Status:** Phase 3 complete – all 6 MCP tools live
 
 ---
 
@@ -73,28 +73,24 @@ trace/
 
 ---
 
-## Current phase: Phase 2 – Context Intelligence
+## Current phase: Phase 3 complete
 
-**Goal:** Automate `AI_CONTEXT.md` updates via git hook integration.
+**All 6 MCP tools live – 141/141 tests green ✓**
 
-**Phase 1 delivered (complete and verified – all bugs fixed, 24/24 tests green ✓):**
-- `trace_config.yaml` – project registry, model prices, budget thresholds
+**Phase 1 (complete – 24 tests):**
+- `trace_config.yaml` – project registry, model prices, session thresholds, budgets
 - `engine/store.py` – SQLite schema, `TraceStore` with `add_session()` → `int`, `calculate_cost()` → `float`
-- `server/main.py` – FastMCP server, runnable via `python server/main.py`
 - `server/tools/costs.py` – `log_session()` + `get_costs()` with period filters
-- `tests/` – 24 passing tests (unit + integration)
 
-**Phase 2 next steps:**
-- [x] Implement `engine/git_watcher.py` – `GitWatcher` class, 30 tests passing ✓
-- [x] Implement `engine/doc_synthesizer.py` – `DocSynthesizer` class, 23 tests passing ✓
-- [x] Implement `update_context()` MCP tool – `server/tools/context.py` ✓
-- [x] Implement `check_drift()` MCP tool – `server/tools/context.py` ✓
-- [ ] Install git hook template in `hooks/post-commit`
+**Phase 2 (complete – 70 tests):**
+- `engine/git_watcher.py` – `GitWatcher` class
+- `engine/doc_synthesizer.py` – `DocSynthesizer`, delta-based `AI_CONTEXT.md` updates
+- `server/tools/context.py` – `check_drift()` + `update_context()` MCP tools
+- `engine/hook_runner.py` + `hooks/post-commit` + `hooks/install_hook.sh` – git hook system
 
-**Phase 3 (in progress):**
-- [x] Implement `engine/context_compressor.py` – session summary generation, 24 tests passing ✓
-- [ ] Implement `new_session()` MCP tool – guided session reset with compressed handoff
-- [ ] Implement `get_tips()` MCP tool – active cost optimization recommendations
+**Phase 3 (complete – 47 tests):**
+- `engine/context_compressor.py` – `ContextCompressor`, token-optimized re-entry prompt
+- `server/tools/session.py` – `new_session()` + `get_tips()` MCP tools
 
 **Out of scope (Phase 4+):**
 - Web dashboard
@@ -142,13 +138,16 @@ trace/
 - [x] Implement `check_drift()` MCP tool
 - [x] Install git hook in `hooks/post-commit` template
 
-**Phase 3 (in progress):**
+**Phase 3 (complete):**
 - [x] Implement `engine/context_compressor.py` – session summary generation
-- [ ] Implement `new_session()` MCP tool – guided session reset with compressed handoff
-- [ ] Implement `get_tips()` MCP tool – active cost optimization recommendations
+- [x] Implement `new_session()` MCP tool – guided session reset with compressed handoff
+- [x] Implement `get_tips()` MCP tool – active cost optimization recommendations
+
+**Phase 4 (next):**
+- [ ] Plan Phase 4 – observability, web dashboard, multi-project support
 
 ---
 
 ## Last updated
 
-2026-04-10 – Auto-synced 1 commit(s) to 6af973c
+2026-04-10 – Phase 3 complete. All 6 MCP tools live. 141/141 tests green.

@@ -10,6 +10,8 @@ from server.tools.costs import log_session as _log_session
 from server.tools.costs import get_costs as _get_costs
 from server.tools.context import check_drift as _check_drift
 from server.tools.context import update_context as _update_context
+from server.tools.session import new_session as _new_session
+from server.tools.session import get_tips as _get_tips
 
 app = FastMCP("trace")
 
@@ -45,6 +47,18 @@ def check_drift(project_name: str) -> dict:
 def update_context(project_name: str, dry_run: bool = False) -> dict:
     """Sync AI_CONTEXT.md with recent git commits. Use dry_run=True to preview."""
     return _update_context(project_name, dry_run)
+
+
+@app.tool()
+def new_session(project_name: str, dry_run: bool = False) -> dict:
+    """Generate a compressed handoff prompt and optionally reset the session."""
+    return _new_session(project_name, dry_run)
+
+
+@app.tool()
+def get_tips(project_name: str | None = None) -> dict:
+    """Analyse recent sessions and return actionable cost-saving tips."""
+    return _get_tips(project_name)
 
 
 if __name__ == "__main__":
