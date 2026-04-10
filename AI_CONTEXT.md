@@ -11,7 +11,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** Phase 1 – Active development
+**Status:** Phase 1 complete – Phase 2 ready to start
 
 ---
 
@@ -73,26 +73,28 @@ trace/
 
 ---
 
-## Current phase: Phase 1 – In progress
+## Current phase: Phase 2 – Context Intelligence
 
-**Goal:** Token/cost tracking that works immediately, no automation yet.
+**Goal:** Automate `AI_CONTEXT.md` updates via git hook integration.
 
-**Done:**
-- `trace_config.yaml` – project registry, model prices, budget thresholds ✓
-- `engine/store.py` – SQLite schema: projects + sessions tables ✓
-- `server/main.py` – FastMCP server with real tool implementations ✓
-- `server/tools/costs.py` – `log_session()` + `get_costs()` fully implemented ✓
-- Folder structure: `server/`, `server/tools/`, `engine/`, `hooks/`, `tests/` ✓
-- End-to-end test passed: project registered, session logged, costs queried ✓
-- Tests: 24 passing (`tests/test_store.py` + `tests/test_costs.py`) ✓
+**Phase 1 delivered (complete ✓):**
+- `trace_config.yaml` – project registry, model prices, budget thresholds
+- `engine/store.py` – SQLite schema: projects + sessions tables
+- `server/main.py` – FastMCP server, runnable via `python server/main.py`
+- `server/tools/costs.py` – `log_session()` + `get_costs()` with period filters
+- `tests/` – 24 passing tests (unit + integration)
 
-**Next steps:**
-- First commit: Phase 1 complete
+**Phase 2 next steps:**
+- [ ] Implement `engine/git_watcher.py` – post-commit hook integration
+- [ ] Implement `engine/doc_synthesizer.py` – `AI_CONTEXT.md` auto-update
+- [ ] Implement `update_context()` MCP tool
+- [ ] Implement `check_drift()` MCP tool
+- [ ] Install git hook template in `hooks/post-commit`
 
-**Out of scope (Phase 2+):**
-- Git watching / automation
-- AI_CONTEXT.md auto-generation
-- Context compression
+**Out of scope (Phase 3+):**
+- Context compression / session handoff
+- Web dashboard
+- Multi-MCP proxy
 
 ---
 
@@ -119,15 +121,23 @@ trace/
 
 ## Next steps
 
+**Phase 1 (complete):**
 - [x] Create `trace_config.yaml` with model price table
 - [x] Implement `engine/store.py` (SQLite schema)
 - [x] Implement `server/main.py` (FastMCP bootstrap)
 - [x] Implement `server/tools/costs.py` (`log_session`, `get_costs`)
 - [x] End-to-end test: project registered, session logged, costs queried
 - [x] Write tests (`tests/test_store.py`, `tests/test_costs.py`) – 24 passing
-- [ ] First commit: Phase 1 complete
+- [x] Final validation: 24/24 tests green, server starts clean
+
+**Phase 2 (next):**
+- [ ] Implement `engine/git_watcher.py` – post-commit hook
+- [ ] Implement `engine/doc_synthesizer.py` – `AI_CONTEXT.md` auto-update
+- [ ] Implement `update_context()` MCP tool
+- [ ] Implement `check_drift()` MCP tool
+- [ ] Install git hook in `hooks/post-commit` template
 
 ---
 
 ## Last updated
-2026-04-10 – Phase 1 complete: all tools implemented, 24 tests passing
+2026-04-10 – Phase 1 validated and closed; Phase 2 ready to start

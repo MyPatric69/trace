@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+# Ensure project root is on sys.path when running as `python server/main.py`
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
 from fastmcp import FastMCP
 
 from server.tools.costs import log_session as _log_session
