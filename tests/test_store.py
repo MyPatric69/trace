@@ -62,23 +62,19 @@ def test_list_projects_returns_all(tmp_store: TraceStore):
 # add_session
 # ---------------------------------------------------------------------------
 
-def test_add_session_returns_id_and_cost(tmp_store: TraceStore):
+def test_add_session_returns_int_id(tmp_store: TraceStore):
     tmp_store.add_project("alpha", "/projects/alpha")
-    # claude-sonnet-4-5: 1000 in × $0.003 + 500 out × $0.015 = $0.003 + $0.0075 = $0.0105
-    session_id, cost_usd = tmp_store.add_session(
-        "alpha", "claude-sonnet-4-5", 1000, 500
-    )
+    session_id = tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
 
     assert isinstance(session_id, int)
     assert session_id > 0
-    assert cost_usd == pytest.approx(0.0105)
 
 
-def test_add_session_calculates_cost_correctly(tmp_store: TraceStore):
-    tmp_store.add_project("alpha", "/projects/alpha")
+def test_calculate_cost_correct(tmp_store: TraceStore):
+    # claude-sonnet-4-5: 1000 in × $0.003 + 500 out × $0.015 = $0.003 + $0.0075 = $0.0105
+    assert tmp_store.calculate_cost("claude-sonnet-4-5", 1000, 500) == pytest.approx(0.0105)
     # gpt-4o: 2000 in × $0.005 + 1000 out × $0.015 = $0.010 + $0.015 = $0.025
-    _, cost_usd = tmp_store.add_session("alpha", "gpt-4o", 2000, 1000)
-    assert cost_usd == pytest.approx(0.025)
+    assert tmp_store.calculate_cost("gpt-4o", 2000, 1000) == pytest.approx(0.025)
 
 
 def test_add_session_unknown_project_raises(tmp_store: TraceStore):
@@ -86,10 +82,8 @@ def test_add_session_unknown_project_raises(tmp_store: TraceStore):
         tmp_store.add_session("ghost", "claude-sonnet-4-5", 100, 50)
 
 
-def test_add_session_unknown_model_cost_is_zero(tmp_store: TraceStore):
-    tmp_store.add_project("alpha", "/projects/alpha")
-    _, cost_usd = tmp_store.add_session("alpha", "unknown-model-xyz", 1000, 500)
-    assert cost_usd == 0.0
+def test_calculate_cost_unknown_model_returns_zero(tmp_store: TraceStore):
+    assert tmp_store.calculate_cost("unknown-model-xyz", 1000, 500) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +142,7 @@ def test_get_cost_summary_correct_totals(tmp_store: TraceStore):
     summary = tmp_store.get_cost_summary("alpha")
 
     assert summary["session_count"] == 2
-    assert summary["total_cost"] == pytest.approx(0.0355)
+    assert summary["total_cost_usd"] == pytest.approx(0.0355)
     assert summary["avg_cost_per_session"] == pytest.approx(0.0355 / 2)
 
 
@@ -156,7 +150,7 @@ def test_get_cost_summary_no_sessions_returns_zeros(tmp_store: TraceStore):
     tmp_store.add_project("alpha", "/projects/alpha")
     summary = tmp_store.get_cost_summary("alpha")
 
-    assert summary["total_cost"] == 0.0
+    assert summary["total_cost_usd"] == 0.0
     assert summary["session_count"] == 0
     assert summary["avg_cost_per_session"] == 0.0
 
@@ -169,9 +163,9 @@ def test_get_cost_summary_all_projects_when_name_is_none(tmp_store: TraceStore):
 
     summary = tmp_store.get_cost_summary()
     assert summary["session_count"] == 2
-    assert summary["total_cost"] == pytest.approx(0.0355)
+    assert summary["total_cost_usd"] == pytest.approx(0.0355)
 
 
 def test_get_cost_summary_unknown_project_returns_zeros(tmp_store: TraceStore):
     summary = tmp_store.get_cost_summary("ghost")
-    assert summary == {"total_cost": 0.0, "session_count": 0, "avg_cost_per_session": 0.0}
+    assert summary == {"total_cost_usd": 0.0, "session_count": 0, "avg_cost_per_session": 0.0}

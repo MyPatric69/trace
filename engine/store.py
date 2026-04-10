@@ -75,6 +75,10 @@ class TraceStore:
         output_cost = (output_tokens / 1000) * prices["output_per_1k"]
         return round(input_cost + output_cost, 6)
 
+    def calculate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+        """Public cost calculator – uses model prices from trace_config.yaml."""
+        return self._calculate_cost(model, input_tokens, output_tokens)
+
     def add_session(
         self,
         project_name: str,
@@ -82,8 +86,8 @@ class TraceStore:
         input_tokens: int,
         output_tokens: int,
         notes: str = "",
-    ) -> tuple[int, float]:
-        """Returns (session_id, cost_usd)."""
+    ) -> int:
+        """Inserts a session row and returns the new session_id."""
         project = self.get_project(project_name)
         if project is None:
             raise ValueError(f"Project '{project_name}' not found.")
@@ -98,7 +102,7 @@ class TraceStore:
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (project["id"], today, model, input_tokens, output_tokens, cost_usd, notes),
             )
-            return cursor.lastrowid, cost_usd
+            return cursor.lastrowid
 
     def get_sessions(
         self,
@@ -143,7 +147,7 @@ class TraceStore:
             if project_name:
                 project = self.get_project(project_name)
                 if project is None:
-                    return {"total_cost": 0.0, "session_count": 0, "avg_cost_per_session": 0.0}
+                    return {"total_cost_usd": 0.0, "session_count": 0, "avg_cost_per_session": 0.0}
                 conditions.append("project_id = ?")
                 params.append(project["id"])
 
@@ -164,7 +168,7 @@ class TraceStore:
             count = row["session_count"]
             avg = round(total / count, 6) if count else 0.0
             return {
-                "total_cost": round(total, 6),
+                "total_cost_usd": round(total, 6),
                 "session_count": count,
                 "avg_cost_per_session": avg,
             }

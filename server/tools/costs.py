@@ -31,13 +31,13 @@ def log_session(
     output_tokens: int,
     notes: str = "",
 ) -> dict:
+    store = _store()
     try:
-        session_id, cost_usd = _store().add_session(
-            project_name, model, input_tokens, output_tokens, notes
-        )
+        session_id = store.add_session(project_name, model, input_tokens, output_tokens, notes)
     except ValueError:
         return {"status": "error", "message": f"Project not found: {project_name}"}
 
+    cost_usd = store.calculate_cost(model, input_tokens, output_tokens)
     return {
         "status": "ok",
         "session_id": session_id,
@@ -60,7 +60,7 @@ def get_costs(
     return {
         "project": project_name or "all",
         "period": period,
-        "total_cost_usd": summary["total_cost"],
+        "total_cost_usd": summary["total_cost_usd"],
         "session_count": summary["session_count"],
         "avg_cost_per_session": summary["avg_cost_per_session"],
         "sessions": sessions,
