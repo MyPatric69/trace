@@ -84,9 +84,9 @@ trace/
 - `server/tools/costs.py` – `log_session()` + `get_costs()` fully implemented ✓
 - Folder structure: `server/`, `server/tools/`, `engine/`, `hooks/`, `tests/` ✓
 - End-to-end test passed: project registered, session logged, costs queried ✓
+- Tests: 24 passing (`tests/test_store.py` + `tests/test_costs.py`) ✓
 
 **Next steps:**
-- Write tests in `tests/` (test_store.py, test_costs.py)
 - First commit: Phase 1 complete
 
 **Out of scope (Phase 2+):**
@@ -124,10 +124,10 @@ trace/
 - [x] Implement `server/main.py` (FastMCP bootstrap)
 - [x] Implement `server/tools/costs.py` (`log_session`, `get_costs`)
 - [x] End-to-end test: project registered, session logged, costs queried
-- [ ] Write tests (`tests/test_store.py`, `tests/test_costs.py`)
+- [x] Write tests (`tests/test_store.py`, `tests/test_costs.py`) – 24 passing
 - [ ] First commit: Phase 1 complete
 
 ---
 
 ## Last updated
-2026-04-10 – Phase 1 tools complete; tests pending
+2026-04-10 – Phase 1 complete: all tools implemented, 24 tests passing
