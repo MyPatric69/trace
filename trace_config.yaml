@@ -1,0 +1,26 @@
+trace:
+  db_path: trace.db
+  version: "0.1.0"
+
+projects: []
+
+budgets:
+  default_monthly_usd: 20.0
+  alert_threshold_pct: 80
+
+models:
+  claude-sonnet-4-5:
+    input_per_1k: 0.003
+    output_per_1k: 0.015
+  claude-opus-4-5:
+    input_per_1k: 0.015
+    output_per_1k: 0.075
+  claude-haiku-4-5:
+    input_per_1k: 0.0008
+    output_per_1k: 0.004
+  gpt-4o:
+    input_per_1k: 0.005
+    output_per_1k: 0.015
+  gpt-4o-mini:
+    input_per_1k: 0.00015
+    output_per_1k: 0.0006

@@ -73,15 +73,22 @@ trace/
 
 ---
 
-## Current phase: Phase 1 – Foundation
+## Current phase: Phase 1 – In progress
 
 **Goal:** Token/cost tracking that works immediately, no automation yet.
 
-**In scope:**
-- `engine/store.py` – SQLite schema: projects + sessions tables
-- `trace_config.yaml` – project registry, model prices, budget thresholds
-- `server/tools/costs.py` – `log_session()` + `get_costs()`
-- `server/main.py` – minimal FastMCP server exposing Phase 1 tools
+**Done:**
+- `trace_config.yaml` – project registry, model prices, budget thresholds ✓
+- `engine/store.py` – SQLite schema: projects + sessions tables ✓
+- `server/main.py` – minimal FastMCP bootstrap with placeholder tools ✓
+- Folder structure: `server/`, `server/tools/`, `engine/`, `hooks/`, `tests/` ✓
+
+**Next steps:**
+- Implement `log_session()` in `server/tools/costs.py` (wires to `TraceStore.add_session`)
+- Implement `get_costs()` in `server/tools/costs.py` (wires to `TraceStore.get_cost_summary`)
+- Wire both tools into `server/main.py`
+- Test: register a project, log a session, query costs
+- First commit: Phase 1 complete
 
 **Out of scope (Phase 2+):**
 - Git watching / automation
@@ -113,14 +120,14 @@ trace/
 
 ## Next steps
 
-- [ ] Create `trace_config.yaml` with model price table
-- [ ] Implement `engine/store.py` (SQLite schema)
+- [x] Create `trace_config.yaml` with model price table
+- [x] Implement `engine/store.py` (SQLite schema)
+- [x] Implement `server/main.py` (FastMCP bootstrap)
 - [ ] Implement `server/tools/costs.py` (`log_session`, `get_costs`)
-- [ ] Implement `server/main.py` (FastMCP bootstrap)
 - [ ] Test: register a project, log a session, query costs
 - [ ] First commit: Phase 1 complete
 
 ---
 
 ## Last updated
-2026-04-10 – Phase 1 kickoff
+2026-04-10 – Phase 1 in progress: foundation files created, tools pending
