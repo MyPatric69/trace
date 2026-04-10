@@ -86,7 +86,7 @@ trace/
 
 **Phase 2 next steps:**
 - [x] Implement `engine/git_watcher.py` – `GitWatcher` class, 30 tests passing ✓
-- [ ] Implement `engine/doc_synthesizer.py` – `AI_CONTEXT.md` auto-update
+- [x] Implement `engine/doc_synthesizer.py` – `DocSynthesizer` class, 23 tests passing ✓
 - [ ] Implement `update_context()` MCP tool
 - [ ] Implement `check_drift()` MCP tool
 - [ ] Install git hook template in `hooks/post-commit`
@@ -133,7 +133,7 @@ trace/
 
 **Phase 2 (next):**
 - [x] Implement `engine/git_watcher.py` – post-commit hook
-- [ ] Implement `engine/doc_synthesizer.py` – `AI_CONTEXT.md` auto-update
+- [x] Implement `engine/doc_synthesizer.py` – `AI_CONTEXT.md` auto-update
 - [ ] Implement `update_context()` MCP tool
 - [ ] Implement `check_drift()` MCP tool
 - [ ] Install git hook in `hooks/post-commit` template
@@ -141,4 +141,4 @@ trace/
 ---
 
 ## Last updated
-2026-04-10 – Phase 2 started: engine/git_watcher.py complete, 54/54 tests green
+2026-04-10 – Phase 2: git_watcher + doc_synthesizer complete, 77/77 tests green; next: MCP tools

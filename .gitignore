@@ -45,6 +45,9 @@ trace_config.local.yaml
 *.sqlite
 *.sqlite3
 
+# TRACE sync bookmark
+.trace_sync
+
 # IDE
 .vscode/
 .idea/
