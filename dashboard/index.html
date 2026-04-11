@@ -594,6 +594,12 @@
       dot.className       = 'live-dot active';
       project.textContent = d.project !== 'unknown' ? d.project : '';
 
+      // Transcript not yet flushed on first PostToolUse – show placeholder
+      if (d.initializing || (d.input_tokens === 0 && d.output_tokens === 0)) {
+        body.innerHTML = '<div class="live-inactive">Session starting\u2026</div>';
+        return;
+      }
+
       const healthCls = d.health === 'reset' ? 'reset' : d.health === 'warn' ? 'warn' : 'ok';
       const healthLbl = d.health === 'reset' ? 'Reset recommended'
                       : d.health === 'warn'  ? 'Warning'
