@@ -48,8 +48,10 @@ def parse_transcript(transcript_path: str) -> dict:
     - Claude Code writes **multiple entries per API request** (same ``requestId``,
       different ``uuid``).  We deduplicate by ``requestId`` to avoid double-counting.
 
-    Input token total = input_tokens + cache_creation_input_tokens + cache_read_input_tokens.
-    This reflects all tokens that contributed to the API call, regardless of cache tier.
+    Input token total = input_tokens + cache_creation_input_tokens.
+    ``cache_read_input_tokens`` is intentionally excluded: it re-counts the same cached
+    context on every API request, producing session totals many times the actual context
+    window size (e.g. 87 requests × 20 K cached context = 1.7 M for a ~200 K session).
 
     Returns:
         dict with keys: input_tokens, output_tokens, model, turns
@@ -98,13 +100,18 @@ def parse_transcript(transcript_path: str) -> dict:
                 if isinstance(model_field, str) and model_field:
                     model_counts[model_field] += 1
 
-                # Usage – sum all input token types (regular + cache creation + cache read)
+                # Usage
+                # input_tokens:              new non-cached tokens (small per request)
+                # cache_creation_input_tokens: tokens written to cache (new context added)
+                # cache_read_input_tokens:   reused cached bytes re-sent on every call –
+                #                            the same tokens are counted on each request,
+                #                            so including them inflates the session total
+                #                            by 100× for long sessions.  Excluded.
                 usage = msg.get("usage") or {}
                 if isinstance(usage, dict):
                     input_tokens += (
                         int(usage.get("input_tokens") or 0)
                         + int(usage.get("cache_creation_input_tokens") or 0)
-                        + int(usage.get("cache_read_input_tokens") or 0)
                     )
                     output_tokens += int(usage.get("output_tokens") or 0)
 
@@ -113,6 +120,15 @@ def parse_transcript(transcript_path: str) -> dict:
         return {"input_tokens": 0, "output_tokens": 0, "model": "unknown", "turns": 0}
 
     model = model_counts.most_common(1)[0][0] if model_counts else "unknown"
+
+    _SANITY_LIMIT = 200_000
+    if input_tokens > _SANITY_LIMIT:
+        _log.warning(
+            "parse_transcript: input_tokens=%d exceeds %d for %s "
+            "(long session with large cache – value recorded as-is)",
+            input_tokens, _SANITY_LIMIT, transcript_path,
+        )
+
     return {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,

@@ -66,7 +66,7 @@ def _user_turn(content: str = "Hello") -> dict:
 # ---------------------------------------------------------------------------
 
 def test_parse_transcript_returns_correct_tokens(tmp_path):
-    """input_tokens sums regular + cache_creation + cache_read."""
+    """input_tokens sums regular + cache_creation only (cache_read excluded)."""
     transcript = _write_transcript(tmp_path, [
         _user_turn(),
         _assistant_turn("req_1", input_tokens=10, cache_creation=200,
@@ -76,7 +76,7 @@ def test_parse_transcript_returns_correct_tokens(tmp_path):
                         cache_read=150, output_tokens=80),
     ])
     result = parse_transcript(str(transcript))
-    assert result["input_tokens"] == 10 + 200 + 300 + 5 + 100 + 150  # 765
+    assert result["input_tokens"] == 10 + 200 + 5 + 100  # 315 (cache_read excluded)
     assert result["output_tokens"] == 130
 
 
@@ -95,13 +95,17 @@ def test_parse_transcript_returns_correct_turn_count(tmp_path):
 def test_parse_transcript_deduplicates_by_request_id(tmp_path):
     """Claude Code writes multiple lines per requestId; only count once."""
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("req_1", input_tokens=10, output_tokens=50, uuid="uuid-a"),
-        _assistant_turn("req_1", input_tokens=10, output_tokens=50, uuid="uuid-b"),  # dupe
-        _assistant_turn("req_1", input_tokens=10, output_tokens=50, uuid="uuid-c"),  # dupe
-        _assistant_turn("req_2", input_tokens=5,  output_tokens=20),
+        _assistant_turn("req_1", input_tokens=10, cache_creation=100,
+                        output_tokens=50, uuid="uuid-a"),
+        _assistant_turn("req_1", input_tokens=10, cache_creation=100,
+                        output_tokens=50, uuid="uuid-b"),  # dupe
+        _assistant_turn("req_1", input_tokens=10, cache_creation=100,
+                        output_tokens=50, uuid="uuid-c"),  # dupe
+        _assistant_turn("req_2", input_tokens=5, cache_creation=50,
+                        output_tokens=20),
     ])
     result = parse_transcript(str(transcript))
-    assert result["input_tokens"] == 15   # req_1(10) + req_2(5), not 35
+    assert result["input_tokens"] == 165  # req_1(10+100) + req_2(5+50), not 495
     assert result["output_tokens"] == 70  # req_1(50) + req_2(20), not 170
     assert result["turns"] == 2
 
@@ -228,7 +232,7 @@ def test_run_logs_session_when_project_found(tmp_path, tmp_store, monkeypatch):
 
     stdin_data = _make_run_input(tmp_path, [
         _assistant_turn("req_1", model="claude-sonnet-4-6",
-                        input_tokens=50, cache_creation=300, cache_read=150,
+                        input_tokens=50, cache_creation=300, cache_read=9999,
                         output_tokens=200),
     ], str(tmp_path))
     monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
@@ -237,7 +241,7 @@ def test_run_logs_session_when_project_found(tmp_path, tmp_store, monkeypatch):
 
     sessions = tmp_store.get_sessions("run-project")
     assert len(sessions) == 1
-    assert sessions[0]["input_tokens"] == 500   # 50 + 300 + 150
+    assert sessions[0]["input_tokens"] == 350   # 50 + 300 (cache_read excluded)
     assert sessions[0]["output_tokens"] == 200
     assert sessions[0]["model"] == "claude-sonnet-4-6"
     assert "Auto-logged" in sessions[0]["notes"]

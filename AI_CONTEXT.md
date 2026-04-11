@@ -207,7 +207,10 @@ trace/
 - Each line has `type`: only `"assistant"` lines carry usage
 - Usage is in `obj.message.usage`, not at top level
 - Claude Code writes multiple lines per `requestId` → deduplicate by `requestId`
-- Input total = `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`
+- Input total = `input_tokens + cache_creation_input_tokens` (`cache_read_input_tokens`
+  excluded — it re-counts the same cached context on every API call, inflating session
+  totals to millions of tokens for a session that never exceeded 200K at any point)
+- Sanity warning logged if `input_tokens > 200_000` (not a cap; long sessions are valid)
 
 **Next: v0.2.0 planning**
 - [ ] Multi-project cost comparison view in dashboard
@@ -218,4 +221,4 @@ trace/
 
 ## Last updated
 
-2026-04-11 – session_logger bugs fixed (input tokens, model pricing, hook path), 195/195 tests green
+2026-04-11 – Auto-synced 1 commit(s) to 77f98d2
