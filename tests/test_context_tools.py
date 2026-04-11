@@ -43,6 +43,15 @@ def ctx_env(tmp_path, tmp_store, monkeypatch):
     - ctx_module._store monkeypatched to return tmp_store
     """
     repo = git.Repo.init(str(tmp_path))
+
+    # Neutralise any globally-installed post-commit hook (e.g. TRACE's own
+    # ~/.git-template hook) so it cannot overwrite .trace_sync during test
+    # commits and corrupt the fixture state.  Only this repo is affected.
+    hook_path = tmp_path / ".git" / "hooks" / "post-commit"
+    hook_path.parent.mkdir(exist_ok=True)
+    hook_path.write_text("#!/bin/sh\nexit 0\n")
+    hook_path.chmod(0o755)
+
     with repo.config_writer() as cw:
         cw.set_value("user", "name", "Test")
         cw.set_value("user", "email", "test@example.com")

@@ -194,6 +194,40 @@ class TraceStore:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def get_token_summary(
+        self,
+        project_name: str | None = None,
+        since_date: str | None = None,
+    ) -> dict:
+        """Returns summed input/output tokens, optionally filtered by project and date."""
+        with self._connect() as conn:
+            conditions: list[str] = []
+            params: list = []
+
+            if project_name is not None:
+                project = self.get_project(project_name)
+                if project is None:
+                    return {"total_input_tokens": 0, "total_output_tokens": 0}
+                conditions.append("project_id = ?")
+                params.append(project["id"])
+
+            if since_date is not None:
+                conditions.append("date >= ?")
+                params.append(since_date)
+
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+            row = conn.execute(
+                f"""SELECT COALESCE(SUM(input_tokens), 0) AS total_input,
+                           COALESCE(SUM(output_tokens), 0) AS total_output
+                    FROM sessions {where}""",
+                params,
+            ).fetchone()
+            return {
+                "total_input_tokens": row["total_input"],
+                "total_output_tokens": row["total_output"],
+            }
+
     def get_cost_summary(
         self,
         project_name: str | None = None,

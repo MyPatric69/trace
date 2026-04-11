@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRACE Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --header-bg:  #2C2C2A;
+      --body-bg:    #F8F6F0;
+      --card-bg:    #FFFDF8;
+      --border:     #E5E1D8;
+      --teal:       #1D9E75;
+      --teal-dark:  #178862;
+      --amber:      #D97706;
+      --red:        #DC2626;
+      --text:       #1A1917;
+      --muted:      #6B6760;
+      --mono:       'IBM Plex Mono', 'Courier New', monospace;
+      --sans:       'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--body-bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--header-bg);
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 0 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-family: var(--mono);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--teal);
+      letter-spacing: 0.18em;
+    }
+    #project-select {
+      background: rgba(255,255,255,0.07);
+      color: #E8E5DC;
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 3px;
+      padding: 0.25rem 0.625rem;
+      font-family: var(--sans);
+      font-size: 0.8125rem;
+      cursor: pointer;
+      outline: none;
+    }
+    #project-select:focus { border-color: var(--teal); }
+    #project-select option { background: #2C2C2A; }
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .mcp-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      color: rgba(255,255,255,0.45);
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--teal);
+    }
+    #last-updated {
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      color: rgba(255,255,255,0.3);
+    }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* ── Metric Row ── */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem 1.25rem;
+    }
+    .metric-label {
+      font-family: var(--mono);
+      font-size: 0.6563rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin-bottom: 0.5rem;
+    }
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .metric-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+    .metric-value.teal  { color: var(--teal); }
+    .metric-value.amber { color: var(--amber); }
+    .metric-value.red   { color: var(--red); }
+
+    /* ── Session Health Bar ── */
+    .health-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem 1.25rem;
+    }
+    .card-title {
+      font-family: var(--mono);
+      font-size: 0.6563rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin-bottom: 0.75rem;
+    }
+    .health-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .health-bar {
+      flex: 1;
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .health-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease, background-color 0.3s;
+      background: var(--teal);
+    }
+    .health-fill.amber { background: var(--amber); }
+    .health-fill.red   { background: var(--red); }
+    .health-tokens {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .handoff-link {
+      display: inline-block;
+      margin-top: 0.75rem;
+      padding: 0.375rem 0.875rem;
+      background: var(--teal);
+      color: white;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      border-radius: 3px;
+      text-decoration: none;
+    }
+    .handoff-link:hover { background: var(--teal-dark); }
+    .handoff-link.disabled {
+      background: #C8C4BB;
+      pointer-events: none;
+      color: #F8F6F0;
+    }
+
+    /* ── Two-column ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem 1.25rem;
+    }
+
+    /* Drift rows */
+    .drift-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .drift-row:last-child { border-bottom: none; }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.green  { background: var(--teal); }
+    .status-dot.amber  { background: var(--amber); }
+    .status-dot.red    { background: var(--red); }
+    .drift-name   { font-weight: 500; flex: 1; font-size: 0.8125rem; }
+    .drift-label  { font-family: var(--mono); font-size: 0.6875rem; color: var(--muted); }
+    .sync-btn {
+      font-family: var(--mono);
+      font-size: 0.6563rem;
+      padding: 0.2rem 0.5rem;
+      border: 1px solid var(--teal);
+      color: var(--teal);
+      background: transparent;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .sync-btn:hover { background: var(--teal); color: white; }
+
+    /* Tips rows */
+    .tip-row {
+      display: flex;
+      gap: 0.625rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+      align-items: flex-start;
+    }
+    .tip-row:last-child { border-bottom: none; }
+    .tip-icon { flex-shrink: 0; font-size: 0.875rem; }
+
+    /* ── Model chart ── */
+    .models-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem 1.25rem;
+    }
+    .model-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.375rem 0;
+    }
+    .model-name {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text);
+      width: 220px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .model-bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .model-bar-fill {
+      height: 100%;
+      background: var(--teal);
+      border-radius: 3px;
+    }
+    .model-cost {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      width: 64px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .empty { color: var(--muted); font-size: 0.8125rem; padding: 0.5rem 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">TRACE</div>
+  <select id="project-select" onchange="onProjectChange()">
+    <option value="">All Projects</option>
+  </select>
+  <div class="header-right">
+    <div class="mcp-badge"><span class="dot"></span> MCP</div>
+    <div id="last-updated">–</div>
+  </div>
+</header>
+
+<main>
+  <!-- 1 · Metric row -->
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="metric-label">Input Tokens Today</div>
+      <div class="metric-value" id="m-input">–</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Output Tokens Today</div>
+      <div class="metric-value" id="m-output">–</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Session Cost Today</div>
+      <div class="metric-value" id="m-cost">–</div>
+      <div class="metric-sub" id="m-cost-sub"></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Monthly Budget</div>
+      <div class="metric-value teal" id="m-budget">–</div>
+      <div class="metric-sub" id="m-budget-sub"></div>
+    </div>
+  </div>
+
+  <!-- 2 · Session health bar -->
+  <div class="health-card">
+    <div class="card-title">Session Health</div>
+    <div class="health-row">
+      <div class="health-bar">
+        <div class="health-fill" id="health-fill" style="width:0%"></div>
+      </div>
+      <div class="health-tokens" id="health-label">0 tokens</div>
+    </div>
+    <a class="handoff-link disabled" id="handoff-link" href="#" target="_blank">
+      Request new_session() handoff →
+    </a>
+  </div>
+
+  <!-- 3 · Drift + Tips -->
+  <div class="two-col">
+    <div class="panel">
+      <div class="card-title">Context Drift</div>
+      <div id="drift-list"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="panel">
+      <div class="card-title">Recommendations</div>
+      <div id="tips-list"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- 4 · Model usage -->
+  <div class="models-card">
+    <div class="card-title">Model Usage · Last 7 Days</div>
+    <div id="models-list"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+
+<script>
+  const $  = id => document.getElementById(id);
+  const num = n  => n.toLocaleString();
+  const usd = v  => '$' + v.toFixed(4);
+
+  let selectedProject = '';
+  let cfg = { monthly_budget_usd: 20, alert_threshold_pct: 80 };
+  let allProjects = [];
+
+  async function api(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(path + ' → ' + res.status);
+    return res.json();
+  }
+
+  // ── Projects dropdown ─────────────────────────────────────────────────────
+
+  async function loadProjects() {
+    allProjects = await api('/api/projects');
+    const sel = $('project-select');
+    sel.innerHTML = '<option value="">All Projects</option>';
+    allProjects.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.name;
+      o.textContent = p.name;
+      sel.appendChild(o);
+    });
+  }
+
+  // ── Status (config + alltime cost) ────────────────────────────────────────
+
+  async function loadStatus() {
+    const s = await api('/api/status');
+    cfg.monthly_budget_usd  = s.monthly_budget_usd;
+    cfg.alert_threshold_pct = s.alert_threshold_pct;
+  }
+
+  // ── Metric row ────────────────────────────────────────────────────────────
+
+  async function loadMetrics() {
+    const proj   = selectedProject;
+    const pParam = proj ? `&project=${encodeURIComponent(proj)}` : '';
+
+    const [tokens, today, month] = await Promise.all([
+      api('/api/tokens?period=today' + pParam),
+      api('/api/costs' + (proj ? `/${encodeURIComponent(proj)}` : '') + '?period=today'),
+      api('/api/costs' + (proj ? `/${encodeURIComponent(proj)}` : '') + '?period=month'),
+    ]);
+
+    // Input / output tokens
+    $('m-input').textContent  = num(tokens.total_input_tokens);
+    $('m-output').textContent = num(tokens.total_output_tokens);
+
+    // Cost today
+    $('m-cost').textContent     = usd(today.total_cost_usd);
+    $('m-cost-sub').textContent = today.session_count + ' session' + (today.session_count !== 1 ? 's' : '');
+
+    // Budget
+    const spent  = month.total_cost_usd;
+    const budget = cfg.monthly_budget_usd;
+    const pct    = budget > 0 ? (spent / budget * 100) : 0;
+    const pctStr = pct.toFixed(1) + '%';
+    $('m-budget').textContent     = pctStr;
+    $('m-budget').className       = 'metric-value ' + (pct >= cfg.alert_threshold_pct ? 'red' : pct >= cfg.alert_threshold_pct * 0.75 ? 'amber' : 'teal');
+    $('m-budget-sub').textContent = '$' + spent.toFixed(2) + ' / $' + budget.toFixed(2);
+
+    // Session health bar
+    const total  = tokens.total_tokens;
+    const warnAt = tokens.warn_at;
+    const resetAt = tokens.reset_at;
+    const barPct  = Math.min(total / resetAt * 100, 100);
+    const fill    = $('health-fill');
+    fill.style.width = barPct + '%';
+    fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
+    $('health-label').textContent = num(total) + ' / ' + num(resetAt) + ' tokens';
+
+    // Handoff link
+    const link = $('handoff-link');
+    if (proj) {
+      link.href      = '/api/new_session/' + encodeURIComponent(proj) + '?dry_run=true';
+      link.className = 'handoff-link';
+    } else {
+      link.href      = '#';
+      link.className = 'handoff-link disabled';
+    }
+  }
+
+  // ── Context drift panel ───────────────────────────────────────────────────
+
+  async function loadDrift() {
+    const targets = selectedProject
+      ? allProjects.filter(p => p.name === selectedProject)
+      : allProjects;
+
+    if (!targets.length) {
+      $('drift-list').innerHTML = '<div class="empty">No projects registered.</div>';
+      return;
+    }
+
+    const results = await Promise.all(
+      targets.map(p =>
+        api('/api/drift/' + encodeURIComponent(p.name))
+          .catch(() => ({ status: 'error', project: p.name, commits_behind: 0, is_stale: false }))
+      )
+    );
+
+    $('drift-list').innerHTML = results.map(r => {
+      if (r.status === 'error') {
+        return `<div class="drift-row">
+          <span class="status-dot red"></span>
+          <span class="drift-name">${r.project}</span>
+          <span class="drift-label">unavailable</span>
+        </div>`;
+      }
+      const n   = r.commits_behind || 0;
+      const cls = n === 0 ? 'green' : n <= 2 ? 'amber' : 'red';
+      const lbl = n === 0 ? 'up to date' : n + ' commit' + (n !== 1 ? 's' : '') + ' behind';
+      const btn = r.is_stale
+        ? `<button class="sync-btn" onclick="syncProject('${r.project.replace(/'/g,"\\'")}')">Sync</button>`
+        : '';
+      return `<div class="drift-row">
+        <span class="status-dot ${cls}"></span>
+        <span class="drift-name">${r.project}</span>
+        <span class="drift-label">${lbl}</span>
+        ${btn}
+      </div>`;
+    }).join('');
+  }
+
+  async function syncProject(name) {
+    await api('/api/sync/' + encodeURIComponent(name));
+    await loadDrift();
+  }
+
+  // ── Recommendations panel ─────────────────────────────────────────────────
+
+  async function loadTips() {
+    const params = selectedProject
+      ? '?project_name=' + encodeURIComponent(selectedProject)
+      : '';
+    const data = await api('/api/tips' + params);
+
+    if (!data.tips || !data.tips.length) {
+      $('tips-list').innerHTML = '<div class="empty">No recommendations — looking good!</div>';
+      return;
+    }
+
+    const icons = ['⚡', '💡', '⚠️', '📊', '🔄'];
+    $('tips-list').innerHTML = data.tips.map((t, i) => `
+      <div class="tip-row">
+        <span class="tip-icon">${icons[i % icons.length]}</span>
+        <span>${t}</span>
+      </div>
+    `).join('');
+  }
+
+  // ── Model chart ───────────────────────────────────────────────────────────
+
+  async function loadModels() {
+    const params = selectedProject
+      ? '?period=week&project=' + encodeURIComponent(selectedProject)
+      : '?period=week';
+    const data = await api('/api/models' + params);
+
+    if (!data.models.length) {
+      $('models-list').innerHTML = '<div class="empty">No sessions in the last 7 days.</div>';
+      return;
+    }
+
+    const maxCost = Math.max(...data.models.map(m => m.total_cost), 0.0001);
+    $('models-list').innerHTML = data.models.map(m => {
+      const pct = (m.total_cost / maxCost * 100).toFixed(1);
+      return `<div class="model-row">
+        <div class="model-name">${m.model}</div>
+        <div class="model-bar-track">
+          <div class="model-bar-fill" style="width:${pct}%"></div>
+        </div>
+        <div class="model-cost">${usd(m.total_cost)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Orchestration ─────────────────────────────────────────────────────────
+
+  async function loadAll() {
+    $('last-updated').textContent = new Date().toLocaleTimeString();
+    try {
+      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels()]);
+    } catch (e) {
+      console.error('Refresh error:', e);
+    }
+  }
+
+  function onProjectChange() {
+    selectedProject = $('project-select').value;
+    loadAll();
+  }
+
+  async function init() {
+    await Promise.all([loadStatus(), loadProjects()]);
+    await loadAll();
+    setInterval(loadAll, 30_000);
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -1,3 +1,5 @@
 fastmcp
 pyyaml
 gitpython
+fastapi
+uvicorn

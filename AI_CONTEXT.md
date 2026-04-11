@@ -11,7 +11,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** Phase 3 complete – all 6 MCP tools live
+**Status:** Phase 4 complete – web dashboard live
 
 ---
 
@@ -73,6 +73,11 @@ trace/
 ├── hooks/
 │   └── post-commit        ← Git Hook template
 │
+├── dashboard/
+│   ├── server.py          ← FastAPI app (Phase 4 – optional web UI)
+│   ├── index.html         ← single-page dashboard, auto-refresh every 30s
+│   └── start.sh           ← bash dashboard/start.sh → http://localhost:8080
+│
 └── tests/
 
 ~/.trace/
@@ -82,9 +87,9 @@ trace/
 
 ---
 
-## Current phase: Phase 3 complete
+## Current phase: Phase 4 complete
 
-**All 6 MCP tools live – 141/141 tests green ✓**
+**All 6 MCP tools + web dashboard live – 178/178 tests green ✓**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -101,8 +106,14 @@ trace/
 - `engine/context_compressor.py` – `ContextCompressor`, token-optimized re-entry prompt
 - `server/tools/session.py` – `new_session()` + `get_tips()` MCP tools
 
-**Out of scope (Phase 4+):**
-- Web dashboard
+**Phase 4 (complete – 26 tests):**
+- `dashboard/server.py` – FastAPI app, reads `~/.trace/trace.db` via `TraceStore`
+- `dashboard/index.html` – single-page UI, auto-refresh every 30s, IBM Plex fonts, flat design
+- `dashboard/start.sh` – `bash dashboard/start.sh` → http://localhost:8080
+- `engine/store.py` – `get_token_summary()` + `get_sessions_with_projects()` added
+- 9 REST endpoints: `/api/status`, `/api/projects`, `/api/costs[/{project}]`, `/api/tokens`, `/api/models`, `/api/drift/{project}`, `/api/sync/{project}`, `/api/tips`, `/api/new_session/{project}`
+
+**Out of scope:**
 - Multi-MCP proxy
 
 ---
@@ -166,11 +177,15 @@ trace/
 - [x] `hooks/install_hook.sh` – calls auto_register.py after hook install
 - [x] 152/152 tests green
 
-**Phase 4 (next):**
-- [ ] Dashboard – optional FastAPI + HTML UI reading from `~/.trace/trace.db`
+**Phase 4 (complete):**
+- [x] `dashboard/server.py` – FastAPI app with 9 REST endpoints
+- [x] `dashboard/index.html` – single-page UI (metrics, session health, drift, tips, model chart)
+- [x] `dashboard/start.sh` – `bash dashboard/start.sh` → http://localhost:8080
+- [x] `tests/test_dashboard.py` – 26 tests green
+- [x] `engine/store.py` – `get_token_summary()` + `get_sessions_with_projects()` added
 
 ---
 
 ## Last updated
 
-2026-04-11 – Git template + auto_register complete; 152/152 tests green; Phase 4 next
+2026-04-11 – 178/178 tests green; fixed ctx_env fixture (global post-commit hook neutralised in temp repos)
