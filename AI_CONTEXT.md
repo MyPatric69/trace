@@ -68,10 +68,15 @@ trace/
 │   ├── token_tracker.py
 │   ├── cost_controller.py
 │   ├── store.py           ← SQLite interface – TraceStore.default() → ~/.trace/
-│   └── migrate.py         ← one-time migration: local trace.db → ~/.trace/trace.db
+│   ├── migrate.py         ← one-time migration: local trace.db → ~/.trace/trace.db
+│   ├── auto_register.py   ← register_if_unknown() – called by post-commit hook
+│   └── session_logger.py  ← SessionEnd hook handler – parses transcript, logs tokens
 │
 ├── hooks/
-│   └── post-commit        ← Git Hook template
+│   ├── post-commit              ← Git Hook template
+│   ├── install_hook.sh          ← install post-commit into a target repo
+│   ├── setup_global_template.sh ← one-time: every new clone/init gets the hook
+│   └── setup_claude_hook.sh     ← one-time: install SessionEnd hook in ~/.claude/settings.json
 │
 ├── dashboard/
 │   ├── server.py          ← FastAPI app (Phase 4 – optional web UI)
@@ -89,7 +94,7 @@ trace/
 
 ## Current phase: Phase 4 complete
 
-**All 6 MCP tools + web dashboard live – 178/178 tests green ✓**
+**All 6 MCP tools + web dashboard + auto session logging – 194/194 tests green ✓**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -181,11 +186,26 @@ trace/
 - [x] `dashboard/server.py` – FastAPI app with 9 REST endpoints
 - [x] `dashboard/index.html` – single-page UI (metrics, session health, drift, tips, model chart)
 - [x] `dashboard/start.sh` – `bash dashboard/start.sh` → http://localhost:8080
+- [x] `dashboard/favicon.svg` – SVG favicon, served at `/favicon.svg`
 - [x] `tests/test_dashboard.py` – 26 tests green
 - [x] `engine/store.py` – `get_token_summary()` + `get_sessions_with_projects()` added
+
+**Auto session logging (complete – 16 tests):**
+- [x] `engine/session_logger.py` – SessionEnd hook handler
+  - `parse_transcript(path)` – reads JSONL, sums input/output tokens, detects model
+  - `detect_project(cwd)` – path match → name fallback against `~/.trace/trace.db`
+  - `run()` – reads stdin JSON, logs session; never raises, errors → `~/.trace/session_logger.log`
+- [x] `hooks/setup_claude_hook.sh` – installs SessionEnd entry in `~/.claude/settings.json`
+- [x] `TROUBLESHOOTING.md` – Issue 9: sessions not auto-logging
+- [x] 194/194 tests green
+
+**Next: v0.2.0 planning**
+- [ ] Multi-project cost comparison view in dashboard
+- [ ] Session budget alerts via MCP notification
+- [ ] README model price table update for Claude 4.x models
 
 ---
 
 ## Last updated
 
-2026-04-11 – Auto-synced 1 commit(s) to 2cc74ff
+2026-04-11 – Auto session logging complete, 194/194 tests green

@@ -250,6 +250,43 @@ It is resolved in TRACE v0.1.0 which serves
 
 ---
 
+## Issue 9: Sessions not being auto-logged
+
+**Symptom:**
+Token usage is not appearing in the dashboard
+after Claude Code sessions.
+
+**Cause:**
+The SessionEnd hook is not installed in
+`~/.claude/settings.json`.
+
+**Fix:**
+```bash
+bash hooks/setup_claude_hook.sh
+```
+
+Verify the hook is installed:
+```bash
+cat ~/.claude/settings.json
+```
+
+Manual fallback – log a session manually:
+```python
+python3 -c "
+from engine.store import TraceStore
+store = TraceStore.default()
+store.add_session(
+    'your-project',
+    'claude-sonnet-4-5',
+    INPUT_TOKENS,
+    OUTPUT_TOKENS,
+    'Manual entry'
+)
+"
+```
+
+---
+
 ## Still stuck?
 
 Check the project status:
