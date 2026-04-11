@@ -259,3 +259,159 @@ def test_get_live_returns_data_within_stale_window(live_path):
     result = LiveTracker(None).get_live()
     assert result is not None
     assert result["turns"] == 3
+
+
+# ---------------------------------------------------------------------------
+# initializing flag – transcript flush race on first PostToolUse
+# ---------------------------------------------------------------------------
+
+def test_update_initializing_false_when_tokens_present(tmp_path, patched_tracker):
+    """Normal case: transcript has tokens → initializing=False."""
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=100, output_tokens=50),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["initializing"] is False
+
+
+def test_update_initializing_true_when_tokens_zero(tmp_path, patched_tracker, monkeypatch):
+    """Empty transcript after retry → initializing=True, file still written."""
+    slept = []
+    monkeypatch.setattr(lt_module.time, "sleep", lambda s: slept.append(s))
+
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text("")  # empty – simulates unflushed file
+
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+
+    assert result["initializing"] is True
+    assert result["input_tokens"] == 0
+    assert result["output_tokens"] == 0
+    assert result["health"] == "ok"
+    # Retry sleep was called once with 0.5s
+    assert slept == [0.5]
+    # File was written despite zero tokens
+    assert lt_module._LIVE_PATH.exists()
+
+
+def test_update_retries_once_before_giving_up(tmp_path, patched_tracker, monkeypatch):
+    """Only one retry attempt (one sleep call), not a loop."""
+    sleep_calls = []
+    monkeypatch.setattr(lt_module.time, "sleep", lambda s: sleep_calls.append(s))
+
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text("")
+
+    LiveTracker(None).update(str(transcript), str(tmp_path))
+
+    assert len(sleep_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# Incremental parsing – Bug 1 fix
+# ---------------------------------------------------------------------------
+
+def test_update_stores_last_byte_offset(tmp_path, patched_tracker):
+    """After first update(), last_byte_offset is written and > 0."""
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=100, output_tokens=50),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert "last_byte_offset" in result
+    assert result["last_byte_offset"] > 0
+
+
+def test_update_incremental_accumulates_tokens(tmp_path, patched_tracker):
+    """Second call with appended content adds to totals – no double counting."""
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text(
+        json.dumps(_assistant_turn("r1", input_tokens=100, output_tokens=50)) + "\n"
+    )
+
+    result1 = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result1["input_tokens"] == 100
+    assert result1["output_tokens"] == 50
+    offset_after_first = result1["last_byte_offset"]
+    assert offset_after_first > 0
+
+    # Append a second turn
+    with open(transcript, "a") as f:
+        f.write(json.dumps(_assistant_turn("r2", input_tokens=200, output_tokens=80)) + "\n")
+
+    result2 = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result2["input_tokens"] == 300   # 100 + 200 – not 200 twice
+    assert result2["output_tokens"] == 130  # 50 + 80
+    assert result2["turns"] == 2
+    assert result2["last_byte_offset"] > offset_after_first
+
+
+def test_update_incremental_no_double_count_on_repeated_call(tmp_path, patched_tracker):
+    """Calling update() twice on an unchanged transcript returns the same totals."""
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=100, output_tokens=50),
+    ])
+    result1 = LiveTracker(None).update(str(transcript), str(tmp_path))
+    result2 = LiveTracker(None).update(str(transcript), str(tmp_path))
+
+    assert result2["input_tokens"] == result1["input_tokens"]
+    assert result2["output_tokens"] == result1["output_tokens"]
+    assert result2["turns"] == result1["turns"]
+
+
+def test_update_incremental_new_session_resets(tmp_path, patched_tracker):
+    """Different session_id triggers a full re-parse from offset 0."""
+    # First session
+    transcript_a = tmp_path / "session-aaa.jsonl"
+    transcript_a.write_text(
+        json.dumps(_assistant_turn("r1", input_tokens=500, output_tokens=100)) + "\n"
+    )
+    LiveTracker(None).update(str(transcript_a), str(tmp_path))
+
+    # Second session – different file name (different session_id)
+    transcript_b = tmp_path / "session-bbb.jsonl"
+    transcript_b.write_text(
+        json.dumps(_assistant_turn("r1", input_tokens=50, output_tokens=10)) + "\n"
+    )
+    result = LiveTracker(None).update(str(transcript_b), str(tmp_path))
+
+    # Should see only session B's tokens, not session A's
+    assert result["input_tokens"] == 50
+    assert result["output_tokens"] == 10
+    assert result["session_id"] == "session-bbb"
+
+
+def test_update_incremental_file_rotation_resets(tmp_path, patched_tracker):
+    """If last_byte_offset > file size the file has rotated – restart from 0."""
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text(
+        json.dumps(_assistant_turn("r1", input_tokens=100, output_tokens=50)) + "\n"
+    )
+    result1 = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result1["last_byte_offset"] > 0
+
+    # Simulate file rotation: overwrite with a smaller file
+    transcript.write_text(
+        json.dumps(_assistant_turn("r2", input_tokens=30, output_tokens=10)) + "\n"
+    )
+    result2 = LiveTracker(None).update(str(transcript), str(tmp_path))
+
+    # Should see only the new content, not the stale accumulated totals
+    assert result2["input_tokens"] == 30
+    assert result2["output_tokens"] == 10
+
+
+def test_update_no_sleep_on_second_call_with_zero_new_tokens(tmp_path, patched_tracker, monkeypatch):
+    """No retry sleep on subsequent calls – only on first fresh-session call."""
+    sleep_calls = []
+    monkeypatch.setattr(lt_module.time, "sleep", lambda s: sleep_calls.append(s))
+
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=100, output_tokens=50),
+    ])
+    # First call – has tokens, no retry
+    LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert sleep_calls == []
+
+    # Second call – same file, same content, no new bytes → no retry
+    LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert sleep_calls == []
