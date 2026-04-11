@@ -159,12 +159,18 @@ trace/
 - [x] All tools updated to `TraceStore.default()` (no more hardcoded config paths)
 - [x] 141/141 tests green
 
+**Git Template + Auto-register (complete – 11 tests):**
+- [x] `engine/auto_register.py` – detects project name, registers in `~/.trace/trace.db`
+- [x] `hooks/post-commit` – auto-register step before drift check
+- [x] `hooks/setup_global_template.sh` – one-time setup: every new clone/init gets the hook
+- [x] `hooks/install_hook.sh` – calls auto_register.py after hook install
+- [x] 152/152 tests green
+
 **Phase 4 (next):**
-- [ ] Git Template setup – auto-install hook for new repos
-- [ ] Web dashboard – optional FastAPI UI at `~/.trace/`
+- [ ] Dashboard – optional FastAPI + HTML UI reading from `~/.trace/trace.db`
 
 ---
 
 ## Last updated
 
-2026-04-11 – Central DB migration complete; TraceStore.default() → ~/.trace/trace.db
+2026-04-11 – Git template + auto_register complete; 152/152 tests green; Phase 4 next

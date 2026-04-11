@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRACE – Manifest</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --teal: #1D9E75;
+    --teal-light: #E1F5EE;
+    --teal-dark: #085041;
+    --anthrazit: #2C2C2A;
+    --mid: #5F5E5A;
+    --light: #D3D1C7;
+    --cream: #F8F6F0;
+    --white: #FFFFFF;
+    --amber: #BA7517;
+    --amber-light: #FAEEDA;
+    --red: #A32D2D;
+    --red-light: #FCEBEB;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--cream);
+    color: var(--anthrazit);
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  header {
+    background: var(--anthrazit);
+    padding: 56px 40px 48px;
+    border-bottom: 3px solid var(--teal);
+  }
+
+  .header-inner { max-width: 860px; margin: 0 auto; }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  .tag {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--teal);
+    border: 1px solid var(--teal);
+    padding: 3px 10px;
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 500;
+    color: var(--white);
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+
+  .header-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: #5F5E5A;
+    letter-spacing: 1px;
+  }
+
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 64px 40px;
+  }
+
+  section { margin-bottom: 64px; }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--teal-light);
+  }
+
+  h2 {
+    font-size: 22px;
+    font-weight: 500;
+    margin-bottom: 20px;
+    color: var(--anthrazit);
+  }
+
+  p {
+    color: var(--mid);
+    margin-bottom: 14px;
+    font-weight: 300;
+  }
+
+  p strong {
+    color: var(--anthrazit);
+    font-weight: 500;
+  }
+
+  /* Alert box */
+  .alert {
+    border-left: 3px solid var(--amber);
+    background: var(--amber-light);
+    padding: 16px 20px;
+    margin: 24px 0;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .alert p {
+    color: #633806;
+    margin: 0;
+    font-size: 14px;
+  }
+
+  .alert strong { color: #412402; }
+
+  .alert-red {
+    border-left-color: var(--red);
+    background: var(--red-light);
+  }
+
+  .alert-red p { color: #791F1F; }
+  .alert-red strong { color: #501313; }
+
+  .alert-teal {
+    border-left-color: var(--teal);
+    background: var(--teal-light);
+  }
+
+  .alert-teal p { color: var(--teal-dark); }
+  .alert-teal strong { color: #04342C; }
+
+  /* Code / mono blocks */
+  .code-block {
+    background: var(--anthrazit);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+
+  .code-block pre {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #9FE1CB;
+  }
+
+  .code-block .comment { color: #444441; }
+  .code-block .key { color: #FAC775; }
+  .code-block .val { color: #9FE1CB; }
+  .code-block .hi { color: #E24B4A; }
+
+  /* Table */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 13px;
+  }
+
+  .data-table th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--mid);
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--light);
+  }
+
+  .data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #F1EFE8;
+    color: var(--mid);
+    font-weight: 300;
+  }
+
+  .data-table td strong { color: var(--anthrazit); font-weight: 500; }
+  .data-table td.hi { color: var(--red); font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+  .data-table td.ok { color: var(--teal); font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+
+  /* Formula highlight */
+  .formula {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    background: var(--anthrazit);
+    color: #FAC775;
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--light);
+    margin: 48px 0;
+  }
+
+  /* Conclusion box */
+  .conclusion {
+    background: var(--anthrazit);
+    color: var(--white);
+    padding: 32px 36px;
+    border-radius: 4px;
+    margin-top: 48px;
+  }
+
+  .conclusion h3 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 16px;
+  }
+
+  .conclusion p {
+    color: rgba(255,255,255,0.75);
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+
+  .conclusion p:last-child { margin-bottom: 0; }
+  .conclusion strong { color: var(--white); }
+
+  /* Tool list */
+  .tool-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 20px 0;
+  }
+
+  .tool-card {
+    background: var(--white);
+    border: 1px solid var(--light);
+    border-radius: 4px;
+    padding: 14px 16px;
+  }
+
+  .tool-card .tool-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--teal-dark);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .tool-card .tool-desc {
+    font-size: 13px;
+    color: var(--mid);
+    font-weight: 300;
+  }
+
+  footer {
+    background: var(--anthrazit);
+    padding: 32px 40px;
+    text-align: center;
+  }
+
+  .footer-inner { max-width: 860px; margin: 0 auto; }
+
+  footer .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 5px;
+    color: var(--teal);
+    margin-bottom: 8px;
+  }
+
+  footer p {
+    font-size: 12px;
+    color: #444441;
+  }
+
+  @media (max-width: 600px) {
+    header, main { padding-left: 20px; padding-right: 20px; }
+    .tool-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="tag">Technical Manifest</div>
+    <h1>Das Token-Kosten Problem<br>in der KI-gestützten Entwicklung</h1>
+    <p class="mono">TRACE – Token-aware Realtime AI Context Engine · 2026</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- 01 Das Problem -->
+  <section>
+    <div class="section-label">01 — Das Problem</div>
+    <h2>Was die meisten Entwickler nicht wissen</h2>
+
+    <p>
+      KI-gestützte Entwicklung mit Claude, GPT oder anderen Modellen verursacht Kosten die auf den ersten Blick einfach wirken: Ich schreibe eine Nachricht, das Modell antwortet. Input-Token plus Output-Token gleich Kosten.
+    </p>
+
+    <p>
+      <strong>Das ist falsch.</strong> Und dieser Irrtum kostet – buchstäblich.
+    </p>
+
+    <div class="alert alert-red">
+      <p><strong>Wichtiger Punkt den viele unterschätzen:</strong> Bei jedem neuen Turn in einem Chat wird der <strong>gesamte bisherige Gesprächsverlauf</strong> als Input an das Modell übergeben – nicht nur die neue Nachricht.</p>
+    </div>
+
+    <p>Das bedeutet konkret:</p>
+
+    <div class="code-block">
+      <pre><span class="comment"># Was tatsächlich pro Turn an die API gesendet wird:</span>
+
+<span class="key">Deine neue Nachricht</span>     = Input-Token
+<span class="key">ALLE vorherigen Nachrichten</span> = auch Input-Token  ← das übersehen die meisten
+<span class="key">Systemkontext + Docs</span>    = auch Input-Token
+<span class="key">Antwort des Modells</span>      = Output-Token
+
+<span class="comment"># Das passiert weil LLMs zustandslos sind –</span>
+<span class="comment"># sie haben kein Gedächtnis zwischen Anfragen.</span>
+<span class="comment"># Der Kontext muss bei jedem Call komplett neu mitgeschickt werden.</span></pre>
+    </div>
+  </section>
+
+  <!-- 02 Progressive Kosten -->
+  <section>
+    <div class="section-label">02 — Die Mathematik</div>
+    <h2>Kosten steigen nicht linear – sondern progressiv</h2>
+
+    <p>
+      Ein Gespräch das nach 10 Turns insgesamt 50.000 Token angesammelt hat, kostet bei Turn 10 fast 100× mehr als bei Turn 1 – obwohl die eigentliche neue Nachricht gleich lang ist.
+    </p>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Turn</th>
+          <th>Neue Nachricht</th>
+          <th>Mitgeschickter Kontext</th>
+          <th>Gesamt-Input</th>
+          <th>Kosten-Index</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1</strong></td>
+          <td>100 Token</td>
+          <td>0 Token</td>
+          <td class="ok">100 Token</td>
+          <td>1×</td>
+        </tr>
+        <tr>
+          <td><strong>5</strong></td>
+          <td>100 Token</td>
+          <td>~4.000 Token</td>
+          <td>~4.100 Token</td>
+          <td>41×</td>
+        </tr>
+        <tr>
+          <td><strong>10</strong></td>
+          <td>100 Token</td>
+          <td>~9.800 Token</td>
+          <td class="hi">~9.900 Token</td>
+          <td>99×</td>
+        </tr>
+        <tr>
+          <td><strong>50</strong></td>
+          <td>100 Token</td>
+          <td>~49.800 Token</td>
+          <td class="hi">~49.900 Token</td>
+          <td>499×</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Die Formel ist einfach: <span class="formula">Kosten(Turn N) ≈ Kosten(Turn 1) × N</span>
+    </p>
+
+    <div class="alert">
+      <p><strong>Praxisbeispiel:</strong> Eine Claude Sonnet Session mit 50 Turns und durchschnittlich 1.000 Token pro Nachricht kostet nicht 50 × $0.003 = $0.15 – sondern durch den akkumulierten Kontext ein Vielfaches davon. Der letzte Turn allein kann teurer sein als die ersten 10 zusammen.</p>
+    </div>
+  </section>
+
+  <!-- 03 Wann es relevant wird -->
+  <section>
+    <div class="section-label">03 — Relevanz</div>
+    <h2>Wann das wirklich zählt</h2>
+
+    <p>
+      Bei <strong>claude.ai</strong> als Flatrate-Abo spielt das für den Nutzer keine direkte Rolle. Aber sobald die API direkt genutzt wird – in eigenen Projekten, Skripten, Agenten – schlägt es unmittelbar auf die Kosten durch.
+    </p>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Nutzungsart</th>
+          <th>Token-Kosten relevant?</th>
+          <th>Handlungsbedarf</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>claude.ai Flatrate</td>
+          <td class="ok">Nein (Abo)</td>
+          <td>Keiner</td>
+        </tr>
+        <tr>
+          <td>Anthropic API direkt</td>
+          <td class="hi">Ja – direkt</td>
+          <td>Hoch</td>
+        </tr>
+        <tr>
+          <td>Claude Code / Cursor</td>
+          <td class="hi">Ja – pro Session</td>
+          <td>Hoch</td>
+        </tr>
+        <tr>
+          <td>Eigene Apps / Agenten</td>
+          <td class="hi">Ja – kritisch</td>
+          <td>Sehr hoch</td>
+        </tr>
+        <tr>
+          <td>MCP Server Integration</td>
+          <td class="hi">Ja – versteckt</td>
+          <td>Hoch</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-red">
+      <p><strong>Versteckter Kostentreiber MCP:</strong> Jeder registrierte MCP Server fügt seine Tool-Definitionen als Input-Token zu jedem API-Call hinzu – unabhängig davon ob das Tool aufgerufen wird. Bei 5 MCP Servern à 300 Token sind das 1.500 Token overhead pro Turn.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- 04 Zweites Problem -->
+  <section>
+    <div class="section-label">04 — Das zweite Problem</div>
+    <h2>Dokumenten-Drift: Kontext veraltet in Stunden</h2>
+
+    <p>
+      Neben den Kosten gibt es ein zweites Problem das direkt damit zusammenhängt: Projektdokumentation veraltet schnell – und eine veraltete <code>AI_CONTEXT.md</code> bedeutet dass die KI bei jedem neuen Thread blind neu eingeführt werden muss.
+    </p>
+
+    <div class="code-block">
+      <pre><span class="comment"># Typischer Dokumenten-Drift ohne TRACE:</span>
+
+<span class="key">ARCHITECTURE.md</span>   <span class="hi">→ veraltet nach 2 Wochen</span>
+<span class="key">JOURNAL.md</span>        <span class="hi">→ veraltet nach 1 Woche</span>
+<span class="key">LEARNINGS.md</span>      <span class="hi">→ veraltet nach 3 Tagen</span>
+<span class="key">AI_CONTEXT.md</span>     <span class="hi">→ veraltet nach Stunden</span>
+
+<span class="comment"># Konsequenz: Der Entwickler gibt der KI bei jedem</span>
+<span class="comment"># neuen Thread dieselbe Basis-Erklärung – und zahlt</span>
+<span class="comment"># dafür jedes Mal Input-Token.</span></pre>
+    </div>
+
+    <p>
+      Das ist <strong>doppelt ineffizient</strong>: Erst veraltet die Dokumentation, dann muss der Entwickler manuell Kontext aufbauen, dann zahlt er Token für etwas das automatisierbar wäre.
+    </p>
+  </section>
+
+  <!-- 05 Strategien -->
+  <section>
+    <div class="section-label">05 — Strategien</div>
+    <h2>Was man dagegen tun kann</h2>
+
+    <p>Es gibt drei Strategien die sofort helfen – unabhängig von TRACE:</p>
+
+    <div class="code-block">
+      <pre><span class="comment"># Strategie 1: Regelmäßige Session-Schnitte</span>
+<span class="key">Problem:</span>  <span class="val">Langer Thread = hohe Kosten pro Turn</span>
+<span class="key">Lösung:</span>   <span class="val">Neuen Thread starten mit komprimiertem Kontext</span>
+<span class="key">Schwelle:</span> <span class="val">~30.000 Token = Warnung / ~50.000 Token = Reset</span>
+
+<span class="comment"># Strategie 2: Token-optimierter Kontext</span>
+<span class="key">Problem:</span>  <span class="val">5 separate Docs = hoher Input-Token-Overhead</span>
+<span class="key">Lösung:</span>   <span class="val">AI_CONTEXT.md als Single Source of Truth</span>
+<span class="key">Ziel:</span>     <span class="val">Maximale Info, minimale Token</span>
+
+<span class="comment"># Strategie 3: Prompt Caching (Anthropic API)</span>
+<span class="key">Problem:</span>  <span class="val">Wiederkehrender Kontext kostet jedes Mal</span>
+<span class="key">Lösung:</span>   <span class="val">Cache-Prefix für statische Kontextblöcke</span>
+<span class="key">Ersparnis:</span> <span class="val">Bis zu 90% auf gecachte Input-Token</span></pre>
+    </div>
+
+    <div class="alert alert-teal">
+      <p><strong>Claude Code Auto-Compact vs. proaktives Management:</strong> Claude Code komprimiert automatisch bei ~80–90% des 200k Token Context Windows – also erst wenn es fast zu spät ist und die Kosten pro Turn bereits sehr hoch sind. Proaktives Session-Management bei 30k–50k Token ist deutlich günstiger.</p>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- 06 TRACE -->
+  <section>
+    <div class="section-label">06 — Die Lösung</div>
+    <h2>TRACE: Token-aware Realtime AI Context Engine</h2>
+
+    <p>
+      TRACE ist ein <strong>MCP Server</strong> der lokal auf dem Entwicklerrechner läuft und direkt in Claude Code, Cursor und Codex integriert ist. Es löst beide Probleme gleichzeitig – Kosten-Transparenz und Kontext-Aktualität – ohne selbst API-Kosten zu verursachen.
+    </p>
+
+    <p>
+      <strong>Kernprinzip: Lokal schwer, API leicht.</strong> Alle Berechnungen, Git-Analysen und Dokumentenpflege laufen lokal in Python. Die MCP-Schnittstelle liefert nur komprimierte Ergebnisse zurück.
+    </p>
+
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-name">log_session()</div>
+        <div class="tool-desc">Token-Verbrauch und Kosten pro Session erfassen</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_costs()</div>
+        <div class="tool-desc">Kosten-Report pro Projekt und Zeitraum</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">check_drift()</div>
+        <div class="tool-desc">Erkennt veraltete AI_CONTEXT.md automatisch</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">update_context()</div>
+        <div class="tool-desc">Synchronisiert Docs mit Git-History</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">new_session()</div>
+        <div class="tool-desc">Komprimierten Handoff-Prompt generieren</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-name">get_tips()</div>
+        <div class="tool-desc">Aktive Kosten-Optimierungsempfehlungen</div>
+      </div>
+    </div>
+
+    <div class="alert alert-teal">
+      <p><strong>Architektur:</strong> TRACE läuft als zentraler MCP Server mit einer gemeinsamen <code>~/.trace/trace.db</code> für alle Projekte. Git Hooks werden über Gits globales Template-System automatisch in jeden neuen Clone installiert – zero manual setup nach der Einrichtung.</p>
+    </div>
+  </section>
+
+  <!-- Conclusion -->
+  <div class="conclusion">
+    <h3>Fazit</h3>
+    <p>
+      Token-Kosten in der KI-gestützten Entwicklung sind <strong>kein lineares Problem</strong> – sie sind ein progressives, das ohne aktives Management exponentiell wächst.
+    </p>
+    <p>
+      Die meisten Entwickler bemerken das erst wenn die API-Rechnung unerwartet hoch ist. TRACE macht das Problem sichtbar – bevor es teuer wird.
+    </p>
+    <p>
+      <strong>Messe statt schätze. Steuere statt reagiere. Dokumentiere für die KI, nicht nur für Menschen.</strong>
+    </p>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="logo">TRACE</div>
+    <p>Token-aware Realtime AI Context Engine · MIT License · github.com/MyPatric69/trace</p>
+  </div>
+</footer>
+
+</body>
+</html>

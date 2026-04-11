@@ -28,8 +28,22 @@ cat > "$HOOK_DST" << HOOK
 # TRACE installation: $TRACE_ROOT
 
 PROJECT_ROOT="\$(git rev-parse --show-toplevel 2>/dev/null)"
-python3 "$TRACE_ROOT/engine/hook_runner.py" "\$PROJECT_ROOT" 2>/dev/null || true
+TRACE_HOME="$TRACE_ROOT"
+
+# Auto-register project in ~/.trace/trace.db if not yet known
+python3 -c "
+import sys
+sys.path.insert(0, '\$TRACE_HOME')
+from engine.auto_register import register_if_unknown
+register_if_unknown('\$PROJECT_ROOT')
+" 2>/dev/null || true
+
+# Update AI_CONTEXT.md if doc-relevant changes detected
+python3 "\$TRACE_HOME/engine/hook_runner.py" "\$PROJECT_ROOT" 2>/dev/null || true
 HOOK
 
 chmod +x "$HOOK_DST"
 echo "TRACE hook installed in $TARGET"
+
+# Auto-register the project now
+python3 "$TRACE_ROOT/engine/auto_register.py" "$TARGET" || true
