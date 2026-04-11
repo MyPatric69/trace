@@ -46,6 +46,14 @@ def _since(period: str) -> str | None:
 # Static
 # ---------------------------------------------------------------------------
 
+@app.get("/favicon.svg")
+async def favicon():
+    return FileResponse(
+        Path(__file__).parent / "favicon.svg",
+        media_type="image/svg+xml"
+    )
+
+
 @app.get("/", response_class=FileResponse)
 def index():
     return FileResponse(_DASHBOARD_DIR / "index.html")
