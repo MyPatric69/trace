@@ -10,11 +10,12 @@ budgets:
 
 session:
   # Warn when a single session approaches this token count
-  warn_at_tokens: 30000
+  warn_at_tokens: 60000
   # Recommend new_session() at this threshold
-  recommend_reset_at: 50000
+  recommend_reset_at: 100000
   # Claude Code auto-compact kicks in around 180000 tokens
   # TRACE acts proactively well before that point
+  # Informational only – do not reach this
   claude_autocompact_approx: 180000
 
 models:
