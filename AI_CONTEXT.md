@@ -191,17 +191,29 @@ trace/
 - [x] `engine/store.py` – `get_token_summary()` + `get_sessions_with_projects()` added
 
 **Auto session logging (complete – 16 tests):**
-- [x] `engine/session_logger.py` – SessionEnd hook handler
+- [x] `engine/session_logger.py` – SessionEnd hook handler; calls `LiveTracker(cwd).clear()` on exit
+- [x] `engine/transcript_parser.py` – shared `parse_transcript()` extracted from session_logger
   - `parse_transcript(path)` – reads JSONL; only processes `type:"assistant"` lines;
-    deduplicates by `requestId`; sums `input_tokens + cache_creation_input_tokens +
-    cache_read_input_tokens`; detects most-common model
+    deduplicates by `requestId`; sums `input_tokens + cache_creation_input_tokens`;
+    detects most-common model
   - `detect_project(cwd)` – path match → name fallback against `~/.trace/trace.db`
-  - `run()` – reads stdin JSON, logs session; never raises, errors → `~/.trace/session_logger.log`
-- [x] `hooks/setup_claude_hook.sh` – installs SessionEnd entry in `~/.claude/settings.json`
-  with quoted path (handles spaces) and `matcher:""` field
+- [x] `hooks/setup_claude_hook.sh` – installs SessionEnd + PostToolUse in `~/.claude/settings.json`
 - [x] `trace_config.yaml` + `~/.trace/trace_config.yaml` – added `claude-sonnet-4-6` model
 - [x] `TROUBLESHOOTING.md` – Issue 9: sessions not auto-logging
 - [x] 195/195 tests green
+
+**Live Token Tracking (complete – 18 tests):**
+- [x] `engine/transcript_parser.py` – shared parsing module (no duplication)
+- [x] `engine/live_tracker.py` – `LiveTracker` class
+  - `update(transcript_path, cwd)` – parses transcript, computes health (ok/warn/reset),
+    writes `~/.trace/live_session.json`
+  - `clear()` – deletes live file on SessionEnd
+  - `get_live()` – returns data or None if absent / stale (>5 min)
+- [x] `engine/live_session_hook.py` – PostToolUse hook entry point
+- [x] `dashboard/server.py` – `/api/live` endpoint
+- [x] `dashboard/index.html` – Live Session panel (pulsing dot, 5s refresh)
+- [x] `hooks/setup_claude_hook.sh` – idempotently adds PostToolUse alongside SessionEnd
+- [x] 213/213 tests green
 
 **parse_transcript real-world format (Claude Code ≥ 1.x):**
 - Each line has `type`: only `"assistant"` lines carry usage
@@ -214,7 +226,7 @@ trace/
 
 **Next: v0.2.0**
 - [x] Config Auto-Sync (`engine/store.py` refactor)
-- [ ] Live Token Tracking (`engine/live_tracker.py`)
+- [x] Live Token Tracking (`engine/live_tracker.py`)
 - [ ] Provider adapters (`engine/providers/`)
 - [ ] WebSocket Push (`dashboard/`)
 
@@ -222,4 +234,4 @@ trace/
 
 ## Last updated
 
-2026-04-11 – v0.2.0 Feature 1: Config Auto-Sync implemented
+2026-04-11 – v0.2.0 Feature 2: Live Token Tracking implemented

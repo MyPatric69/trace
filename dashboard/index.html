@@ -311,6 +311,84 @@
     }
 
     .empty { color: var(--muted); font-size: 0.8125rem; padding: 0.5rem 0; }
+
+    /* ── Live Session Panel ── */
+    .live-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem 1.25rem;
+    }
+    .live-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .live-dot.active  { background: var(--teal); animation: live-pulse 1.5s ease-in-out infinite; }
+    .live-dot.inactive { background: var(--muted); }
+    @keyframes live-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.75); }
+    }
+    .live-badge {
+      font-family: var(--mono);
+      font-size: 0.6563rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+    .live-project {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--teal);
+    }
+    .live-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr) auto;
+      gap: 1rem;
+      align-items: center;
+    }
+    .live-metric { }
+    .live-metric-label {
+      font-family: var(--mono);
+      font-size: 0.5938rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.2rem;
+    }
+    .live-metric-value {
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .live-health {
+      padding: 0.25rem 0.625rem;
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+    .live-health.ok    { background: #D1FAE5; color: #065F46; }
+    .live-health.warn  { background: #FEF3C7; color: #92400E; }
+    .live-health.reset { background: #FEE2E2; color: #991B1B; }
+    .live-inactive {
+      color: var(--muted);
+      font-size: 0.8125rem;
+      font-family: var(--mono);
+    }
   </style>
 </head>
 <body>
@@ -349,7 +427,19 @@
     </div>
   </div>
 
-  <!-- 2 · Session health bar -->
+  <!-- 2 · Live Session panel -->
+  <div class="live-card">
+    <div class="live-header">
+      <span class="live-dot inactive" id="live-dot"></span>
+      <span class="live-badge">Live Session</span>
+      <span class="live-project" id="live-project"></span>
+    </div>
+    <div id="live-body">
+      <div class="live-inactive">No active session</div>
+    </div>
+  </div>
+
+  <!-- 3 · Session health bar -->
   <div class="health-card">
     <div class="card-title">Session Health</div>
     <div class="health-row">
@@ -370,7 +460,7 @@
     </a>
   </div>
 
-  <!-- 3 · Drift + Tips -->
+  <!-- 4 · Drift + Tips -->
   <div class="two-col">
     <div class="panel">
       <div class="card-title">Context Drift</div>
@@ -382,7 +472,7 @@
     </div>
   </div>
 
-  <!-- 4 · Model usage -->
+  <!-- 5 · Model usage -->
   <div class="models-card">
     <div class="card-title">Model Usage · Last 7 Days</div>
     <div id="models-list"><div class="empty">Loading…</div></div>
@@ -482,6 +572,55 @@
     } else {
       link.href      = '#';
       link.className = 'handoff-link disabled';
+    }
+  }
+
+  // ── Live session panel ────────────────────────────────────────────────────
+
+  async function loadLive() {
+    try {
+      const d = await api('/api/live');
+      const dot     = $('live-dot');
+      const project = $('live-project');
+      const body    = $('live-body');
+
+      if (!d.active) {
+        dot.className     = 'live-dot inactive';
+        project.textContent = '';
+        body.innerHTML    = '<div class="live-inactive">No active session</div>';
+        return;
+      }
+
+      dot.className       = 'live-dot active';
+      project.textContent = d.project !== 'unknown' ? d.project : '';
+
+      const healthCls = d.health === 'reset' ? 'reset' : d.health === 'warn' ? 'warn' : 'ok';
+      const healthLbl = d.health === 'reset' ? 'Reset recommended'
+                      : d.health === 'warn'  ? 'Warning'
+                      :                        'OK';
+
+      body.innerHTML = `
+        <div class="live-metrics">
+          <div class="live-metric">
+            <div class="live-metric-label">Input Tokens</div>
+            <div class="live-metric-value">${num(d.input_tokens)}</div>
+          </div>
+          <div class="live-metric">
+            <div class="live-metric-label">Output Tokens</div>
+            <div class="live-metric-value">${num(d.output_tokens)}</div>
+          </div>
+          <div class="live-metric">
+            <div class="live-metric-label">Cost so far</div>
+            <div class="live-metric-value">${usd(d.cost_usd)}</div>
+          </div>
+          <div class="live-metric">
+            <div class="live-metric-label">Turns</div>
+            <div class="live-metric-value">${d.turns}</div>
+          </div>
+          <div class="live-health ${healthCls}">${healthLbl}</div>
+        </div>`;
+    } catch (e) {
+      // silent – live panel is non-critical
     }
   }
 
@@ -598,8 +737,9 @@
 
   async function init() {
     await Promise.all([loadStatus(), loadProjects()]);
-    await loadAll();
+    await Promise.all([loadAll(), loadLive()]);
     setInterval(loadAll, 30_000);
+    setInterval(loadLive, 5_000);
   }
 
   init();

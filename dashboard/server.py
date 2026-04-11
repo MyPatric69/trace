@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
 from engine.store import TraceStore, TRACE_HOME
+from engine.live_tracker import LiveTracker
 from server.tools.context import check_drift, update_context
 from server.tools.session import get_tips, new_session
 
@@ -179,6 +180,21 @@ def api_sync(project_name: str):
         return update_context(project_name)
     except Exception as e:
         return {"status": "error", "project": project_name, "message": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# /api/live  (live session – updated every tool call via PostToolUse hook)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/live")
+def api_live():
+    try:
+        data = LiveTracker(None).get_live()
+        if data is None:
+            return {"active": False, "message": "No active session"}
+        return {"active": True, **data}
+    except Exception:
+        return {"active": False, "message": "No active session"}
 
 
 # ---------------------------------------------------------------------------
