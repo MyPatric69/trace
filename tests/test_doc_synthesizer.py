@@ -45,6 +45,12 @@ def real_synth() -> DocSynthesizer:
 def tmp_synth(tmp_path) -> DocSynthesizer:
     """DocSynthesizer with a fresh git repo and AI_CONTEXT.md in tmp_path."""
     repo = git.Repo.init(str(tmp_path))
+    # Neutralise any globally-installed post-commit hook so it cannot call
+    # auto_register and write temp project paths to ~/.trace/trace.db.
+    hook_path = tmp_path / ".git" / "hooks" / "post-commit"
+    hook_path.parent.mkdir(exist_ok=True)
+    hook_path.write_text("#!/bin/sh\nexit 0\n")
+    hook_path.chmod(0o755)
     with repo.config_writer() as cw:
         cw.set_value("user", "name", "Test")
         cw.set_value("user", "email", "test@example.com")
@@ -75,6 +81,10 @@ def test_get_context_path_existing_file_not_overwritten(tmp_synth):
 def test_get_context_path_creates_template_when_missing(tmp_path):
     """If AI_CONTEXT.md is absent, get_context_path() creates it from template."""
     repo = git.Repo.init(str(tmp_path))
+    hook_path = tmp_path / ".git" / "hooks" / "post-commit"
+    hook_path.parent.mkdir(exist_ok=True)
+    hook_path.write_text("#!/bin/sh\nexit 0\n")
+    hook_path.chmod(0o755)
     with repo.config_writer() as cw:
         cw.set_value("user", "name", "Test")
         cw.set_value("user", "email", "test@example.com")
@@ -105,6 +115,10 @@ def test_read_context_returns_content(tmp_synth):
 
 def test_read_context_returns_empty_string_when_no_file(tmp_path):
     repo = git.Repo.init(str(tmp_path))
+    hook_path = tmp_path / ".git" / "hooks" / "post-commit"
+    hook_path.parent.mkdir(exist_ok=True)
+    hook_path.write_text("#!/bin/sh\nexit 0\n")
+    hook_path.chmod(0o755)
     with repo.config_writer() as cw:
         cw.set_value("user", "name", "Test")
         cw.set_value("user", "email", "test@example.com")

@@ -29,6 +29,12 @@ Test project.
 
 def _init_repo(tmp_path, context_content: str = _TEST_CONTEXT):
     repo = git.Repo.init(str(tmp_path))
+    # Neutralise any globally-installed post-commit hook so it cannot call
+    # auto_register and write temp project paths to ~/.trace/trace.db.
+    hook_path = tmp_path / ".git" / "hooks" / "post-commit"
+    hook_path.parent.mkdir(exist_ok=True)
+    hook_path.write_text("#!/bin/sh\nexit 0\n")
+    hook_path.chmod(0o755)
     with repo.config_writer() as cw:
         cw.set_value("user", "name", "Test")
         cw.set_value("user", "email", "test@example.com")
