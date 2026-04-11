@@ -36,26 +36,47 @@ Developers who use AI coding assistants daily and want to stop hemorrhaging toke
 
 ## Roadmap
 
-### Phase 1 – Foundation (MVP)
-- `store.py` – SQLite-backed project and session store
-- `log_session()` – manual token/cost logging per session
-- `get_costs()` – cost report per project and total
+### v0.1.0 (complete)
+- 6 MCP tools: `log_session`, `get_costs`, `check_drift`, `update_context`, `new_session`, `get_tips`
+- Local web dashboard at http://localhost:8080
+- Git hook auto-updates `AI_CONTEXT.md` on every commit
+- `SessionEnd` hook auto-logs token usage
+- Central `~/.trace/` database for all projects
+- Global git template – zero setup per project
 
-### Phase 2 – Context Intelligence
-- `git_watcher.py` – post-commit hook integration
-- `doc_synthesizer.py` – automatic `AI_CONTEXT.md` generation and updates
-- `update_context()` – MCP tool to trigger context refresh
-- `check_drift()` – detects stale documentation
+### v0.2.0 (planned)
+Four features in priority order:
 
-### Phase 3 – Optimization Layer
-- `context_compressor.py` – session summary generation
-- `new_session()` – guided session reset with compressed handoff. Directly addresses Claude Code's reactive Auto-Compact behaviour by giving developers proactive control over session boundaries and cost exposure.
-- `get_tips()` – active cost optimization recommendations
+1. **Config Auto-Sync**
+   - Store reads `~/.trace/trace_config.yaml` first, falls back to project `trace_config.yaml`
+   - `setup_global_template.sh` syncs config automatically
+   - Eliminates dual-config technical debt
 
-### Phase 4 – Observability (future)
-- Web dashboard (optional, local)
-- Multi-MCP cost tracking via proxy layer
+2. **Live Token Tracking**
+   - `PostToolUse` hook reads `transcript.jsonl` after every tool call
+   - Writes to `~/.trace/live_session.json`
+   - New `/api/live` endpoint in dashboard
+   - Dashboard refreshes live panel every 5 seconds
+   - Proactive session management – no need to end session to see current token count
+
+3. **Provider-agnostic API Integration**
+   - Abstract provider interface in `engine/providers/`
+   - Adapters: `anthropic`, `openai`, `vertexai`, `manual`
+   - Credential sources: env, keychain, file
+   - Budget tracking where provider supports quotas
+   - Dashboard shows "no quota configured" when provider returns no budget data
+   - Extensible: new providers via PR
+
+4. **WebSocket Push**
+   - Replace polling with WebSocket push
+   - Dashboard updates instantly when DB changes
+   - No more 30s delay after session end
+
+### v0.3.0 (ideas)
 - Team/shared project support
+- CI/CD pipeline integration
+- Export costs as CSV/PDF report
+- Slack/email alerts for budget thresholds
 
 ## Why TRACE?
 

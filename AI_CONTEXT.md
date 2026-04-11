@@ -11,7 +11,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** Phase 4 complete – web dashboard live
+**Status:** v0.1.1 complete – v0.2.0 planning in progress
 
 ---
 
@@ -212,13 +212,14 @@ trace/
   totals to millions of tokens for a session that never exceeded 200K at any point)
 - Sanity warning logged if `input_tokens > 200_000` (not a cap; long sessions are valid)
 
-**Next: v0.2.0 planning**
-- [ ] Multi-project cost comparison view in dashboard
-- [ ] Session budget alerts via MCP notification
-- [ ] README model price table update for Claude 4.x models
+**Next: v0.2.0**
+- [ ] Config Auto-Sync (`engine/store.py` refactor)
+- [ ] Live Token Tracking (`engine/live_tracker.py`)
+- [ ] Provider adapters (`engine/providers/`)
+- [ ] WebSocket Push (`dashboard/`)
 
 ---
 
 ## Last updated
 
-2026-04-11 – Auto-synced 1 commit(s) to 6ccb080
+2026-04-11 – v0.2.0 planning added to VISION.md and AI_CONTEXT.md
