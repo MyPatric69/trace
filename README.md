@@ -152,6 +152,13 @@ Prices are read from `~/.trace/trace_config.yaml` at startup. Adding a new model
 
 ---
 
+## Troubleshooting
+
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+for common issues and solutions.
+
+---
+
 ## License
 
 MIT License – see LICENSE file.

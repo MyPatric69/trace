@@ -1,0 +1,269 @@
+# Troubleshooting
+
+Common issues and their solutions when setting up
+and running TRACE.
+
+---
+
+## Issue 1: Project shows X commits behind in dashboard
+
+**Symptom:**
+Dashboard shows a project with many commits behind
+(e.g. "287 commits behind") even though the project
+is up to date.
+
+**Cause:**
+`.trace_sync` file is missing in the project root.
+TRACE uses this file as a bookmark for the last
+synced commit. Without it, TRACE counts all commits
+from the beginning of the repository.
+
+**Fix:**
+```bash
+cd /path/to/your/project
+git rev-parse HEAD > .trace_sync
+```
+
+Then reload the dashboard – the counter should reset to 0.
+
+---
+
+## Issue 2: Project not showing in dashboard
+
+**Symptom:**
+A project exists locally but does not appear
+in the TRACE dashboard or project selector.
+
+**Cause:**
+The project has not been registered in
+`~/.trace/trace.db`.
+
+**Fix:**
+```python
+python3 -c "
+from engine.store import TraceStore
+store = TraceStore.default()
+store.add_project(
+    'your-project-name',
+    '/path/to/your/project',
+    'Short description'
+)
+print('Registered.')
+"
+```
+
+Then install the hook:
+```bash
+bash hooks/install_hook.sh /path/to/your/project
+```
+
+---
+
+## Issue 3: UNIQUE constraint failed: projects.name
+
+**Symptom:**
+```
+sqlite3.IntegrityError: UNIQUE constraint failed: projects.name
+```
+
+**Cause:**
+The project name is already registered in the DB.
+This typically happens when using a placeholder name
+like "projekt-name" that was already added.
+
+**Fix – check what is already registered:**
+```python
+python3 -c "
+from engine.store import TraceStore
+for p in TraceStore.default().list_projects():
+    print(f'  - {p[\"name\"]}  →  {p[\"path\"]}')
+"
+```
+
+If the name is wrong, rename it:
+```python
+python3 -c "
+import sqlite3
+from pathlib import Path
+db = Path.home() / '.trace' / 'trace.db'
+conn = sqlite3.connect(db)
+conn.execute(
+    \"UPDATE projects SET name = 'correct-name' \
+      WHERE name = 'wrong-name'\"
+)
+conn.commit()
+conn.close()
+print('Fixed.')
+"
+```
+
+---
+
+## Issue 4: AI_CONTEXT.md shows as modified after every commit
+
+**Symptom:**
+After every git commit, `git status` shows:
+```
+modified: AI_CONTEXT.md
+```
+
+**Cause:**
+This is expected behaviour – not a bug.
+The TRACE post-commit hook automatically updates
+`AI_CONTEXT.md` after every commit to keep it
+in sync with the latest changes.
+
+**Fix:**
+Simply stage and commit the change as part
+of your normal workflow:
+
+```bash
+git add AI_CONTEXT.md
+git commit -m "chore: AI_CONTEXT.md auto-sync"
+```
+
+Tip: if you want to suppress this for doc-only or
+chore commits, this behaviour will be configurable
+in a future release.
+
+---
+
+## Issue 5: Dashboard shows test project names
+
+**Symptom:**
+Dashboard shows projects with names like
+`test_check_drift_stale_when_be0` or `tmpXXXXX`.
+
+**Cause:**
+pytest test fixtures wrote temporary projects into
+`~/.trace/trace.db`. This is fixed in TRACE v0.1.0
+but may affect older installs.
+
+**Fix – identify and remove test projects:**
+```python
+python3 -c "
+import sqlite3
+from pathlib import Path
+db = Path.home() / '.trace' / 'trace.db'
+conn = sqlite3.connect(db)
+rows = conn.execute(
+    'SELECT id, name, path FROM projects'
+).fetchall()
+for r in rows:
+    print(r)
+conn.close()
+"
+```
+
+Then delete any test entries by id:
+```python
+python3 -c "
+import sqlite3
+from pathlib import Path
+db = Path.home() / '.trace' / 'trace.db'
+conn = sqlite3.connect(db)
+conn.execute('DELETE FROM projects WHERE id = ?', (ID,))
+conn.commit()
+conn.close()
+print('Removed.')
+"
+```
+
+Replace `ID` with the actual id from the list above.
+
+---
+
+## Issue 6: Hook not firing after commits
+
+**Symptom:**
+`AI_CONTEXT.md` is never updated automatically.
+`.trace_sync` is never updated after commits.
+
+**Cause:**
+The global git template was not installed, or the
+hook is not executable.
+
+**Fix – run the global template setup:**
+```bash
+bash hooks/setup_global_template.sh
+```
+
+For existing repos, install manually:
+```bash
+bash hooks/install_hook.sh /path/to/your/project
+```
+
+Verify the hook is executable:
+```bash
+ls -la /path/to/your/project/.git/hooks/post-commit
+```
+
+If not executable:
+```bash
+chmod +x /path/to/your/project/.git/hooks/post-commit
+```
+
+---
+
+## Issue 7: Dashboard not starting
+
+**Symptom:**
+`bash dashboard/start.sh` fails with
+`ModuleNotFoundError` or `address already in use`.
+
+**Cause A – missing dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+**Cause B – port 8080 already in use:**
+```bash
+lsof -i :8080
+kill -9 PID
+```
+
+Then restart:
+```bash
+bash dashboard/start.sh
+```
+
+---
+
+## Issue 8: favicon.ico 404 in server logs
+
+**Symptom:**
+Server logs show:
+```
+GET /favicon.ico HTTP/1.1" 404 Not Found
+```
+
+**Cause:**
+Browsers automatically request `favicon.ico`.
+TRACE serves `favicon.svg` not `favicon.ico`.
+
+**Fix:**
+This is harmless – the browser tab still shows
+the correct SVG icon. The 404 for `favicon.ico`
+can be safely ignored.
+It is resolved in TRACE v0.1.0 which serves
+`/favicon.svg` and references it in `index.html`.
+
+---
+
+## Still stuck?
+
+Check the project status:
+```python
+python3 -c "
+from engine.store import TraceStore
+store = TraceStore.default()
+print('Projects:')
+for p in store.list_projects():
+    print(f'  - {p[\"name\"]}  →  {p[\"path\"]}')
+summary = store.get_cost_summary()
+print(f'Total cost tracked: \${summary[\"total_cost_usd\"]:.4f}')
+"
+```
+
+Open an issue on GitHub:
+https://github.com/MyPatric69/trace/issues
