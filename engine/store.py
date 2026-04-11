@@ -1,20 +1,44 @@
+import shutil
 import sqlite3
 from pathlib import Path
 from datetime import date
 
 import yaml
 
+TRACE_HOME = Path.home() / ".trace"
+
 
 class TraceStore:
-    def __init__(self, config_path: str = "trace_config.yaml"):
-        config_path = Path(config_path)
-        with open(config_path) as f:
-            self.config = yaml.safe_load(f)
+    def __init__(self, config_path: str | None = None):
+        if config_path is None:
+            # Central mode: always use ~/.trace/
+            TRACE_HOME.mkdir(parents=True, exist_ok=True)
+            central_config = TRACE_HOME / "trace_config.yaml"
+            if not central_config.exists():
+                # Bootstrap: copy from project config in cwd if available
+                project_config = Path("trace_config.yaml")
+                if project_config.exists():
+                    shutil.copy2(project_config, central_config)
+            resolved = central_config if central_config.exists() else Path("trace_config.yaml")
+            with open(resolved) as f:
+                self.config = yaml.safe_load(f)
+            self.config_path = resolved
+            self.db_path = TRACE_HOME / "trace.db"
+        else:
+            # Explicit config provided (tests / legacy callers)
+            resolved = Path(config_path)
+            with open(resolved) as f:
+                self.config = yaml.safe_load(f)
+            self.config_path = resolved
+            db_rel = self.config["trace"]["db_path"]
+            self.db_path = resolved.parent / db_rel
 
-        db_path = self.config["trace"]["db_path"]
-        # Resolve db_path relative to the config file's directory
-        self.db_path = config_path.parent / db_path
         self.model_prices = self.config.get("models", {})
+
+    @classmethod
+    def default(cls) -> "TraceStore":
+        """Standard entry point for all tools – always uses ~/.trace/trace.db."""
+        return cls()
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)

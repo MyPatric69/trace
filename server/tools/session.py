@@ -4,23 +4,14 @@ from __future__ import annotations
 from datetime import date, timedelta
 from pathlib import Path
 
-import yaml
-
 from engine.context_compressor import ContextCompressor
 from engine.store import TraceStore
 
-_CONFIG_PATH = Path(__file__).parents[2] / "trace_config.yaml"
-
 
 def _store() -> TraceStore:
-    store = TraceStore(str(_CONFIG_PATH))
+    store = TraceStore.default()
     store.init_db()
     return store
-
-
-def _load_config() -> dict:
-    with open(_CONFIG_PATH) as f:
-        return yaml.safe_load(f)
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +25,7 @@ def new_session(project_name: str, dry_run: bool = False) -> dict:
         return {"status": "error", "message": f"Project not found: {project_name}"}
 
     project_path = project["path"]
-    compressor = ContextCompressor(project_path, config_path=str(_CONFIG_PATH))
+    compressor = ContextCompressor(project_path, config_path=str(store.config_path))
     rec = compressor.get_session_recommendation()
 
     recommendation = rec["recommendation"]
@@ -101,7 +92,7 @@ def new_session(project_name: str, dry_run: bool = False) -> dict:
 
 def get_tips(project_name: str | None = None) -> dict:
     store = _store()
-    config = _load_config()
+    config = store.config
 
     today = date.today()
     seven_days_ago = (today - timedelta(days=7)).isoformat()

@@ -35,8 +35,12 @@ MCP Server Core  [server/main.py – FastMCP]
     ↕ internal calls
 Local Intelligence Engine  [engine/]
     ↕ read/write
-Data Layer  [AI_CONTEXT.md · trace.db · trace_config.yaml]
+Data Layer  [AI_CONTEXT.md · ~/.trace/trace.db · ~/.trace/trace_config.yaml]
 ```
+
+**Central storage:** All tools use `TraceStore.default()` which always points to
+`~/.trace/trace.db` and `~/.trace/trace_config.yaml`. On first run the config is
+bootstrapped by copying the project `trace_config.yaml` to `~/.trace/`.
 
 ---
 
@@ -47,7 +51,7 @@ trace/
 ├── AI_CONTEXT.md          ← this file
 ├── VISION.md
 ├── README.md
-├── trace_config.yaml      ← project registry + budgets + model prices
+├── trace_config.yaml      ← source config (bootstrapped to ~/.trace/ on first run)
 │
 ├── server/
 │   ├── main.py            ← FastMCP entry point
@@ -63,12 +67,17 @@ trace/
 │   ├── doc_synthesizer.py
 │   ├── token_tracker.py
 │   ├── cost_controller.py
-│   └── store.py           ← SQLite interface
+│   ├── store.py           ← SQLite interface – TraceStore.default() → ~/.trace/
+│   └── migrate.py         ← one-time migration: local trace.db → ~/.trace/trace.db
 │
 ├── hooks/
 │   └── post-commit        ← Git Hook template
 │
 └── tests/
+
+~/.trace/
+├── trace.db               ← single central DB for all projects
+└── trace_config.yaml      ← central config (bootstrapped from project on first run)
 ```
 
 ---
@@ -143,11 +152,19 @@ trace/
 - [x] Implement `new_session()` MCP tool – guided session reset with compressed handoff
 - [x] Implement `get_tips()` MCP tool – active cost optimization recommendations
 
+**Central DB migration (complete):**
+- [x] `TraceStore.default()` – always uses `~/.trace/trace.db`
+- [x] `TRACE_HOME` constant exported from `engine/store.py`
+- [x] `engine/migrate.py` – one-time migration, idempotent CLI
+- [x] All tools updated to `TraceStore.default()` (no more hardcoded config paths)
+- [x] 141/141 tests green
+
 **Phase 4 (next):**
-- [ ] Plan Phase 4 – observability, web dashboard, multi-project support
+- [ ] Git Template setup – auto-install hook for new repos
+- [ ] Web dashboard – optional FastAPI UI at `~/.trace/`
 
 ---
 
 ## Last updated
 
-2026-04-10 – Phase 3 complete. All 6 MCP tools live. 141/141 tests green.
+2026-04-11 – Central DB migration complete; TraceStore.default() → ~/.trace/trace.db

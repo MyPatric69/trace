@@ -1,14 +1,10 @@
 from datetime import date, timedelta
-from pathlib import Path
 
 from engine.store import TraceStore
 
-# Resolve config relative to project root (two levels up from server/tools/)
-_CONFIG_PATH = Path(__file__).parents[2] / "trace_config.yaml"
-
 
 def _store() -> TraceStore:
-    store = TraceStore(str(_CONFIG_PATH))
+    store = TraceStore.default()
     store.init_db()
     return store
 

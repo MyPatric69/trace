@@ -15,14 +15,14 @@ if str(_TRACE_ROOT) not in sys.path:
     sys.path.insert(0, str(_TRACE_ROOT))
 
 from engine.doc_synthesizer import DocSynthesizer  # noqa: E402 (after path setup)
-
-_CONFIG_PATH = _TRACE_ROOT / "trace_config.yaml"
+from engine.store import TraceStore  # noqa: E402
 
 
 def run(project_path: str) -> None:
     """Check for drift and update AI_CONTEXT.md if doc-relevant changes exist."""
     try:
-        synth = DocSynthesizer(project_path, config_path=str(_CONFIG_PATH))
+        store = TraceStore.default()
+        synth = DocSynthesizer(project_path, config_path=str(store.config_path))
 
         # Determine baseline – use .trace_sync or fall back to oldest commit
         last_hash = synth.get_last_synced()

@@ -1,20 +1,17 @@
 from datetime import date
-from pathlib import Path
 
 from engine.doc_synthesizer import DocSynthesizer
 from engine.store import TraceStore
 
-_CONFIG_PATH = Path(__file__).parents[2] / "trace_config.yaml"
-
 
 def _store() -> TraceStore:
-    store = TraceStore(str(_CONFIG_PATH))
+    store = TraceStore.default()
     store.init_db()
     return store
 
 
-def _synth(project_path: str) -> DocSynthesizer:
-    return DocSynthesizer(project_path, config_path=str(_CONFIG_PATH))
+def _synth(project_path: str, store: TraceStore) -> DocSynthesizer:
+    return DocSynthesizer(project_path, config_path=str(store.config_path))
 
 
 def _baseline_hash(synth: DocSynthesizer) -> str:
@@ -44,7 +41,7 @@ def check_drift(project_name: str) -> dict:
     if project is None:
         return {"status": "error", "message": f"Project not found: {project_name}"}
 
-    synth = _synth(project["path"])
+    synth = _synth(project["path"], store)
     last_hash = _baseline_hash(synth)
     if not last_hash:
         return {"status": "error", "message": "No commits found in repository"}
@@ -69,7 +66,7 @@ def update_context(project_name: str, dry_run: bool = False) -> dict:
     if project is None:
         return {"status": "error", "message": f"Project not found: {project_name}"}
 
-    synth = _synth(project["path"])
+    synth = _synth(project["path"], store)
     last_hash = _baseline_hash(synth)
     if not last_hash:
         return {"status": "error", "message": "No commits found in repository"}

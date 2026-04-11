@@ -99,7 +99,6 @@ def _make_env(tmp_path, monkeypatch, config: dict):
     store.add_project("testproject", str(tmp_path))
 
     monkeypatch.setattr(session_module, "_store", lambda: store)
-    monkeypatch.setattr(session_module, "_CONFIG_PATH", config_path)
 
     return {"store": store, "tmp_path": tmp_path, "config_path": config_path}
 
