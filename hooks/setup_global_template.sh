@@ -46,6 +46,9 @@ git config --global init.templateDir "$TEMPLATE_DIR"
 # 4. Run migration (safe, idempotent)
 python3 "$TRACE_ROOT/engine/migrate.py"
 
+# 5. Sync project config → ~/.trace/trace_config.yaml
+python3 "$TRACE_ROOT/engine/store.py" --sync-config "$TRACE_ROOT/trace_config.yaml"
+
 echo ""
 echo "TRACE global template installed."
 echo "Every new git clone/init will include the hook."

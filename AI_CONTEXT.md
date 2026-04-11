@@ -213,7 +213,7 @@ trace/
 - Sanity warning logged if `input_tokens > 200_000` (not a cap; long sessions are valid)
 
 **Next: v0.2.0**
-- [ ] Config Auto-Sync (`engine/store.py` refactor)
+- [x] Config Auto-Sync (`engine/store.py` refactor)
 - [ ] Live Token Tracking (`engine/live_tracker.py`)
 - [ ] Provider adapters (`engine/providers/`)
 - [ ] WebSocket Push (`dashboard/`)
@@ -222,4 +222,4 @@ trace/
 
 ## Last updated
 
-2026-04-11 – v0.2.0 planning added to VISION.md and AI_CONTEXT.md
+2026-04-11 – v0.2.0 Feature 1: Config Auto-Sync implemented

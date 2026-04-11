@@ -1,7 +1,7 @@
 import shutil
 import sqlite3
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
 
 import yaml
 
@@ -11,19 +11,30 @@ TRACE_HOME = Path.home() / ".trace"
 class TraceStore:
     def __init__(self, config_path: str | None = None):
         if config_path is None:
-            # Central mode: always use ~/.trace/
+            # Central mode – priority order:
+            #   1. ~/.trace/trace_config.yaml  (runtime, if exists)
+            #   2. ./trace_config.yaml          (project fallback)
             TRACE_HOME.mkdir(parents=True, exist_ok=True)
             central_config = TRACE_HOME / "trace_config.yaml"
-            if not central_config.exists():
-                # Bootstrap: copy from project config in cwd if available
-                project_config = Path("trace_config.yaml")
-                if project_config.exists():
-                    shutil.copy2(project_config, central_config)
-            resolved = central_config if central_config.exists() else Path("trace_config.yaml")
+            project_config = Path("trace_config.yaml")
+
+            if central_config.exists():
+                resolved = central_config
+            elif project_config.exists():
+                resolved = project_config
+            else:
+                raise FileNotFoundError(
+                    "No trace_config.yaml found in ~/.trace/ or current directory."
+                )
+
             with open(resolved) as f:
                 self.config = yaml.safe_load(f)
             self.config_path = resolved
             self.db_path = TRACE_HOME / "trace.db"
+
+            # Sync project config → ~/.trace/ when falling back to it
+            if resolved == project_config:
+                self._sync_to_trace_home(project_config)
         else:
             # Explicit config provided (tests / legacy callers)
             resolved = Path(config_path)
@@ -39,6 +50,42 @@ class TraceStore:
     def default(cls) -> "TraceStore":
         """Standard entry point for all tools – always uses ~/.trace/trace.db."""
         return cls()
+
+    @staticmethod
+    def _sync_to_trace_home(source: Path) -> None:
+        """Copy source config to ~/.trace/trace_config.yaml; skip if identical."""
+        dest = TRACE_HOME / "trace_config.yaml"
+        TRACE_HOME.mkdir(parents=True, exist_ok=True)
+
+        source_text = source.read_text()
+        if dest.exists():
+            if dest.read_text() == source_text:
+                return
+            action = "updated"
+        else:
+            action = "created"
+
+        dest.write_text(source_text)
+
+        log = TRACE_HOME / "session_logger.log"
+        try:
+            with open(log, "a") as f:
+                ts = datetime.now().isoformat(timespec="seconds")
+                f.write(f"{ts} [config_sync] {action} {dest} from {source}\n")
+        except Exception:
+            pass
+
+    @classmethod
+    def sync_config(cls, source_path: str | Path | None = None) -> None:
+        """Explicitly sync a config file to ~/.trace/trace_config.yaml.
+
+        Used by setup_global_template.sh and migrate.py.
+        If source_path is None, uses ./trace_config.yaml in cwd.
+        """
+        source = Path(source_path) if source_path is not None else Path("trace_config.yaml")
+        if not source.exists():
+            return
+        cls._sync_to_trace_home(source)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -268,7 +315,14 @@ class TraceStore:
 
 
 if __name__ == "__main__":
-    store = TraceStore()
-    store.init_db()
-    print("TraceStore initialised successfully.")
-    print("DB path:", store.db_path)
+    import sys
+
+    if "--sync-config" in sys.argv:
+        idx = sys.argv.index("--sync-config")
+        src = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else None
+        TraceStore.sync_config(src)
+    else:
+        store = TraceStore()
+        store.init_db()
+        print("TraceStore initialised successfully.")
+        print("DB path:", store.db_path)

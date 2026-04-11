@@ -9,7 +9,7 @@ _TRACE_ROOT = Path(__file__).parents[1]
 if str(_TRACE_ROOT) not in sys.path:
     sys.path.insert(0, str(_TRACE_ROOT))
 
-from engine.store import TRACE_HOME  # noqa: E402 (after path setup)
+from engine.store import TRACE_HOME, TraceStore  # noqa: E402 (after path setup)
 
 
 def migrate_to_central() -> None:
@@ -34,3 +34,4 @@ def migrate_to_central() -> None:
 
 if __name__ == "__main__":
     migrate_to_central()
+    TraceStore.sync_config(_TRACE_ROOT / "trace_config.yaml")
