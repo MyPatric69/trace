@@ -37,11 +37,19 @@ def _store() -> TraceStore:
 
 
 def parse_transcript(transcript_path: str) -> dict:
-    """Parse transcript.jsonl and return token usage summary.
+    """Parse a Claude Code transcript.jsonl and return token usage summary.
 
-    Each line is a JSON object representing one turn.  The parser looks for
-    ``usage.input_tokens`` / ``usage.output_tokens`` at the top level and
-    also in a nested ``message.usage`` key (emitted by some streaming clients).
+    Real transcript format (Claude Code ≥ 1.x):
+    - Each line has a ``type`` field: "user", "assistant", "attachment", etc.
+    - Only ``type: "assistant"`` lines carry token usage.
+    - Each assistant line has a ``message`` dict with ``model`` and ``usage``.
+    - ``usage`` contains: ``input_tokens``, ``cache_creation_input_tokens``,
+      ``cache_read_input_tokens``, ``output_tokens``.
+    - Claude Code writes **multiple entries per API request** (same ``requestId``,
+      different ``uuid``).  We deduplicate by ``requestId`` to avoid double-counting.
+
+    Input token total = input_tokens + cache_creation_input_tokens + cache_read_input_tokens.
+    This reflects all tokens that contributed to the API call, regardless of cache tier.
 
     Returns:
         dict with keys: input_tokens, output_tokens, model, turns
@@ -55,6 +63,7 @@ def parse_transcript(transcript_path: str) -> dict:
     output_tokens = 0
     model_counts: Counter = Counter()
     turns = 0
+    seen_request_ids: set = set()
 
     try:
         with open(path, encoding="utf-8") as f:
@@ -67,17 +76,36 @@ def parse_transcript(transcript_path: str) -> dict:
                 except json.JSONDecodeError:
                     continue
 
+                # Only assistant turns carry usage data
+                if obj.get("type") != "assistant":
+                    continue
+
+                # Deduplicate: Claude Code emits multiple entries per requestId
+                request_id = obj.get("requestId")
+                if request_id:
+                    if request_id in seen_request_ids:
+                        continue
+                    seen_request_ids.add(request_id)
+
                 turns += 1
 
-                # Model field – top-level or nested inside "message"
-                model_field = obj.get("model") or obj.get("message", {}).get("model")
+                msg = obj.get("message") or {}
+                if not isinstance(msg, dict):
+                    continue
+
+                # Model
+                model_field = msg.get("model")
                 if isinstance(model_field, str) and model_field:
                     model_counts[model_field] += 1
 
-                # Usage – top-level takes precedence; fall back to message.usage
-                usage = obj.get("usage") or obj.get("message", {}).get("usage") or {}
+                # Usage – sum all input token types (regular + cache creation + cache read)
+                usage = msg.get("usage") or {}
                 if isinstance(usage, dict):
-                    input_tokens += int(usage.get("input_tokens") or 0)
+                    input_tokens += (
+                        int(usage.get("input_tokens") or 0)
+                        + int(usage.get("cache_creation_input_tokens") or 0)
+                        + int(usage.get("cache_read_input_tokens") or 0)
+                    )
                     output_tokens += int(usage.get("output_tokens") or 0)
 
     except Exception as exc:

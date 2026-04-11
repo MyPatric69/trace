@@ -26,58 +26,107 @@ def _write_transcript(tmp_path: Path, turns: list[dict]) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Helpers – real Claude Code transcript format
+# ---------------------------------------------------------------------------
+
+def _assistant_turn(
+    request_id: str,
+    model: str = "claude-sonnet-4-6",
+    input_tokens: int = 0,
+    cache_creation: int = 0,
+    cache_read: int = 0,
+    output_tokens: int = 0,
+    uuid: str | None = None,
+) -> dict:
+    """Build an assistant line in the real Claude Code JSONL format."""
+    import uuid as _uuid_mod
+    return {
+        "type": "assistant",
+        "requestId": request_id,
+        "uuid": uuid or str(_uuid_mod.uuid4()),
+        "message": {
+            "model": model,
+            "usage": {
+                "input_tokens": input_tokens,
+                "cache_creation_input_tokens": cache_creation,
+                "cache_read_input_tokens": cache_read,
+                "output_tokens": output_tokens,
+            },
+        },
+    }
+
+
+def _user_turn(content: str = "Hello") -> dict:
+    """Build a user line – these carry no usage data."""
+    return {"type": "user", "message": {"role": "user", "content": content}}
+
+
+# ---------------------------------------------------------------------------
 # parse_transcript – token counting
 # ---------------------------------------------------------------------------
 
 def test_parse_transcript_returns_correct_tokens(tmp_path):
+    """input_tokens sums regular + cache_creation + cache_read."""
     transcript = _write_transcript(tmp_path, [
-        {"role": "user",      "usage": {"input_tokens": 100, "output_tokens": 0}},
-        {"role": "assistant", "model": "claude-sonnet-4-5",
-         "usage": {"input_tokens": 80, "output_tokens": 250}},
-        {"role": "user",      "usage": {"input_tokens": 60, "output_tokens": 0}},
-        {"role": "assistant", "model": "claude-sonnet-4-5",
-         "usage": {"input_tokens": 40, "output_tokens": 120}},
+        _user_turn(),
+        _assistant_turn("req_1", input_tokens=10, cache_creation=200,
+                        cache_read=300, output_tokens=50),
+        _user_turn(),
+        _assistant_turn("req_2", input_tokens=5, cache_creation=100,
+                        cache_read=150, output_tokens=80),
     ])
     result = parse_transcript(str(transcript))
-    assert result["input_tokens"] == 280
-    assert result["output_tokens"] == 370
+    assert result["input_tokens"] == 10 + 200 + 300 + 5 + 100 + 150  # 765
+    assert result["output_tokens"] == 130
 
 
 def test_parse_transcript_returns_correct_turn_count(tmp_path):
+    """turns counts unique assistant requests, not all lines."""
     transcript = _write_transcript(tmp_path, [
-        {"role": "user",      "usage": {"input_tokens": 50, "output_tokens": 0}},
-        {"role": "assistant", "model": "claude-sonnet-4-5",
-         "usage": {"input_tokens": 30, "output_tokens": 100}},
+        _user_turn(),
+        _assistant_turn("req_1", output_tokens=50),
+        _user_turn(),
+        _assistant_turn("req_2", output_tokens=80),
     ])
     result = parse_transcript(str(transcript))
     assert result["turns"] == 2
 
 
+def test_parse_transcript_deduplicates_by_request_id(tmp_path):
+    """Claude Code writes multiple lines per requestId; only count once."""
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("req_1", input_tokens=10, output_tokens=50, uuid="uuid-a"),
+        _assistant_turn("req_1", input_tokens=10, output_tokens=50, uuid="uuid-b"),  # dupe
+        _assistant_turn("req_1", input_tokens=10, output_tokens=50, uuid="uuid-c"),  # dupe
+        _assistant_turn("req_2", input_tokens=5,  output_tokens=20),
+    ])
+    result = parse_transcript(str(transcript))
+    assert result["input_tokens"] == 15   # req_1(10) + req_2(5), not 35
+    assert result["output_tokens"] == 70  # req_1(50) + req_2(20), not 170
+    assert result["turns"] == 2
+
+
+def test_parse_transcript_ignores_non_assistant_lines(tmp_path):
+    """user/attachment/system lines are not counted."""
+    transcript = _write_transcript(tmp_path, [
+        _user_turn("lots of text"),
+        {"type": "system", "content": "something"},
+        {"type": "attachment", "data": "file"},
+        _assistant_turn("req_1", output_tokens=100),
+    ])
+    result = parse_transcript(str(transcript))
+    assert result["turns"] == 1
+    assert result["output_tokens"] == 100
+
+
 def test_parse_transcript_detects_most_common_model(tmp_path):
     transcript = _write_transcript(tmp_path, [
-        {"role": "assistant", "model": "claude-haiku-4-5",
-         "usage": {"input_tokens": 10, "output_tokens": 20}},
-        {"role": "assistant", "model": "claude-sonnet-4-5",
-         "usage": {"input_tokens": 10, "output_tokens": 20}},
-        {"role": "assistant", "model": "claude-sonnet-4-5",
-         "usage": {"input_tokens": 10, "output_tokens": 20}},
+        _assistant_turn("req_1", model="claude-haiku-4-5",   output_tokens=10),
+        _assistant_turn("req_2", model="claude-sonnet-4-6",  output_tokens=10),
+        _assistant_turn("req_3", model="claude-sonnet-4-6",  output_tokens=10),
     ])
     result = parse_transcript(str(transcript))
-    assert result["model"] == "claude-sonnet-4-5"
-
-
-def test_parse_transcript_handles_nested_message_usage(tmp_path):
-    """Streaming events may nest usage inside a 'message' key."""
-    transcript = _write_transcript(tmp_path, [
-        {"type": "message_start",
-         "message": {"model": "claude-sonnet-4-5",
-                     "usage": {"input_tokens": 200, "output_tokens": 0}}},
-        {"type": "message_delta",
-         "usage": {"output_tokens": 150}},
-    ])
-    result = parse_transcript(str(transcript))
-    assert result["input_tokens"] == 200
-    assert result["output_tokens"] == 150
+    assert result["model"] == "claude-sonnet-4-6"
 
 
 def test_parse_transcript_missing_file_returns_zeros():
@@ -98,21 +147,21 @@ def test_parse_transcript_empty_file_returns_zeros(tmp_path):
 
 
 def test_parse_transcript_skips_invalid_json_lines(tmp_path):
+    """Invalid JSON lines are skipped; valid assistant lines are counted."""
+    import json as _json
+    valid_line = _json.dumps(_assistant_turn("req_1", input_tokens=50, output_tokens=100))
     p = tmp_path / "transcript.jsonl"
-    p.write_text(
-        'not json\n'
-        '{"role": "assistant", "model": "claude-sonnet-4-5", '
-        '"usage": {"input_tokens": 50, "output_tokens": 100}}\n',
-        encoding="utf-8",
-    )
+    p.write_text("not json\n" + valid_line + "\n", encoding="utf-8")
     result = parse_transcript(str(p))
     assert result["input_tokens"] == 50
     assert result["output_tokens"] == 100
 
 
 def test_parse_transcript_unknown_model_when_no_model_field(tmp_path):
+    """Assistant line with no model in message → model returns 'unknown'."""
     transcript = _write_transcript(tmp_path, [
-        {"role": "user", "usage": {"input_tokens": 10, "output_tokens": 0}},
+        {"type": "assistant", "requestId": "req_1",
+         "message": {"usage": {"input_tokens": 10, "output_tokens": 5}}},
     ])
     result = parse_transcript(str(transcript))
     assert result["model"] == "unknown"
@@ -178,8 +227,9 @@ def test_run_logs_session_when_project_found(tmp_path, tmp_store, monkeypatch):
     tmp_store.add_project("run-project", str(tmp_path), "Test")
 
     stdin_data = _make_run_input(tmp_path, [
-        {"role": "assistant", "model": "claude-sonnet-4-5",
-         "usage": {"input_tokens": 500, "output_tokens": 200}},
+        _assistant_turn("req_1", model="claude-sonnet-4-6",
+                        input_tokens=50, cache_creation=300, cache_read=150,
+                        output_tokens=200),
     ], str(tmp_path))
     monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
 
@@ -187,9 +237,9 @@ def test_run_logs_session_when_project_found(tmp_path, tmp_store, monkeypatch):
 
     sessions = tmp_store.get_sessions("run-project")
     assert len(sessions) == 1
-    assert sessions[0]["input_tokens"] == 500
+    assert sessions[0]["input_tokens"] == 500   # 50 + 300 + 150
     assert sessions[0]["output_tokens"] == 200
-    assert sessions[0]["model"] == "claude-sonnet-4-5"
+    assert sessions[0]["model"] == "claude-sonnet-4-6"
     assert "Auto-logged" in sessions[0]["notes"]
 
 
@@ -197,8 +247,7 @@ def test_run_exits_silently_when_project_not_found(tmp_path, tmp_store, monkeypa
     monkeypatch.setattr(sl_module, "_store", lambda: tmp_store)
 
     stdin_data = _make_run_input(tmp_path, [
-        {"role": "assistant", "model": "claude-sonnet-4-5",
-         "usage": {"input_tokens": 100, "output_tokens": 50}},
+        _assistant_turn("req_1", input_tokens=100, output_tokens=50),
     ], str(tmp_path))
     monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
 
@@ -212,7 +261,7 @@ def test_run_exits_silently_when_no_tokens(tmp_path, tmp_store, monkeypatch):
     tmp_store.add_project("no-tokens-project", str(tmp_path), "Test")
 
     stdin_data = _make_run_input(tmp_path, [
-        {"role": "user", "content": "Hello"},  # no usage field
+        _user_turn("Hello"),  # user lines carry no usage
     ], str(tmp_path))
     monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
 

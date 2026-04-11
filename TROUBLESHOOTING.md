@@ -287,6 +287,37 @@ store.add_session(
 
 ---
 
+## Issue 10: Dashboard shows old threshold values after config change
+
+**Symptom:**
+Dashboard session health bar shows old warn/reset
+values after updating `trace_config.yaml`.
+
+**Cause:**
+TRACE uses two config files that must be kept in sync:
+- `~/github/trace/trace_config.yaml` (development / git)
+- `~/.trace/trace_config.yaml` (runtime / store)
+
+The store always reads from `~/.trace/trace_config.yaml`.
+Changes to the project config are not automatically
+propagated.
+
+**Fix:**
+```bash
+cp /path/to/trace/trace_config.yaml ~/.trace/trace_config.yaml
+```
+
+Then restart the dashboard:
+```bash
+pkill -f "uvicorn dashboard"
+bash dashboard/start.sh
+```
+
+Note: this will be resolved in v0.2.0 with automatic
+config sync between the project and `~/.trace/`.
+
+---
+
 ## Still stuck?
 
 Check the project status:

@@ -192,12 +192,22 @@ trace/
 
 **Auto session logging (complete – 16 tests):**
 - [x] `engine/session_logger.py` – SessionEnd hook handler
-  - `parse_transcript(path)` – reads JSONL, sums input/output tokens, detects model
+  - `parse_transcript(path)` – reads JSONL; only processes `type:"assistant"` lines;
+    deduplicates by `requestId`; sums `input_tokens + cache_creation_input_tokens +
+    cache_read_input_tokens`; detects most-common model
   - `detect_project(cwd)` – path match → name fallback against `~/.trace/trace.db`
   - `run()` – reads stdin JSON, logs session; never raises, errors → `~/.trace/session_logger.log`
 - [x] `hooks/setup_claude_hook.sh` – installs SessionEnd entry in `~/.claude/settings.json`
+  with quoted path (handles spaces) and `matcher:""` field
+- [x] `trace_config.yaml` + `~/.trace/trace_config.yaml` – added `claude-sonnet-4-6` model
 - [x] `TROUBLESHOOTING.md` – Issue 9: sessions not auto-logging
-- [x] 194/194 tests green
+- [x] 195/195 tests green
+
+**parse_transcript real-world format (Claude Code ≥ 1.x):**
+- Each line has `type`: only `"assistant"` lines carry usage
+- Usage is in `obj.message.usage`, not at top level
+- Claude Code writes multiple lines per `requestId` → deduplicate by `requestId`
+- Input total = `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`
 
 **Next: v0.2.0 planning**
 - [ ] Multi-project cost comparison view in dashboard
@@ -208,4 +218,4 @@ trace/
 
 ## Last updated
 
-2026-04-11 – Auto-synced 1 commit(s) to 0d85775
+2026-04-11 – session_logger bugs fixed (input tokens, model pricing, hook path), 195/195 tests green

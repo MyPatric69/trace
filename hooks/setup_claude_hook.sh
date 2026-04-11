@@ -8,7 +8,8 @@ set -euo pipefail
 
 TRACE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETTINGS="$HOME/.claude/settings.json"
-HOOK_CMD="python3 $TRACE_ROOT/engine/session_logger.py"
+# Quote the path so spaces are handled correctly by the shell
+HOOK_CMD="python3 '${TRACE_ROOT}/engine/session_logger.py'"
 
 python3 - "$SETTINGS" "$HOOK_CMD" <<'PYEOF'
 import sys
@@ -36,8 +37,9 @@ for matcher in session_end:
             print("TRACE SessionEnd hook already installed.")
             sys.exit(0)
 
-# Append new entry
+# Append new entry – matcher:"" means fire on every SessionEnd
 session_end.append({
+    "matcher": "",
     "hooks": [{"type": "command", "command": hook_cmd}]
 })
 

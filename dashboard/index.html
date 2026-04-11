@@ -156,12 +156,27 @@
       align-items: center;
       gap: 1rem;
     }
-    .health-bar {
+    .health-bar-wrap {
       flex: 1;
+      position: relative;
+    }
+    .health-bar {
       height: 8px;
       background: var(--border);
       border-radius: 4px;
       overflow: hidden;
+    }
+    .health-thresholds {
+      position: relative;
+      height: 1.1rem;
+      margin-top: 0.3rem;
+    }
+    .health-threshold {
+      position: absolute;
+      font-family: var(--mono);
+      font-size: 0.5625rem;
+      color: var(--muted);
+      white-space: nowrap;
     }
     .health-fill {
       height: 100%;
@@ -338,8 +353,15 @@
   <div class="health-card">
     <div class="card-title">Session Health</div>
     <div class="health-row">
-      <div class="health-bar">
-        <div class="health-fill" id="health-fill" style="width:0%"></div>
+      <div class="health-bar-wrap">
+        <div class="health-bar">
+          <div class="health-fill" id="health-fill" style="width:0%"></div>
+        </div>
+        <div class="health-thresholds" id="health-thresholds">
+          <span class="health-threshold" style="left:0%">0</span>
+          <span class="health-threshold" id="health-warn-label" style="left:60%">warn at 30k</span>
+          <span class="health-threshold" style="left:100%;transform:translateX(-100%)">reset at 50k</span>
+        </div>
       </div>
       <div class="health-tokens" id="health-label">0 tokens</div>
     </div>
@@ -371,6 +393,7 @@
   const $  = id => document.getElementById(id);
   const num = n  => n.toLocaleString();
   const usd = v  => '$' + v.toFixed(4);
+  const toK = n  => n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);
 
   let selectedProject = '';
   let cfg = { monthly_budget_usd: 20, alert_threshold_pct: 80 };
@@ -434,14 +457,22 @@
     $('m-budget-sub').textContent = '$' + spent.toFixed(2) + ' / $' + budget.toFixed(2);
 
     // Session health bar
-    const total  = tokens.total_tokens;
-    const warnAt = tokens.warn_at;
+    const total   = tokens.total_tokens;
+    const warnAt  = tokens.warn_at;
     const resetAt = tokens.reset_at;
     const barPct  = Math.min(total / resetAt * 100, 100);
     const fill    = $('health-fill');
     fill.style.width = barPct + '%';
     fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
     $('health-label').textContent = num(total) + ' / ' + num(resetAt) + ' tokens';
+
+    // Threshold labels – position warn marker at its proportion of the bar
+    const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
+    $('health-warn-label').style.left        = warnPct + '%';
+    $('health-warn-label').style.transform   = 'translateX(-50%)';
+    $('health-warn-label').textContent       = 'warn at ' + toK(warnAt);
+    // Reset label is always at the right edge; update text only
+    $('health-thresholds').lastElementChild.textContent = 'reset at ' + toK(resetAt);
 
     // Handoff link
     const link = $('handoff-link');
