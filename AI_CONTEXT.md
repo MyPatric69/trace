@@ -234,4 +234,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Switched live tracking hook from PostToolUse to Stop (Desktop App bug #42336); updated settings.json, live_session_hook.py docstring, setup_claude_hook.sh; 222/222 tests green
+2026-04-12 – Fixed live session panel per-project filtering: /api/live?project= param added to server, frontend passes selectedProject, 5 new tests; 227/227 green

@@ -268,3 +268,47 @@ def test_api_tips_passes_project_name(client, monkeypatch):
     monkeypatch.setattr(dashboard_module, "get_tips", fake_tips)
     client.get("/api/tips?project_name=alpha")
     assert captured["project_name"] == "alpha"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/live
+# ---------------------------------------------------------------------------
+
+_LIVE_DATA = {
+    "project": "alpha", "input_tokens": 1000, "output_tokens": 500,
+    "cost_usd": 0.01, "turns": 3, "health": "ok",
+}
+
+
+def test_api_live_no_active_session(client, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    data = client.get("/api/live").json()
+    assert data["active"] is False
+    assert "message" in data
+
+
+def test_api_live_active_no_filter(client, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
+    data = client.get("/api/live").json()
+    assert data["active"] is True
+    assert data["project"] == "alpha"
+
+
+def test_api_live_project_match_returns_active(client, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
+    data = client.get("/api/live?project=alpha").json()
+    assert data["active"] is True
+    assert data["project"] == "alpha"
+
+
+def test_api_live_project_mismatch_returns_inactive(client, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
+    data = client.get("/api/live?project=beta").json()
+    assert data["active"] is False
+    assert "alpha" in data["message"]
+
+
+def test_api_live_project_mismatch_message_names_active_project(client, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
+    data = client.get("/api/live?project=beta").json()
+    assert data["message"] == "Active session is in project alpha"

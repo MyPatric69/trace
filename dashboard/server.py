@@ -183,15 +183,18 @@ def api_sync(project_name: str):
 
 
 # ---------------------------------------------------------------------------
-# /api/live  (live session – updated every tool call via PostToolUse hook)
+# /api/live  (live session – updated every response via Stop hook)
 # ---------------------------------------------------------------------------
 
 @app.get("/api/live")
-def api_live():
+def api_live(project: str | None = None):
     try:
         data = LiveTracker(None).get_live()
         if data is None:
             return {"active": False, "message": "No active session"}
+        if project and data.get("project") != project:
+            active_in = data.get("project", "unknown")
+            return {"active": False, "message": f"Active session is in project {active_in}"}
         return {"active": True, **data}
     except Exception:
         return {"active": False, "message": "No active session"}

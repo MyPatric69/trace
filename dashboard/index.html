@@ -579,22 +579,23 @@
 
   async function loadLive() {
     try {
-      const d = await api('/api/live');
+      const params = selectedProject ? '?project=' + encodeURIComponent(selectedProject) : '';
+      const d = await api('/api/live' + params);
       const dot     = $('live-dot');
       const project = $('live-project');
       const body    = $('live-body');
 
       if (!d.active) {
-        dot.className     = 'live-dot inactive';
+        dot.className       = 'live-dot inactive';
         project.textContent = '';
-        body.innerHTML    = '<div class="live-inactive">No active session</div>';
+        body.innerHTML      = '<div class="live-inactive">' + (d.message || 'No active session') + '</div>';
         return;
       }
 
       dot.className       = 'live-dot active';
       project.textContent = d.project !== 'unknown' ? d.project : '';
 
-      // Transcript not yet flushed on first PostToolUse – show placeholder
+      // Transcript not yet flushed on first Stop event – show placeholder
       if (d.initializing || (d.input_tokens === 0 && d.output_tokens === 0)) {
         body.innerHTML = '<div class="live-inactive">Session starting\u2026</div>';
         return;
