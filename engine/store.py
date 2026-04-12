@@ -114,6 +114,7 @@ class TraceStore:
                     output_tokens          INTEGER NOT NULL DEFAULT 0,
                     cost_usd               REAL    NOT NULL DEFAULT 0.0,
                     notes                  TEXT,
+                    session_id             TEXT,
                     created_at             TEXT    NOT NULL DEFAULT (datetime('now'))
                 );
             """)
@@ -121,18 +122,24 @@ class TraceStore:
 
     @staticmethod
     def _migrate_schema(conn: sqlite3.Connection) -> None:
-        """Add new columns to existing sessions tables (idempotent)."""
+        """Add new columns / indexes to existing sessions tables (idempotent)."""
         existing = {
             row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
         }
         for col, definition in [
             ("cache_creation_tokens", "INTEGER NOT NULL DEFAULT 0"),
             ("cache_read_tokens",     "INTEGER NOT NULL DEFAULT 0"),
+            ("session_id",            "TEXT"),
         ]:
             if col not in existing:
                 conn.execute(
                     f"ALTER TABLE sessions ADD COLUMN {col} {definition}"
                 )
+        # Unique index on session_id, excluding NULLs (backward compatible)
+        conn.execute(
+            """CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_session_id
+               ON sessions(session_id) WHERE session_id IS NOT NULL"""
+        )
 
     def add_project(self, name: str, path: str, description: str = "") -> int:
         with self._connect() as conn:
@@ -220,6 +227,79 @@ class TraceStore:
                 ),
             )
             return cursor.lastrowid
+
+    def upsert_live_session(
+        self,
+        session_id: str,
+        project_name: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_tokens: int = 0,
+        cache_read_tokens: int = 0,
+        notes: str = "",
+    ) -> int:
+        """Insert or update a live session record keyed on *session_id*.
+
+        Called after every Stop hook turn so token data survives hard shutdowns.
+        On SessionEnd the live record is deleted and replaced by the final record.
+        Returns the sessions table row id.
+        """
+        project = self.get_project(project_name)
+        if project is None:
+            raise ValueError(f"Project '{project_name}' not found.")
+
+        cost_usd = self._calculate_cost(
+            model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+        )
+        today = date.today().isoformat()
+
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT id FROM sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+
+            if existing:
+                conn.execute(
+                    """UPDATE sessions SET
+                           model = ?, input_tokens = ?, cache_creation_tokens = ?,
+                           cache_read_tokens = ?, output_tokens = ?, cost_usd = ?,
+                           notes = ?
+                       WHERE session_id = ?""",
+                    (
+                        model, input_tokens, cache_creation_tokens,
+                        cache_read_tokens, output_tokens, cost_usd,
+                        notes, session_id,
+                    ),
+                )
+                return existing["id"]
+            else:
+                cursor = conn.execute(
+                    """INSERT INTO sessions
+                           (project_id, date, model,
+                            input_tokens, cache_creation_tokens, cache_read_tokens,
+                            output_tokens, cost_usd, notes, session_id)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        project["id"], today, model,
+                        input_tokens, cache_creation_tokens, cache_read_tokens,
+                        output_tokens, cost_usd, notes, session_id,
+                    ),
+                )
+                return cursor.lastrowid
+
+    def delete_live_session(self, session_id: str) -> None:
+        """Remove the live record for *session_id* (notes LIKE 'Live – %').
+
+        Called by SessionEnd so the final record is the only record for the
+        session.  Safe to call even when no matching row exists.
+        """
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM sessions WHERE session_id = ? AND notes LIKE 'Live – %'",
+                (session_id,),
+            )
 
     def get_sessions(
         self,

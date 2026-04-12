@@ -290,11 +290,26 @@ trace/
 - [x] `tests/test_tokenize.py` – 16 tests: structure, empty/whitespace (no API call), approximation formulas (GPT word-count, unknown char-count), API path via mocked urlopen, API failure fallback, cost calculation, models list endpoint
 - `ANTHROPIC_API_KEY` (standard key, not admin) – used only for `count_tokens`; completely optional
 
+**v0.3.0 Feature 2 – Per-Turn DB Logging (complete – 15 tests):**
+- [x] `engine/store.py` – `upsert_live_session(session_id, project_name, model, …)` – INSERT on first turn, UPDATE in place on subsequent turns; returns row id; notes format `"Live – Turn N"`
+- [x] `engine/store.py` – `delete_live_session(session_id)` – removes the live record (guards with `notes LIKE 'Live – %'`); idempotent
+- [x] `engine/store.py` – `session_id TEXT` column + `CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_session_id … WHERE session_id IS NOT NULL`; `_migrate_schema()` adds both idempotently
+- [x] `engine/live_session_hook.py` – after `LiveTracker.update()`, calls `upsert_live_session()` when project is registered and session is not initializing; all errors silent
+- [x] `engine/session_logger.py` – on SessionEnd, `delete_live_session(session_id)` before `add_session()` → live record replaced by final record; no duplicates on clean exit
+- [x] `engine/migrate.py` – `add_session_id_column(db_path=None)` for pre-v0.3.0 DBs; called from `__main__`
+- [x] `tests/test_per_turn_logging.py` – 15 tests: insert/update semantics, idempotency, schema migration, delete isolation (preserves final records), clean-exit no-duplicate scenario, two-session no-crosstalk
+
+**Per-Turn Logging behaviour:**
+- Live records: `session_id IS NOT NULL`, notes `"Live – Turn N"`
+- Final records: `session_id IS NULL` (existing `add_session()` unchanged)
+- Hard shutdown: last live record survives in DB
+- Clean exit: live record deleted, final accurate record inserted via SessionEnd
+
 **Next:**
-- [ ] v0.3.0 Feature 2: Per-Turn DB Logging
+- [ ] v0.3.0 Feature 3: Hook Refinement
 
 ---
 
 ## Last updated
 
-2026-04-12 – Auto-synced 1 commit(s) to 1d56ff8
+2026-04-12 – v0.3.0 Feature 2: Per-Turn DB Logging; 326 tests green

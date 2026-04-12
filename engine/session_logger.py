@@ -124,6 +124,15 @@ def run() -> None:
 
     try:
         store = _store()
+
+        # Delete the live (per-turn) record before inserting the final one
+        # so the final accurate record is the only record for this session.
+        if session_id:
+            try:
+                store.delete_live_session(session_id)
+            except Exception as exc:
+                _log.error("Failed to delete live session %s: %s", session_id, exc)
+
         store.add_session(
             project_name,
             model,

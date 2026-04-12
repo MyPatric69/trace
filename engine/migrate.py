@@ -12,6 +12,42 @@ if str(_TRACE_ROOT) not in sys.path:
 from engine.store import TRACE_HOME, TraceStore  # noqa: E402 (after path setup)
 
 
+def add_session_id_column(db_path=None) -> None:
+    """Add session_id column and unique index to sessions table.
+
+    Idempotent – safe to run multiple times.  The column is now handled
+    automatically by TraceStore.init_db() but this function is provided for
+    explicit migration of databases created before v0.3.0.
+    """
+    import sqlite3
+
+    central_db = Path(db_path) if db_path else TRACE_HOME / "trace.db"
+    if not central_db.exists():
+        print("No DB found – nothing to migrate.")
+        return
+
+    conn = sqlite3.connect(central_db)
+    try:
+        existing = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
+        }
+        if "session_id" not in existing:
+            conn.execute("ALTER TABLE sessions ADD COLUMN session_id TEXT")
+            print("Added session_id column to sessions.")
+        else:
+            print("session_id column already present – nothing to do.")
+
+        conn.execute(
+            """CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_session_id
+               ON sessions(session_id) WHERE session_id IS NOT NULL"""
+        )
+        conn.commit()
+        print("session_id unique index ensured.")
+    finally:
+        conn.close()
+
+
 def add_cache_columns() -> None:
     """Add cache_creation_tokens and cache_read_tokens columns to sessions table.
 
@@ -69,6 +105,7 @@ def migrate_to_central() -> None:
 
 
 if __name__ == "__main__":
+    add_session_id_column()
     add_cache_columns()
     migrate_to_central()
     TraceStore.sync_config(_TRACE_ROOT / "trace_config.yaml")
