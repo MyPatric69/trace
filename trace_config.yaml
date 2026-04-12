@@ -1,6 +1,12 @@
 trace:
   db_path: trace.db
-  version: "0.1.0"
+  version: "0.2.0"
+
+api_integration:
+  provider: "manual"        # manual | anthropic | openai | vertexai
+  sync_usage: false         # fetch real usage from provider API
+  budget_source: "manual"   # manual | api
+  monthly_budget_usd: 20.0  # used when budget_source: manual
 
 projects: []
 

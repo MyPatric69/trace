@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 
 from engine.store import TraceStore, TRACE_HOME
 from engine.live_tracker import LiveTracker
+from engine.providers import get_provider
 from server.tools.context import check_drift, update_context
 from server.tools.session import get_tips, new_session
 
@@ -243,6 +244,36 @@ def api_new_session(project_name: str, dry_run: bool = True):
         return new_session(project_name, dry_run=dry_run)
     except Exception as e:
         return {"status": "error", "project": project_name, "message": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# /api/provider  (provider status + usage via pluggable adapter)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/provider")
+def api_provider(period: str = "month"):
+    try:
+        store    = _store()
+        provider = get_provider(store.config)
+        name     = provider.get_name()
+        fallback = name == "manual" and (
+            (store.config.get("api_integration") or {}).get("provider", "manual") != "manual"
+        )
+        usage = provider.get_usage(period)
+        return {
+            "provider":  name,
+            "available": provider.is_available(),
+            "usage":     usage,
+            "fallback":  fallback,
+        }
+    except Exception as e:
+        return {
+            "provider":  "manual",
+            "available": True,
+            "usage":     {},
+            "fallback":  True,
+            "error":     str(e),
+        }
 
 
 if __name__ == "__main__":

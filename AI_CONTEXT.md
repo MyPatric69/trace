@@ -70,7 +70,14 @@ trace/
 │   ├── store.py           ← SQLite interface – TraceStore.default() → ~/.trace/
 │   ├── migrate.py         ← one-time migration: local trace.db → ~/.trace/trace.db
 │   ├── auto_register.py   ← register_if_unknown() – called by post-commit hook
-│   └── session_logger.py  ← SessionEnd hook handler – parses transcript, logs tokens
+│   ├── session_logger.py  ← SessionEnd hook handler – parses transcript, logs tokens
+│   └── providers/         ← pluggable provider adapters (v0.2.0)
+│       ├── __init__.py    ← get_provider() – reads api_integration.provider from config
+│       ├── base.py        ← AbstractProvider interface
+│       ├── manual.py      ← default: reads from TraceStore (no credentials needed)
+│       ├── anthropic.py   ← Anthropic Usage API (ANTHROPIC_API_KEY or macOS Keychain)
+│       ├── openai.py      ← OpenAI Usage API (OPENAI_API_KEY)
+│       └── vertexai.py    ← Google Vertex AI / Cloud Billing API
 │
 ├── hooks/
 │   ├── post-commit              ← Git Hook template
@@ -224,14 +231,31 @@ trace/
   totals to millions of tokens for a session that never exceeded 200K at any point)
 - Sanity warning logged if `input_tokens > 200_000` (not a cap; long sessions are valid)
 
+**Provider adapters (complete – 30 tests):**
+- [x] `engine/providers/base.py` – `AbstractProvider` interface (is_available, get_usage, get_models, get_name)
+- [x] `engine/providers/manual.py` – default; reads TraceStore, always available, zero external deps
+- [x] `engine/providers/anthropic.py` – Anthropic Usage API; credential from env or macOS Keychain; graceful fallback
+- [x] `engine/providers/openai.py` – OpenAI Usage API + models list; graceful fallback
+- [x] `engine/providers/vertexai.py` – Cloud Billing API; hardcoded Gemini pricing; budget_usd optional
+- [x] `engine/providers/__init__.py` – `get_provider(config)` dispatches by `api_integration.provider`; falls back to ManualProvider when unavailable
+- [x] `trace_config.yaml` – added `api_integration` section; version bumped to 0.2.0
+- [x] `dashboard/server.py` – `GET /api/provider` endpoint
+- [x] `tests/test_providers.py` – 30 tests green
+
+**Provider rules:**
+- All network calls have 5 s timeout; never crash TRACE
+- Credentials never logged or returned in responses
+- `get_provider()` guarantees `is_available() == True` on returned instance
+- ManualProvider is the universal fallback (no external deps)
+
 **Next: v0.2.0**
 - [x] Config Auto-Sync (`engine/store.py` refactor)
 - [x] Live Token Tracking (`engine/live_tracker.py`)
-- [ ] Provider adapters (`engine/providers/`)
+- [x] Provider adapters (`engine/providers/`)
 - [ ] WebSocket Push (`dashboard/`)
 
 ---
 
 ## Last updated
 
-2026-04-12 – Explicit iterations[] guard in transcript_parser + live_tracker
+2026-04-12 – v0.2.0 provider adapters complete (269/269 tests green)
