@@ -107,7 +107,7 @@ in `trace_config.yaml`:
 | Provider  | Usage API | Budget tracking | Credentials       |
 |-----------|-----------|-----------------|-------------------|
 | manual    | local DB  | manual only     | none (default)    |
-| anthropic | ✅        | ✅              | ANTHROPIC_ADMIN_API_KEY (Admin key required) |
+| anthropic | ✅        | ✅              | ANTHROPIC_ADMIN_API_KEY (Team/Enterprise only) |
 | openai    | ✅        | ✅              | OPENAI_API_KEY    |
 | vertexai  | ✅        | optional*       | GCP credentials   |
 
@@ -133,8 +133,13 @@ cp trace_config.yaml ~/.trace/trace_config.yaml
 ### Anthropic
 
 The Anthropic Usage API requires an **Admin API key**, not a standard API key.
-Admin keys (`sk-ant-admin…`) can be created in the Anthropic Console under
-**Organization Settings → API Keys**.
+
+> **Note:** Admin API keys are only available for Team and Enterprise accounts.
+> Individual accounts (Pro/Max) cannot create Admin keys and will always fall
+> back to local data. This is expected behaviour.
+>
+> If you have a Team/Enterprise account, Admin keys can be created at:
+> https://console.anthropic.com/settings/admin-keys
 
 ```bash
 export ANTHROPIC_ADMIN_API_KEY=sk-ant-admin...
