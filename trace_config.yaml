@@ -55,3 +55,21 @@ models:
     output_per_1k: 0.0006
     cache_creation_per_1k: 0.00015
     cache_read_per_1k: 0.000075
+  gpt-5:
+    input_per_1k: 0.000625
+    output_per_1k: 0.005
+    cache_creation_per_1k: 0.000625
+    cache_read_per_1k: 0.0003125
+    context_window: 400000
+  gpt-5.4:
+    input_per_1k: 0.0025
+    output_per_1k: 0.015
+    cache_creation_per_1k: 0.0025
+    cache_read_per_1k: 0.00125
+    context_window: 1050000
+  gpt-5.4-mini:
+    input_per_1k: 0.00075
+    output_per_1k: 0.0045
+    cache_creation_per_1k: 0.00075
+    cache_read_per_1k: 0.000375
+    context_window: 128000

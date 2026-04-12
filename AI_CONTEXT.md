@@ -297,4 +297,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – v0.3.0 Feature 1: Token Calculator widget; 308 tests green
+2026-04-12 – Auto-synced 1 commit(s) to 7e3df0d
