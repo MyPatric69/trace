@@ -162,6 +162,9 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
             if isinstance(model_field, str) and model_field:
                 model_counts[model_field] += 1
 
+            # Read ONLY the four top-level token fields.
+            # usage["iterations"] contains per-step breakdowns of the
+            # same totals; summing from it would double-count every token.
             usage = msg.get("usage") or {}
             if isinstance(usage, dict):
                 new_input          += int(usage.get("input_tokens")                or 0)

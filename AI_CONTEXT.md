@@ -234,4 +234,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Auto-synced 1 commit(s) to c25a047
+2026-04-12 – Explicit iterations[] guard in transcript_parser + live_tracker
