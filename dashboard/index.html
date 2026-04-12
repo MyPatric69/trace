@@ -123,11 +123,6 @@
     }
     /* WebSocket status dot starts gray; turns teal when connected */
     .ws-dot { background: #6B6760; transition: background 0.3s; }
-    #last-updated {
-      font-family: var(--mono);
-      font-size: 0.6875rem;
-      color: rgba(255,255,255,0.3);
-    }
 
     /* ── Layout ── */
     main {
@@ -463,7 +458,6 @@
     <div class="mcp-badge"><span class="dot"></span> MCP</div>
     <div class="ws-badge"><span class="dot ws-dot" id="ws-dot"></span> WS</div>
     <div class="provider-badge" id="provider-badge"></div>
-    <div id="last-updated">–</div>
   </div>
 </header>
 
@@ -877,7 +871,6 @@
   // ── Orchestration ─────────────────────────────────────────────────────────
 
   async function loadAll() {
-    $('last-updated').textContent = new Date().toLocaleTimeString();
     try {
       await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels()]);
     } catch (e) {
