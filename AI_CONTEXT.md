@@ -276,4 +276,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – v0.2.0 docs + provider badge complete
+2026-04-12 – Auto-synced 1 commit(s) to 42457e2

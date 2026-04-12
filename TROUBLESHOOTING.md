@@ -483,9 +483,9 @@ is safe, expected behaviour.
 
 **Fix – check credentials:**
 
-Anthropic:
+Anthropic (Admin key required – standard API keys cannot access Usage API):
 ```bash
-echo $ANTHROPIC_API_KEY
+echo $ANTHROPIC_ADMIN_API_KEY
 ```
 
 OpenAI:

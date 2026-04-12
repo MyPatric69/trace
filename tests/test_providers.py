@@ -138,24 +138,29 @@ def test_manual_get_models_structure(tmp_store, monkeypatch):
 # AnthropicProvider – credentials not present in test environment
 # ---------------------------------------------------------------------------
 
-def test_anthropic_not_available_without_key(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    # Prevent Keychain subprocess from succeeding in tests
-    import subprocess
-    monkeypatch.setattr(subprocess, "run",
-                        lambda *a, **kw: type("R", (), {"returncode": 1, "stdout": ""})())
+def test_anthropic_not_available_without_admin_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_ADMIN_API_KEY", raising=False)
     assert AnthropicProvider().is_available() is False
+
+
+def test_anthropic_not_available_with_standard_key_only(monkeypatch):
+    """Standard ANTHROPIC_API_KEY must NOT make is_available() return True."""
+    monkeypatch.delenv("ANTHROPIC_ADMIN_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-api-standard-key")
+    assert AnthropicProvider().is_available() is False
+
+
+def test_anthropic_available_with_admin_key(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_ADMIN_API_KEY", "sk-ant-admin-test")
+    assert AnthropicProvider().is_available() is True
 
 
 def test_anthropic_get_name():
     assert AnthropicProvider().get_name() == "anthropic"
 
 
-def test_anthropic_get_usage_falls_back_without_key(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    import subprocess
-    monkeypatch.setattr(subprocess, "run",
-                        lambda *a, **kw: type("R", (), {"returncode": 1, "stdout": ""})())
+def test_anthropic_get_usage_falls_back_without_admin_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_ADMIN_API_KEY", raising=False)
     usage = AnthropicProvider().get_usage("month")
     assert usage["provider"] == "anthropic"
     assert usage["source"]   == "local"
@@ -254,10 +259,7 @@ def test_get_provider_unknown_name_returns_manual(tmp_config):
 
 def test_get_provider_unavailable_returns_manual(tmp_config, monkeypatch):
     tmp_config.setdefault("api_integration", {})["provider"] = "anthropic"
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    import subprocess
-    monkeypatch.setattr(subprocess, "run",
-                        lambda *a, **kw: type("R", (), {"returncode": 1, "stdout": ""})())
+    monkeypatch.delenv("ANTHROPIC_ADMIN_API_KEY", raising=False)
     p = get_provider(tmp_config)
     assert isinstance(p, ManualProvider)
 

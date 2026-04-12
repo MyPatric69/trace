@@ -1,9 +1,12 @@
 """AnthropicProvider – wraps the Anthropic Usage API.
 
-Credentials (checked in order):
-  1. ANTHROPIC_API_KEY environment variable
-  2. macOS Keychain via:
-     security find-generic-password -a "$USER" -s "ANTHROPIC_API_KEY" -w
+Credentials:
+  ANTHROPIC_ADMIN_API_KEY environment variable (Admin key required).
+
+  The Anthropic Usage API requires an Admin API key (sk-ant-admin…),
+  not a standard API key (sk-ant-api…).  Standard keys used by Claude Code
+  cannot access usage data.  If only a standard key is available,
+  is_available() returns False and get_usage() falls back to local data.
 
 If the API call fails the provider falls back to ManualProvider.get_usage().
 """
@@ -61,41 +64,38 @@ _ANTHROPIC_MODELS: list[dict] = [
 ]
 
 
-def _get_api_key() -> str | None:
-    """Return API key from env or macOS Keychain; None if not found."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key
+def _get_admin_key() -> str | None:
+    """Return the Anthropic Admin API key from env; None if not found.
 
-    # macOS Keychain fallback
-    try:
-        result = subprocess.run(
-            ["security", "find-generic-password",
-             "-a", os.environ.get("USER", ""),
-             "-s", "ANTHROPIC_API_KEY", "-w"],
-            capture_output=True, text=True, timeout=3,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    except Exception:
-        pass
-
-    return None
+    Only ANTHROPIC_ADMIN_API_KEY is accepted – standard ANTHROPIC_API_KEY
+    keys cannot access the Usage API and are deliberately ignored here.
+    """
+    return os.environ.get("ANTHROPIC_ADMIN_API_KEY") or None
 
 
 class AnthropicProvider(AbstractProvider):
-    """Reads usage from the Anthropic Usage API; falls back to local DB."""
+    """Reads usage from the Anthropic Usage API; falls back to local DB.
+
+    Requires an Admin API key (ANTHROPIC_ADMIN_API_KEY).  Standard API keys
+    (ANTHROPIC_API_KEY) used by Claude Code cannot access usage data.
+    """
 
     def get_name(self) -> str:
         return "anthropic"
 
     def is_available(self) -> bool:
-        return _get_api_key() is not None
+        """Return True only when an Admin API key is present."""
+        return _get_admin_key() is not None
 
     def get_usage(self, period: str = "month") -> dict:
         """Call Anthropic Usage API; fall back to ManualProvider on failure."""
-        api_key = _get_api_key()
+        api_key = _get_admin_key()
         if not api_key:
+            _log.warning(
+                "AnthropicProvider requires an Admin API key "
+                "(ANTHROPIC_ADMIN_API_KEY). Standard API keys cannot "
+                "access the Usage API. Falling back to local data."
+            )
             return self._fallback(period)
 
         try:

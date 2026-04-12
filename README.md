@@ -107,7 +107,7 @@ in `trace_config.yaml`:
 | Provider  | Usage API | Budget tracking | Credentials       |
 |-----------|-----------|-----------------|-------------------|
 | manual    | local DB  | manual only     | none (default)    |
-| anthropic | ✅        | ✅              | ANTHROPIC_API_KEY |
+| anthropic | ✅        | ✅              | ANTHROPIC_ADMIN_API_KEY (Admin key required) |
 | openai    | ✅        | ✅              | OPENAI_API_KEY    |
 | vertexai  | ✅        | optional*       | GCP credentials   |
 
@@ -132,11 +132,17 @@ cp trace_config.yaml ~/.trace/trace_config.yaml
 
 ### Anthropic
 
-Credentials read automatically from:
-1. `ANTHROPIC_API_KEY` environment variable
-2. macOS Keychain (key name: `ANTHROPIC_API_KEY`)
+The Anthropic Usage API requires an **Admin API key**, not a standard API key.
+Admin keys (`sk-ant-admin…`) can be created in the Anthropic Console under
+**Organization Settings → API Keys**.
 
-No manual setup needed if you already use Claude Code.
+```bash
+export ANTHROPIC_ADMIN_API_KEY=sk-ant-admin...
+```
+
+If you only have a standard API key (`ANTHROPIC_API_KEY`), TRACE falls back
+to local data automatically – this is the expected behaviour for most
+individual developers.
 
 ### OpenAI
 
