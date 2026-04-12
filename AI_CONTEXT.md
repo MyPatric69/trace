@@ -305,11 +305,24 @@ trace/
 - Hard shutdown: last live record survives in DB
 - Clean exit: live record deleted, final accurate record inserted via SessionEnd
 
+**v0.3.0 Feature 3 – Hook Refinement (complete – 28 tests):**
+- [x] `engine/hook_runner.py` – `SKIP_PREFIXES` list: `chore:`, `chore(`, `docs:`, `docs(`, `style:`, `style(`, `test:`, `test(`
+- [x] `engine/hook_runner.py` – `should_skip(commit_message)` – case-insensitive prefix check; returns False for empty/unknown (when in doubt, synthesise)
+- [x] `engine/hook_runner.py` – `run()` reads latest commit message early; if `should_skip()` is True, advances `.trace_sync` to current hash (drift stays accurate) and returns without synthesis; unknown/empty messages always synthesise
+- [x] `engine/hook_runner.py` – logging to `~/.trace/session_logger.log` (skipped commits logged at INFO)
+- [x] `tests/test_hook_refinement.py` – 28 tests: `should_skip()` True/False parametrised cases, case-insensitivity, integration: chore/docs/test skip → `.trace_sync` advances + `AI_CONTEXT.md` untouched; feat/fix → synthesis runs
+
+**Hook Refinement behaviour:**
+- Skip check happens before drift check – more efficient (no git diff for noise commits)
+- `.trace_sync` always advances on skip so `check_drift()` stays accurate
+- Affected prefixes: `chore`, `docs`, `style`, `test` (conventional commit types that don't change logic)
+- Unrecognised prefixes (`feat`, `fix`, `refactor`, `perf`, `ci`, `build`, etc.) always synthesise
+
 **Next:**
-- [ ] v0.3.0 Feature 3: Hook Refinement
+- [ ] v0.3.0 Feature 4: MCP Server Panel
 
 ---
 
 ## Last updated
 
-2026-04-12 – v0.3.0 Feature 2: Per-Turn DB Logging; 326 tests green
+2026-04-12 – v0.3.0 Feature 3 Hook Refinement complete; 354/354 tests green
