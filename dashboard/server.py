@@ -482,9 +482,10 @@ def api_tokenize(req: TokenizeRequest):
     text  = req.text
     model = req.model
 
-    # Load prices from config regardless of method
-    store = _store()
-    prices      = store.config.get("models", {}).get(model, {})
+    # Load prices from config regardless of method (case-insensitive lookup)
+    store      = _store()
+    models_cfg = store.config.get("models", {})
+    prices     = models_cfg.get(model) or models_cfg.get(model.lower()) or {}
     cost_per_1k = prices.get("input_per_1k", 0.0)
 
     # Empty / whitespace → zero, no API call

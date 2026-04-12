@@ -526,6 +526,12 @@
       min-width: 80px;
       text-align: right;
     }
+    .calc-hint {
+      font-family: var(--mono);
+      font-size: 0.6563rem;
+      color: var(--amber);
+      opacity: 0.85;
+    }
   </style>
 </head>
 <body>
@@ -648,6 +654,14 @@
   const num = n  => n.toLocaleString();
   const usd = v  => '$' + v.toFixed(4);
   const toK = n  => n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);
+
+  // Adaptive cost display: avoid showing $0.0000 for cheap models
+  function calcCost(v) {
+    if (v === 0)        return '$0.0000';
+    if (v >= 0.01)      return '$' + v.toFixed(4);
+    if (v >= 0.000001)  return '$' + v.toFixed(6);  // e.g. $0.000094
+    return '< $0.000001';
+  }
 
   let selectedProject = '';
   let cfg = { monthly_budget_usd: 20, alert_threshold_pct: 80 };
@@ -1093,20 +1107,30 @@
       const badgeCls = d.method === 'api' ? 'exact' : 'approx';
       const badgeLbl = d.method === 'api' ? 'exact (API)' : '~estimate';
 
-      const ctx    = _ctxWindow(model);
-      const pct    = Math.min(d.input_tokens / ctx * 100, 100);
-      const ctxK   = ctx >= 1000 ? Math.round(ctx / 1000) + 'k' : String(ctx);
+      // Hint text for approximation: tells user which key enables exact counts
+      const hintText = d.method !== 'api'
+        ? (model.startsWith('gpt')    ? '\u00b7 set OPENAI_API_KEY for exact counts'
+         : model.startsWith('claude') ? '\u00b7 set ANTHROPIC_API_KEY for exact counts'
+         : '')
+        : '';
+      const hintHtml = hintText
+        ? `<span class="calc-hint">${hintText}</span>`
+        : '';
+
+      const ctx     = _ctxWindow(model);
+      const pct     = Math.min(d.input_tokens / ctx * 100, 100);
+      const ctxK    = ctx >= 1000 ? Math.round(ctx / 1000) + 'k' : String(ctx);
       const fillCls = pct >= 90 ? ' red' : pct >= 70 ? ' amber' : '';
 
       out.innerHTML = `
         <div class="calc-row">
           <span class="calc-row-label">Tokens</span>
           <span class="calc-row-value">${num(d.input_tokens)}</span>
-          <span class="calc-badge ${badgeCls}">${badgeLbl}</span>
+          <span class="calc-badge ${badgeCls}">${badgeLbl}</span>${hintHtml}
         </div>
         <div class="calc-row">
           <span class="calc-row-label">Cost</span>
-          <span class="calc-row-value">~$${d.cost_estimate_usd.toFixed(4)}</span>
+          <span class="calc-row-value">~${calcCost(d.cost_estimate_usd)}</span>
         </div>
         <div class="calc-ctx-row">
           <span class="calc-ctx-label">Context</span>
