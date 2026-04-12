@@ -438,6 +438,94 @@
       transition: opacity 0.15s, border-color 0.15s;
     }
     .clear-live-btn:hover { opacity: 1; border-color: var(--muted); }
+
+    /* ── Token Calculator ── */
+    .calc-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .calc-model-select {
+      font-family: var(--mono);
+      font-size: 0.8125rem;
+      background: var(--body-bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.2rem 0.5rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .calc-model-select:focus { outline: none; border-color: var(--teal); }
+    .calc-textarea {
+      width: 100%;
+      font-family: var(--mono);
+      font-size: 0.8125rem;
+      background: var(--body-bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.625rem;
+      color: var(--text);
+      resize: vertical;
+      line-height: 1.5;
+    }
+    .calc-textarea:focus { outline: none; border-color: var(--teal); }
+    .calc-output {
+      margin-top: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .calc-placeholder { color: var(--muted); font-size: 0.8125rem; font-family: var(--mono); }
+    .calc-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--mono);
+      font-size: 0.8125rem;
+    }
+    .calc-row-label { color: var(--muted); min-width: 52px; }
+    .calc-row-value { font-weight: 600; }
+    .calc-badge {
+      font-size: 0.6563rem;
+      font-weight: 600;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .calc-badge.exact  { background: #D1FAE5; color: #065F46; }
+    .calc-badge.approx { background: #FEF3C7; color: #92400E; }
+    .calc-ctx-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.25rem;
+    }
+    .calc-ctx-label { color: var(--muted); min-width: 52px; font-family: var(--mono); font-size: 0.8125rem; }
+    .calc-ctx-bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .calc-ctx-bar-fill {
+      height: 100%;
+      background: var(--teal);
+      border-radius: 3px;
+      transition: width 0.3s ease, background-color 0.3s;
+    }
+    .calc-ctx-bar-fill.amber { background: var(--amber); }
+    .calc-ctx-bar-fill.red   { background: var(--red); }
+    .calc-ctx-pct {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+      min-width: 80px;
+      text-align: right;
+    }
   </style>
 </head>
 <body>
@@ -539,6 +627,19 @@
   <div class="models-card">
     <div class="card-title">Model Usage · Last 7 Days</div>
     <div id="models-list"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- 6 · Token Calculator -->
+  <div class="panel">
+    <div class="card-title">Token Calculator</div>
+    <div class="calc-controls">
+      <span class="calc-row-label" style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.09em;">Model</span>
+      <select class="calc-model-select" id="calc-model"></select>
+    </div>
+    <textarea class="calc-textarea" id="calc-text" rows="6" placeholder="Paste your prompt here…"></textarea>
+    <div class="calc-output" id="calc-output">
+      <span class="calc-placeholder">Type something to count tokens…</span>
+    </div>
   </div>
 </main>
 
@@ -942,9 +1043,99 @@
     };
   }
 
+  // ── Token Calculator ─────────────────────────────────────────────────────
+
+  let _calcTimer = null;
+
+  function _ctxWindow(model) {
+    return model.startsWith('claude') ? 200_000 : 128_000;
+  }
+
+  async function loadTokenizerModels() {
+    try {
+      const models = await api('/api/tokenize/models');
+      const sel = $('calc-model');
+      if (!sel || !models.length) return;
+      sel.innerHTML = '';
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.id;
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      // non-critical
+    }
+  }
+
+  async function runTokenize() {
+    const text  = ($('calc-text')  || {}).value || '';
+    const model = ($('calc-model') || {}).value || '';
+    const out   = $('calc-output');
+    if (!out) return;
+
+    if (!text || !text.trim()) {
+      out.innerHTML = '<span class="calc-placeholder">Type something to count tokens\u2026</span>';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/tokenize', {
+        method:  'POST',
+        headers: { 'content-type': 'application/json' },
+        body:    JSON.stringify({ text, model }),
+      });
+      const d = await res.json();
+
+      const badgeCls = d.method === 'api' ? 'exact' : 'approx';
+      const badgeLbl = d.method === 'api' ? 'exact (API)' : '~estimate';
+
+      const ctx    = _ctxWindow(model);
+      const pct    = Math.min(d.input_tokens / ctx * 100, 100);
+      const ctxK   = ctx >= 1000 ? Math.round(ctx / 1000) + 'k' : String(ctx);
+      const fillCls = pct >= 90 ? ' red' : pct >= 70 ? ' amber' : '';
+
+      out.innerHTML = `
+        <div class="calc-row">
+          <span class="calc-row-label">Tokens</span>
+          <span class="calc-row-value">${num(d.input_tokens)}</span>
+          <span class="calc-badge ${badgeCls}">${badgeLbl}</span>
+        </div>
+        <div class="calc-row">
+          <span class="calc-row-label">Cost</span>
+          <span class="calc-row-value">~$${d.cost_estimate_usd.toFixed(4)}</span>
+        </div>
+        <div class="calc-ctx-row">
+          <span class="calc-ctx-label">Context</span>
+          <div class="calc-ctx-bar-track">
+            <div class="calc-ctx-bar-fill${fillCls}" style="width:${pct.toFixed(1)}%"></div>
+          </div>
+          <span class="calc-ctx-pct">${pct.toFixed(1)}% of ${ctxK}</span>
+        </div>`;
+    } catch (e) {
+      out.innerHTML = '<span class="calc-placeholder">Error \u2013 try again</span>';
+    }
+  }
+
+  function onCalcInput() {
+    clearTimeout(_calcTimer);
+    _calcTimer = setTimeout(runTokenize, 500);
+  }
+
+  function initTokenizer() {
+    const ta  = $('calc-text');
+    const sel = $('calc-model');
+    if (ta)  ta.addEventListener('input', onCalcInput);
+    if (sel) sel.addEventListener('change', () => { clearTimeout(_calcTimer); runTokenize(); });
+    loadTokenizerModels();
+  }
+
+  // ── Orchestration ─────────────────────────────────────────────────────────
+
   async function init() {
     await Promise.all([loadStatus(), loadProjects(), loadProvider()]);
     await Promise.all([loadAll(), loadLive()]);
+    initTokenizer();
     setInterval(loadAll, 30_000);   // full refresh backup
     setupWebSocket();               // replaces 5s live-poll with push
   }

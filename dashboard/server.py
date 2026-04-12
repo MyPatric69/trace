@@ -6,7 +6,11 @@ Run with:
     python -m uvicorn dashboard.server:app --host 127.0.0.1 --port 8080 --reload
 """
 import asyncio
+import json
+import os
 import sys
+import urllib.error
+import urllib.request
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -15,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from engine.store import TraceStore, TRACE_HOME
 from engine.live_tracker import LiveTracker
@@ -447,6 +452,94 @@ def api_provider(period: str = "month"):
             "fallback":  True,
             "error":     str(e),
         }
+
+
+# ---------------------------------------------------------------------------
+# /api/tokenize  (token count + cost estimate)
+# ---------------------------------------------------------------------------
+
+class TokenizeRequest(BaseModel):
+    text: str
+    model: str
+
+
+@app.get("/api/tokenize/models")
+def api_tokenize_models():
+    """Return configured models and prices for the Token Calculator selector."""
+    store = _store()
+    models = store.config.get("models", {})
+    return [{"id": name, **prices} for name, prices in models.items()]
+
+
+@app.post("/api/tokenize")
+def api_tokenize(req: TokenizeRequest):
+    """Count tokens for *text* using *model*, with cost estimate.
+
+    Calls the Anthropic count_tokens API when ANTHROPIC_API_KEY is set and
+    the model starts with "claude". Falls back to character/word approximation
+    for GPT models, unknown models, or when the API key is absent.
+    """
+    text  = req.text
+    model = req.model
+
+    # Load prices from config regardless of method
+    store = _store()
+    prices      = store.config.get("models", {}).get(model, {})
+    cost_per_1k = prices.get("input_per_1k", 0.0)
+
+    # Empty / whitespace → zero, no API call
+    if not text or not text.strip():
+        return {
+            "model":             model,
+            "input_tokens":      0,
+            "cost_estimate_usd": 0.0,
+            "method":            "approximation",
+            "cost_per_1k_input": cost_per_1k,
+        }
+
+    method       = "approximation"
+    input_tokens = 0
+
+    if model.startswith("claude"):
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if api_key:
+            try:
+                payload = json.dumps({
+                    "model":    model,
+                    "messages": [{"role": "user", "content": text}],
+                }).encode()
+                request = urllib.request.Request(
+                    "https://api.anthropic.com/v1/messages/count_tokens",
+                    data=payload,
+                    headers={
+                        "x-api-key":          api_key,
+                        "anthropic-version":  "2023-06-01",
+                        "content-type":       "application/json",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(request, timeout=3) as resp:
+                    data = json.loads(resp.read())
+                    input_tokens = int(data["input_tokens"])
+                method = "api"
+            except Exception:
+                input_tokens = int(len(text) / 3.5)
+        else:
+            input_tokens = int(len(text) / 3.5)
+    elif model.startswith("gpt"):
+        input_tokens = int(len(text.split()) * 1.3)
+    else:
+        input_tokens = int(len(text) / 3.5)
+
+    cost = (input_tokens / 1000) * cost_per_1k
+
+    return {
+        "model":             model,
+        "input_tokens":      input_tokens,
+        "cost_estimate_usd": round(cost, 6),
+        "method":            method,
+        "cost_per_1k_input": cost_per_1k,
+    }
 
 
 # ---------------------------------------------------------------------------

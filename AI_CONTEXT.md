@@ -274,12 +274,27 @@ trace/
 - [x] `dashboard/index.html` – `loadMetrics()` uses `/api/today` as primary source; metric cards show combined DB + live totals; cost sub-label shows "X sessions + live" when live session active
 - [x] `tests/test_dashboard.py` – 10 new tests: structure, all-zeros, DB-only, live-only, combined, cache summing, project filtering (include / exclude), exception resilience
 
+**v0.3.0 Feature 1 – Token Calculator (complete – 16 tests):**
+- [x] `dashboard/server.py` – `POST /api/tokenize` – counts tokens and estimates cost
+  - Claude models: calls Anthropic `count_tokens` API (3s timeout) if `ANTHROPIC_API_KEY` set; graceful fallback to char approximation (`len / 3.5`) on failure or missing key; `method: "api"` | `"approximation"`
+  - GPT models: word approximation (`words * 1.3`)
+  - All other models: char approximation
+  - Reads `input_per_1k` from `trace_config.yaml`; unknown model → `cost: 0.0`; empty/whitespace → `0 tokens`, no API call
+- [x] `dashboard/server.py` – `GET /api/tokenize/models` – returns configured model list for the UI selector
+- [x] `dashboard/index.html` – Token Calculator panel (panel 6, after Model Usage)
+  - Model selector populated from `/api/tokenize/models` on init
+  - Textarea (6 rows, resizable); 500ms debounce on input
+  - Results row: `Tokens: N · [exact (API)|~estimate]` badge + `Cost: ~$X.XXXX`
+  - Context bar: teal → amber (≥70%) → red (≥90%); Claude = 200k window, others = 128k
+  - Model change triggers immediate re-tokenize
+- [x] `tests/test_tokenize.py` – 16 tests: structure, empty/whitespace (no API call), approximation formulas (GPT word-count, unknown char-count), API path via mocked urlopen, API failure fallback, cost calculation, models list endpoint
+- `ANTHROPIC_API_KEY` (standard key, not admin) – used only for `count_tokens`; completely optional
+
 **Next:**
-- [ ] v0.2.1 tag + release notes
-- [ ] v0.3.0 feature planning
+- [ ] v0.3.0 Feature 2: Per-Turn DB Logging
 
 ---
 
 ## Last updated
 
-2026-04-12 – Combined daily cost view (GET /api/today); 292 tests green
+2026-04-12 – v0.3.0 Feature 1: Token Calculator widget; 308 tests green
