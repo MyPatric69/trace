@@ -346,4 +346,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – v0.3.0 Feature 4 MCP Server Panel complete; 367/367 tests green
+2026-04-12 – Auto-synced 1 commit(s) to bf37bda
