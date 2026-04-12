@@ -1,17 +1,19 @@
-"""Phase 4: TRACE Web Dashboard – FastAPI server.
+"""TRACE Web Dashboard – FastAPI server (v0.2.0).
 
 Run with:
     bash dashboard/start.sh
     # or:
     python -m uvicorn dashboard.server:app --host 127.0.0.1 --port 8080 --reload
 """
+import asyncio
 import sys
-from datetime import date, timedelta
+from contextlib import asynccontextmanager
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 from engine.store import TraceStore, TRACE_HOME
@@ -20,7 +22,111 @@ from engine.providers import get_provider
 from server.tools.context import check_drift, update_context
 from server.tools.session import get_tips, new_session
 
-app = FastAPI(title="TRACE Dashboard", version="0.1.0")
+# app is created after lifespan is defined — see bottom of this section
+
+
+# ---------------------------------------------------------------------------
+# WebSocket connection manager
+# ---------------------------------------------------------------------------
+
+class ConnectionManager:
+    """Tracks active WebSocket connections and broadcasts messages to all."""
+
+    def __init__(self) -> None:
+        self.active: list[WebSocket] = []
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self.active.append(ws)
+
+    def disconnect(self, ws: WebSocket) -> None:
+        if ws in self.active:
+            self.active.remove(ws)
+
+    async def broadcast(self, message: dict) -> None:
+        """Send *message* to every active connection; remove any that fail."""
+        dead: list[WebSocket] = []
+        for ws in list(self.active):
+            try:
+                await ws.send_json(message)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws)
+
+
+manager = ConnectionManager()
+
+
+# ---------------------------------------------------------------------------
+# Background tasks (started on server startup)
+# ---------------------------------------------------------------------------
+
+async def _watch_live_file() -> None:
+    """Broadcast 'live_updated' whenever live_session.json mtime changes."""
+    last_mtime = 0.0
+    while True:
+        await asyncio.sleep(1)
+        try:
+            p = TRACE_HOME / "live_session.json"
+            mtime = p.stat().st_mtime if p.exists() else 0.0
+            if mtime != last_mtime:
+                last_mtime = mtime
+                await manager.broadcast({
+                    "type":      "live_updated",
+                    "timestamp": datetime.now().isoformat(timespec="seconds"),
+                    "data":      None,
+                })
+        except Exception:
+            pass
+
+
+async def _watch_db() -> None:
+    """Broadcast 'session_logged' whenever trace.db mtime changes."""
+    last_mtime = 0.0
+    first = True
+    while True:
+        await asyncio.sleep(1)
+        try:
+            db_path = TRACE_HOME / "trace.db"
+            mtime = db_path.stat().st_mtime if db_path.exists() else 0.0
+            if mtime != last_mtime:
+                if not first:
+                    await manager.broadcast({
+                        "type":      "session_logged",
+                        "timestamp": datetime.now().isoformat(timespec="seconds"),
+                        "data":      None,
+                    })
+                last_mtime = mtime
+                first = False
+        except Exception:
+            pass
+
+
+async def _ping_clients() -> None:
+    """Send keepalive ping to all clients every 30 seconds."""
+    while True:
+        await asyncio.sleep(30)
+        await manager.broadcast({
+            "type":      "ping",
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "data":      None,
+        })
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    tasks = [
+        asyncio.create_task(_watch_live_file()),
+        asyncio.create_task(_watch_db()),
+        asyncio.create_task(_ping_clients()),
+    ]
+    yield
+    for t in tasks:
+        t.cancel()
+
+
+app = FastAPI(title="TRACE Dashboard", version="0.2.0", lifespan=_lifespan)
 
 _DASHBOARD_DIR = Path(__file__).parent
 
@@ -274,6 +380,24 @@ def api_provider(period: str = "month"):
             "fallback":  True,
             "error":     str(e),
         }
+
+
+# ---------------------------------------------------------------------------
+# WebSocket endpoint
+# ---------------------------------------------------------------------------
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket) -> None:
+    """Accept a WebSocket connection and keep it alive until the client leaves."""
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Receive and discard any client-sent frames (keepalives etc.)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        manager.disconnect(websocket)
 
 
 if __name__ == "__main__":

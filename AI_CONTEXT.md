@@ -248,14 +248,26 @@ trace/
 - `get_provider()` guarantees `is_available() == True` on returned instance
 - ManualProvider is the universal fallback (no external deps)
 
-**Next: v0.2.0**
-- [x] Config Auto-Sync (`engine/store.py` refactor)
-- [x] Live Token Tracking (`engine/live_tracker.py`)
-- [x] Provider adapters (`engine/providers/`)
-- [ ] WebSocket Push (`dashboard/`)
+**WebSocket Push (complete – 12 tests):**
+- [x] `dashboard/server.py` – `ConnectionManager` (connect/disconnect/broadcast); three background tasks: `_watch_live_file` (1s poll → `live_updated`), `_watch_db` (1s poll → `session_logged`), `_ping_clients` (30s keepalive); `lifespan` context for clean task lifecycle; `/ws` WebSocket endpoint
+- [x] `dashboard/index.html` – `setupWebSocket()` replaces 5s live-poll; WS status dot in header (gray → teal on connect); `_startFallback()` (10s live poll) on disconnect/error; auto-reconnect after 3s; 30s `loadAll` backup unchanged
+- [x] `tests/test_websocket.py` – 12 tests: ConnectionManager unit tests + `/ws` endpoint integration tests
+
+**WebSocket behaviour:**
+- `live_updated` → triggers `loadLive()` immediately
+- `session_logged` → triggers `loadAll()` immediately  
+- `ping` → keepalive, no UI action
+- Multiple concurrent browser tabs each get their own connection; all receive broadcasts
+- Fallback: if WS unavailable, falls back to 10s live-poll + 30s full-refresh automatically
+
+**v0.2.0 complete** – 281/281 tests green
+
+**Next: v0.3.0 planning**
+- [ ] v0.2.1 tag + release notes
+- [ ] v0.3.0 feature planning
 
 ---
 
 ## Last updated
 
-2026-04-12 – Auto-synced 1 commit(s) to c487a46
+2026-04-12 – v0.2.0 complete: WebSocket Push (281/281 tests green)

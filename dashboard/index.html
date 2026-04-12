@@ -107,7 +107,7 @@
       align-items: center;
       gap: 1.25rem;
     }
-    .mcp-badge {
+    .mcp-badge, .ws-badge {
       display: flex;
       align-items: center;
       gap: 0.375rem;
@@ -120,6 +120,8 @@
       border-radius: 50%;
       background: var(--teal);
     }
+    /* WebSocket status dot starts gray; turns teal when connected */
+    .ws-dot { background: #6B6760; transition: background 0.3s; }
     #last-updated {
       font-family: var(--mono);
       font-size: 0.6875rem;
@@ -458,6 +460,7 @@
   </select>
   <div class="header-right">
     <div class="mcp-badge"><span class="dot"></span> MCP</div>
+    <div class="ws-badge"><span class="dot ws-dot" id="ws-dot"></span> WS</div>
     <div id="last-updated">–</div>
   </div>
 </header>
@@ -866,11 +869,67 @@
     loadAll();
   }
 
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+
+  let _wsFallbackRunning = false;
+
+  function _startFallback() {
+    if (_wsFallbackRunning) return;
+    _wsFallbackRunning = true;
+    // Live panel: poll every 10s (replaces WS-driven updates)
+    setInterval(loadLive, 10_000);
+    // Full refresh every 30s already running – no extra loadAll interval needed
+  }
+
+  function setupWebSocket() {
+    const wsUrl = 'ws://' + location.host + '/ws';
+    let ws;
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e) {
+      _startFallback();
+      return;
+    }
+
+    ws.onopen = () => {
+      const dot = $('ws-dot');
+      if (dot) dot.style.background = 'var(--teal)';
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'live_updated') {
+          loadLive();
+        } else if (msg.type === 'session_logged') {
+          loadAll();
+        }
+        // 'ping' – keepalive, no action needed
+      } catch (e) {
+        // silent
+      }
+    };
+
+    ws.onclose = () => {
+      const dot = $('ws-dot');
+      if (dot) dot.style.background = '#6B6760';
+      _startFallback();
+      // Attempt reconnect after 3s
+      setTimeout(setupWebSocket, 3_000);
+    };
+
+    ws.onerror = () => {
+      const dot = $('ws-dot');
+      if (dot) dot.style.background = '#6B6760';
+      _startFallback();
+    };
+  }
+
   async function init() {
     await Promise.all([loadStatus(), loadProjects()]);
     await Promise.all([loadAll(), loadLive()]);
-    setInterval(loadAll, 30_000);
-    setInterval(loadLive, 5_000);
+    setInterval(loadAll, 30_000);   // full refresh backup
+    setupWebSocket();               // replaces 5s live-poll with push
   }
 
   init();
