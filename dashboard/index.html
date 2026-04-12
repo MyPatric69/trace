@@ -532,6 +532,53 @@
       color: var(--amber);
       opacity: 0.85;
     }
+
+    /* ── MCP Servers panel ── */
+    .mcp-summary {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .mcp-server-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.375rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .mcp-server-row:last-of-type { border-bottom: none; }
+    .mcp-server-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--teal);
+      flex-shrink: 0;
+    }
+    .mcp-server-name {
+      font-family: var(--mono);
+      font-size: 0.8125rem;
+      flex: 1;
+    }
+    .mcp-server-tokens {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .mcp-monthly {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+    }
+    .mcp-disclaimer {
+      font-family: var(--mono);
+      font-size: 0.6563rem;
+      color: var(--amber);
+      margin-top: 0.625rem;
+      line-height: 1.55;
+      opacity: 0.9;
+    }
   </style>
 </head>
 <body>
@@ -635,7 +682,16 @@
     <div id="models-list"><div class="empty">Loading…</div></div>
   </div>
 
-  <!-- 6 · Token Calculator -->
+  <!-- 6 · MCP Servers -->
+  <div class="panel">
+    <div class="card-title">MCP Servers</div>
+    <div class="mcp-summary" id="mcp-summary">Loading…</div>
+    <div id="mcp-list"></div>
+    <div class="mcp-monthly" id="mcp-monthly"></div>
+    <div class="mcp-disclaimer" id="mcp-disclaimer"></div>
+  </div>
+
+  <!-- 7 · Token Calculator -->
   <div class="panel">
     <div class="card-title">Token Calculator</div>
     <div class="calc-controls">
@@ -990,7 +1046,7 @@
 
   async function loadAll() {
     try {
-      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels()]);
+      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels(), loadMcp()]);
     } catch (e) {
       console.error('Refresh error:', e);
     }
@@ -1055,6 +1111,43 @@
       if (dot) dot.style.background = '#6B6760';
       _startFallback();
     };
+  }
+
+  // ── MCP Servers panel ────────────────────────────────────────────────────
+
+  async function loadMcp() {
+    try {
+      const d       = await api('/api/mcp');
+      const summary = $('mcp-summary');
+      const list    = $('mcp-list');
+      const monthly = $('mcp-monthly');
+      const disc    = $('mcp-disclaimer');
+      if (!summary || !list) return;
+
+      const n = d.servers ? d.servers.length : 0;
+      if (n === 0) {
+        summary.textContent = 'No MCP servers found in ~/.claude/settings.json';
+        list.innerHTML      = '';
+      } else {
+        summary.textContent = `Connected: ${n} server${n !== 1 ? 's' : ''} · ~${d.total_estimated_tokens.toLocaleString()} tokens/call`;
+        list.innerHTML = d.servers.map(s => `
+          <div class="mcp-server-row">
+            <span class="mcp-server-dot"></span>
+            <span class="mcp-server-name">${s.name}</span>
+            <span class="mcp-server-tokens">~${s.estimated_tokens} tokens/call</span>
+          </div>`).join('');
+      }
+
+      if (monthly && d.monthly_cost_estimate > 0) {
+        monthly.textContent = `Monthly overhead estimate: ~$${d.monthly_cost_estimate.toFixed(4)}`;
+      } else if (monthly) {
+        monthly.textContent = '';
+      }
+
+      if (disc) disc.textContent = '\u26a0 ' + (d.disclaimer || '');
+    } catch (e) {
+      // non-critical
+    }
   }
 
   // ── Token Calculator ─────────────────────────────────────────────────────

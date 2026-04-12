@@ -455,6 +455,80 @@ def api_provider(period: str = "month"):
 
 
 # ---------------------------------------------------------------------------
+# /api/mcp  (MCP server registry + token overhead estimates)
+# ---------------------------------------------------------------------------
+
+_CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
+_TOKENS_PER_SERVER = 300
+_MCP_DISCLAIMER = (
+    "Token overhead per MCP server is estimated from a fixed baseline of "
+    "~300 tokens per server per API call. Actual costs vary and cannot be "
+    "measured per-server without an API proxy. Use these figures for rough "
+    "guidance only."
+)
+
+
+@app.get("/api/mcp")
+def api_mcp():
+    """Return registered MCP servers with estimated per-call token overhead."""
+    servers: list[dict] = []
+    try:
+        if _CLAUDE_SETTINGS.exists():
+            raw = json.loads(_CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+            for name, cfg in raw.get("mcpServers", {}).items():
+                servers.append({
+                    "name":             name,
+                    "command":          cfg.get("command", ""),
+                    "args":             cfg.get("args", []),
+                    "estimated_tokens": _TOKENS_PER_SERVER,
+                    "source":           "estimated",
+                })
+    except Exception:
+        pass
+
+    total = len(servers) * _TOKENS_PER_SERVER
+
+    # Monthly cost estimate based on recent session cadence
+    monthly_cost = 0.0
+    try:
+        store = _store()
+        seven_days_ago = (date.today() - timedelta(days=7)).isoformat()
+        recent = store.get_sessions(since_date=seven_days_ago, limit=1000)
+        avg_sessions_per_day = len(recent) / 7
+
+        # Parse turn count from notes like "Auto-logged … – N turns"
+        turns_list: list[int] = []
+        for s in recent:
+            notes = s.get("notes") or ""
+            if "turn" in notes.lower():
+                import re
+                m = re.search(r"(\d+)\s+turn", notes, re.IGNORECASE)
+                if m:
+                    turns_list.append(int(m.group(1)))
+        avg_turns = (sum(turns_list) / len(turns_list)) if turns_list else 10
+
+        monthly_calls = avg_sessions_per_day * avg_turns * 30
+
+        models_cfg = store.config.get("models", {})
+        # Prefer sonnet-4-6 price; fall back through known sonnet names
+        sonnet_price = (
+            (models_cfg.get("claude-sonnet-4-6") or {}).get("input_per_1k")
+            or (models_cfg.get("claude-sonnet-4-5") or {}).get("input_per_1k")
+            or 0.003
+        )
+        monthly_cost = round((total / 1000) * sonnet_price * monthly_calls, 4)
+    except Exception:
+        pass
+
+    return {
+        "servers":                servers,
+        "total_estimated_tokens": total,
+        "monthly_cost_estimate":  monthly_cost,
+        "disclaimer":             _MCP_DISCLAIMER,
+    }
+
+
+# ---------------------------------------------------------------------------
 # /api/tokenize  (token count + cost estimate)
 # ---------------------------------------------------------------------------
 

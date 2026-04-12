@@ -318,11 +318,32 @@ trace/
 - Affected prefixes: `chore`, `docs`, `style`, `test` (conventional commit types that don't change logic)
 - Unrecognised prefixes (`feat`, `fix`, `refactor`, `perf`, `ci`, `build`, etc.) always synthesise
 
+**v0.3.0 Feature 4 – MCP Server Panel (complete – 13 tests):**
+- [x] `dashboard/server.py` – `GET /api/mcp` endpoint
+  - Reads `~/.claude/settings.json`, parses `mcpServers` block
+  - Fixed 300-token baseline per server (`_TOKENS_PER_SERVER`); `source: "estimated"` always
+  - `total_estimated_tokens = n × 300`
+  - `monthly_cost_estimate`: derived from `avg_sessions_per_day × avg_turns × 30 × (total_tokens / 1k) × input_price`; turn count parsed from session notes (`"– N turns"` pattern); falls back to 10 turns/session
+  - `disclaimer` always present in response
+  - Never crashes if `~/.claude/settings.json` absent, malformed, or missing `mcpServers` key
+- [x] `dashboard/index.html` – MCP Servers panel (panel 6, between Model Usage and Token Calculator)
+  - Summary line: `Connected: N servers · ~M tokens/call`
+  - Green dot per server + `~300 tokens/call` per row
+  - Monthly overhead estimate line (shown when > 0)
+  - Disclaimer in amber always visible
+  - `loadMcp()` called from `loadAll()` so it refreshes with the rest of the dashboard
+- [x] `tests/test_mcp_panel.py` – 13 tests: structure, empty/absent/malformed settings, disclaimer always present, total = n × 300, monthly cost is float / zero with no sessions, handles missing `mcpServers` key
+
+**MCP Panel behaviour:**
+- All numbers prefixed with `~` in the UI to signal estimates
+- Disclaimer text: "Token overhead per MCP server is estimated from a fixed baseline of ~300 tokens per server per API call…"
+- Panel is non-critical: errors are swallowed silently
+
 **Next:**
-- [ ] v0.3.0 Feature 4: MCP Server Panel
+- [ ] Provider Log Spam fix
 
 ---
 
 ## Last updated
 
-2026-04-12 – v0.3.0 Feature 3 Hook Refinement complete; 354/354 tests green
+2026-04-12 – v0.3.0 Feature 4 MCP Server Panel complete; 367/367 tests green
