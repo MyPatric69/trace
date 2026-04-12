@@ -941,26 +941,35 @@
         sc + ' session' + (sc !== 1 ? 's' : '') + ' today across '
         + ap + ' active project' + (ap !== 1 ? 's' : '');
     } else {
-      $('health-row').style.display     = '';
-      $('health-summary').style.display = 'none';
-
-      const total   = tokens.total_tokens;
-      const warnAt  = tokens.warn_at;
-      const resetAt = tokens.reset_at;
-      const barPct  = Math.min(total / resetAt * 100, 100);
-      const fill    = $('health-fill');
-      fill.style.width = barPct + '%';
-      fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
-      $('health-label').textContent = num(total) + ' / ' + num(resetAt) + ' tokens';
-
-      const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
-      $('health-warn-label').style.left        = warnPct + '%';
-      $('health-warn-label').style.transform   = 'translateX(-50%)';
-      $('health-warn-label').textContent       = 'warn at ' + toK(warnAt);
-      $('health-thresholds').lastElementChild.textContent = 'reset at ' + toK(resetAt);
-
+      // Handoff link is always useful when a project is selected.
       link.href      = '/api/new_session/' + encodeURIComponent(proj) + '?dry_run=true';
       link.className = 'handoff-link';
+
+      // Health bar shows live session tokens only (not the daily total).
+      // /api/today already carries live_* fields for the selected project.
+      if (!today.live_active) {
+        $('health-row').style.display     = 'none';
+        $('health-summary').style.display = '';
+        $('health-summary').textContent   = 'No active session';
+      } else {
+        const warnAt  = tokens.warn_at;
+        const resetAt = tokens.reset_at;
+        const total   = (today.live_input_tokens || 0) + (today.live_cache_creation_tokens || 0);
+        const barPct  = Math.min(total / resetAt * 100, 100);
+        const fill    = $('health-fill');
+        fill.style.width = barPct + '%';
+        fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
+        $('health-label').textContent = num(total) + ' / ' + num(resetAt) + ' tokens';
+
+        const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
+        $('health-warn-label').style.left      = warnPct + '%';
+        $('health-warn-label').style.transform = 'translateX(-50%)';
+        $('health-warn-label').textContent     = 'warn at ' + toK(warnAt);
+        $('health-thresholds').lastElementChild.textContent = 'reset at ' + toK(resetAt);
+
+        $('health-row').style.display     = '';
+        $('health-summary').style.display = 'none';
+      }
     }
   }
 
