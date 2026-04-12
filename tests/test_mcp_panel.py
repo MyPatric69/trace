@@ -1,27 +1,24 @@
-"""Tests for v0.3.0 Feature 4 – MCP Server Panel (GET /api/mcp).
+"""Tests for v0.3.0 Feature 4 (refactored) – MCP Server Panel.
 
-Covers:
-  - correct response structure
-  - empty server list when both config files are absent
-  - disclaimer always present
-  - total_estimated_tokens = n * 300
-  - per-server fields (name, command, args, source)
-  - monthly_cost_estimate calculation
-  - resilience to malformed files
-  - dual-source merge: ~/.claude/settings.json +
-    ~/Library/Application Support/Claude/claude_desktop_config.json
-  - deduplication by name (settings.json wins on collision)
+Endpoints under test:
+  GET    /api/mcp          – list servers from trace_config.yaml
+  POST   /api/mcp          – add a server (validate name, reject duplicates)
+  DELETE /api/mcp/{name}   – remove a server (404 when unknown)
+
+Isolation strategy:
+  - monkeypatch TRACE_HOME → tmp_path (so _load_central_config reads tmp yaml)
+  - monkeypatch _save_and_sync_config → only writes the central file (no project sync)
+  - monkeypatch _store → tmp TraceStore (for monthly cost calc)
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-import dashboard.server as dashboard_module
+import dashboard.server as srv
 from dashboard.server import app, _TOKENS_PER_SERVER, _MCP_DISCLAIMER
 from engine.store import TraceStore
 
@@ -34,76 +31,65 @@ _MODEL_PRICES = {
     },
 }
 
-_SAMPLE_SETTINGS = {
-    "mcpServers": {
-        "trace": {
-            "command": "python3",
-            "args": ["-m", "server.main"],
-        },
-        "github": {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-github"],
-        },
-        "filesystem": {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-        },
-    }
+_BASE_CONFIG = {
+    "trace":    {"db_path": "test.db", "version": "0.3.0"},
+    "projects": [],
+    "budgets":  {"default_monthly_usd": 20.0, "alert_threshold_pct": 80},
+    "session":  {"warn_at_tokens": 30_000, "recommend_reset_at": 50_000},
+    "models":   _MODEL_PRICES,
+    "api_integration": {"provider": "manual"},
 }
 
 
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
 @pytest.fixture
 def tmp_store(tmp_path):
-    config = {
-        "trace":    {"db_path": "test.db", "version": "0.3.0"},
-        "projects": [],
-        "budgets":  {"default_monthly_usd": 20.0, "alert_threshold_pct": 80},
-        "session":  {"warn_at_tokens": 30_000, "recommend_reset_at": 50_000},
-        "models":   _MODEL_PRICES,
-        "api_integration": {"provider": "manual"},
-    }
     cfg = tmp_path / "trace_config.yaml"
-    cfg.write_text(yaml.dump(config))
+    cfg.write_text(yaml.dump(_BASE_CONFIG))
     store = TraceStore(str(cfg))
     store.init_db()
     return store
 
 
 @pytest.fixture
-def client(tmp_store, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_store", lambda: tmp_store)
+def mcp_home(tmp_path, monkeypatch, tmp_store):
+    """
+    Redirect TRACE_HOME to tmp_path so _load_central_config reads/writes
+    a temp yaml.  Also prevent _save_and_sync_config from touching the real
+    project trace_config.yaml.
+    """
+    # Write a fresh central config with empty mcp_servers
+    central = tmp_path / "trace_config.yaml"
+    config = dict(_BASE_CONFIG)
+    config["mcp_servers"] = []
+    central.write_text(yaml.dump(config))
+
+    monkeypatch.setattr(srv, "TRACE_HOME", tmp_path)
+
+    # Skip project-sync in tests
+    def _no_sync(path: Path, cfg: dict) -> None:
+        text = yaml.dump(cfg, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(srv, "_save_and_sync_config", _no_sync)
+
+    monkeypatch.setattr(srv, "_store", lambda: tmp_store)
+
+    return tmp_path
+
+
+@pytest.fixture
+def client(mcp_home):
     return TestClient(app)
 
 
-def _write(tmp_path: Path, name: str, content: dict) -> Path:
-    p = tmp_path / name
-    p.write_text(json.dumps(content))
-    return p
-
-
-def _absent(tmp_path: Path, name: str = "absent.json") -> Path:
-    return tmp_path / name  # does not exist
-
-
-def _patch(monkeypatch, *, settings=None, desktop=None, tmp_path: Path):
-    """Patch both MCP source paths. Pass None to leave as absent."""
-    monkeypatch.setattr(
-        dashboard_module, "_CLAUDE_SETTINGS",
-        settings if settings is not None else _absent(tmp_path, "settings.json"),
-    )
-    monkeypatch.setattr(
-        dashboard_module, "_CLAUDE_DESKTOP_CONFIG",
-        desktop if desktop is not None else _absent(tmp_path, "desktop.json"),
-    )
-
-
 # ---------------------------------------------------------------------------
-# Structure
+# GET /api/mcp
 # ---------------------------------------------------------------------------
 
-def test_api_mcp_returns_correct_keys(client, tmp_path, monkeypatch):
-    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
+def test_get_mcp_returns_correct_structure(client):
     res = client.get("/api/mcp")
     assert res.status_code == 200
     data = res.json()
@@ -113,209 +99,164 @@ def test_api_mcp_returns_correct_keys(client, tmp_path, monkeypatch):
     assert "disclaimer" in data
 
 
-def test_api_mcp_server_fields(client, tmp_path, monkeypatch):
-    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
+def test_get_mcp_empty_when_no_servers(client):
     data = client.get("/api/mcp").json()
-    assert len(data["servers"]) == 3
-    server = next(s for s in data["servers"] if s["name"] == "trace")
-    assert server["command"] == "python3"
-    assert server["args"] == ["-m", "server.main"]
+    assert data["servers"] == []
+    assert data["total_estimated_tokens"] == 0
+
+
+def test_get_mcp_disclaimer_always_present(client):
+    data = client.get("/api/mcp").json()
+    assert data["disclaimer"] == _MCP_DISCLAIMER
+    assert "300" in data["disclaimer"]
+
+
+def test_get_mcp_total_tokens_scales_with_servers(client, mcp_home):
+    # Seed two servers directly in the yaml
+    cfg_path = mcp_home / "trace_config.yaml"
+    config = yaml.safe_load(cfg_path.read_text())
+    config["mcp_servers"] = [
+        {"name": "trace",  "estimated_tokens": _TOKENS_PER_SERVER},
+        {"name": "github", "estimated_tokens": _TOKENS_PER_SERVER},
+    ]
+    cfg_path.write_text(yaml.dump(config))
+
+    data = client.get("/api/mcp").json()
+    assert data["total_estimated_tokens"] == 2 * _TOKENS_PER_SERVER
+    assert len(data["servers"]) == 2
+
+
+def test_get_mcp_missing_key_treated_as_empty(client, mcp_home):
+    # Remove mcp_servers key entirely
+    cfg_path = mcp_home / "trace_config.yaml"
+    config = yaml.safe_load(cfg_path.read_text())
+    config.pop("mcp_servers", None)
+    cfg_path.write_text(yaml.dump(config))
+
+    data = client.get("/api/mcp").json()
+    assert data["servers"] == []
+    assert data["total_estimated_tokens"] == 0
+
+
+# ---------------------------------------------------------------------------
+# POST /api/mcp
+# ---------------------------------------------------------------------------
+
+def test_post_mcp_adds_server(client):
+    res = client.post("/api/mcp", json={"name": "trace"})
+    assert res.status_code == 201
+    data = res.json()
+    assert any(s["name"] == "trace" for s in data["servers"])
+
+
+def test_post_mcp_returns_correct_server_fields(client):
+    data = client.post("/api/mcp", json={"name": "github"}).json()
+    server = next(s for s in data["servers"] if s["name"] == "github")
     assert server["estimated_tokens"] == _TOKENS_PER_SERVER
     assert server["source"] == "estimated"
 
 
-# ---------------------------------------------------------------------------
-# Empty list when both files are absent
-# ---------------------------------------------------------------------------
-
-def test_api_mcp_empty_when_both_absent(client, tmp_path, monkeypatch):
-    _patch(monkeypatch, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["servers"] == []
-    assert data["total_estimated_tokens"] == 0
-
-
-def test_api_mcp_empty_when_no_settings(client, tmp_path, monkeypatch):
-    """Legacy: only settings path absent, desktop also absent."""
-    _patch(monkeypatch, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["servers"] == []
-    assert data["total_estimated_tokens"] == 0
-
-
-def test_api_mcp_still_returns_disclaimer_when_both_absent(client, tmp_path, monkeypatch):
-    _patch(monkeypatch, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["disclaimer"] == _MCP_DISCLAIMER
-    assert len(data["disclaimer"]) > 20
-
-
-# ---------------------------------------------------------------------------
-# Disclaimer always present
-# ---------------------------------------------------------------------------
-
-def test_disclaimer_always_present_with_servers(client, tmp_path, monkeypatch):
-    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["disclaimer"] == _MCP_DISCLAIMER
-
-
-def test_disclaimer_text_mentions_300_tokens(client, tmp_path, monkeypatch):
-    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert "300" in data["disclaimer"]
-
-
-# ---------------------------------------------------------------------------
-# total_estimated_tokens = n * 300
-# ---------------------------------------------------------------------------
-
-def test_total_estimated_tokens_three_servers(client, tmp_path, monkeypatch):
-    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["total_estimated_tokens"] == 3 * _TOKENS_PER_SERVER
-
-
-def test_total_estimated_tokens_one_server(client, tmp_path, monkeypatch):
-    settings = _write(tmp_path, "settings.json", {"mcpServers": {"trace": {"command": "python3", "args": []}}})
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["total_estimated_tokens"] == _TOKENS_PER_SERVER
-
-
-def test_total_estimated_tokens_empty(client, tmp_path, monkeypatch):
-    settings = _write(tmp_path, "settings.json", {"mcpServers": {}})
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["total_estimated_tokens"] == 0
-
-
-# ---------------------------------------------------------------------------
-# Dual-source merge
-# ---------------------------------------------------------------------------
-
-def test_merges_servers_from_both_files(client, tmp_path, monkeypatch):
-    """Servers from settings.json and desktop config are combined."""
-    settings = _write(tmp_path, "settings.json", {
-        "mcpServers": {"trace": {"command": "python3", "args": []}},
-    })
-    desktop = _write(tmp_path, "desktop.json", {
-        "mcpServers": {"github": {"command": "npx", "args": ["-y", "github-mcp"]}},
-    })
-    _patch(monkeypatch, settings=settings, desktop=desktop, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    names = {s["name"] for s in data["servers"]}
-    assert names == {"trace", "github"}
+def test_post_mcp_total_tokens_correct_after_add(client):
+    client.post("/api/mcp", json={"name": "trace"})
+    data = client.post("/api/mcp", json={"name": "github"}).json()
     assert data["total_estimated_tokens"] == 2 * _TOKENS_PER_SERVER
 
 
-def test_desktop_config_only(client, tmp_path, monkeypatch):
-    """Works when only the desktop config has servers."""
-    desktop = _write(tmp_path, "desktop.json", {
-        "mcpServers": {"filesystem": {"command": "npx", "args": ["-y", "fs-mcp"]}},
-    })
-    _patch(monkeypatch, desktop=desktop, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert len(data["servers"]) == 1
-    assert data["servers"][0]["name"] == "filesystem"
-    assert data["total_estimated_tokens"] == _TOKENS_PER_SERVER
+def test_post_mcp_rejects_duplicate_name(client):
+    client.post("/api/mcp", json={"name": "trace"})
+    res = client.post("/api/mcp", json={"name": "trace"})
+    assert res.status_code == 409
+    assert "already exists" in res.json()["detail"]
 
 
-def test_deduplicates_by_name(client, tmp_path, monkeypatch):
-    """Same server name in both files → only one entry in the result."""
-    settings = _write(tmp_path, "settings.json", {
-        "mcpServers": {"trace": {"command": "python3", "args": ["-m", "server.main"]}},
-    })
-    desktop = _write(tmp_path, "desktop.json", {
-        "mcpServers": {"trace": {"command": "node", "args": ["trace.js"]}},
-    })
-    _patch(monkeypatch, settings=settings, desktop=desktop, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert len(data["servers"]) == 1
-    assert data["total_estimated_tokens"] == _TOKENS_PER_SERVER
+def test_post_mcp_rejects_empty_name(client):
+    res = client.post("/api/mcp", json={"name": ""})
+    assert res.status_code == 422
 
 
-def test_settings_wins_on_name_collision(client, tmp_path, monkeypatch):
-    """When both files have the same server name, settings.json wins."""
-    settings = _write(tmp_path, "settings.json", {
-        "mcpServers": {"trace": {"command": "python3", "args": ["-m", "server.main"]}},
-    })
-    desktop = _write(tmp_path, "desktop.json", {
-        "mcpServers": {"trace": {"command": "node", "args": ["trace.js"]}},
-    })
-    _patch(monkeypatch, settings=settings, desktop=desktop, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    server = data["servers"][0]
-    assert server["command"] == "python3"
-    assert server["args"] == ["-m", "server.main"]
+def test_post_mcp_rejects_whitespace_only_name(client):
+    res = client.post("/api/mcp", json={"name": "   "})
+    assert res.status_code == 422
 
 
-def test_desktop_config_malformed_still_returns_settings(client, tmp_path, monkeypatch):
-    """Malformed desktop config → settings.json servers still returned."""
-    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
-    desktop = tmp_path / "desktop.json"
-    desktop.write_text("NOT VALID JSON{{{")
-    _patch(monkeypatch, settings=settings, desktop=desktop, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert len(data["servers"]) == 3
-    assert data["disclaimer"] == _MCP_DISCLAIMER
+def test_post_mcp_rejects_uppercase_letters(client):
+    res = client.post("/api/mcp", json={"name": "MyServer"})
+    assert res.status_code == 422
 
 
-def test_settings_malformed_still_returns_desktop(client, tmp_path, monkeypatch):
-    """Malformed settings.json → desktop config servers still returned."""
-    desktop = _write(tmp_path, "desktop.json", {
-        "mcpServers": {"github": {"command": "npx", "args": []}},
-    })
-    bad = tmp_path / "settings.json"
-    bad.write_text("INVALID{{{")
-    _patch(monkeypatch, settings=bad, desktop=desktop, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert len(data["servers"]) == 1
-    assert data["servers"][0]["name"] == "github"
+def test_post_mcp_rejects_spaces_in_name(client):
+    res = client.post("/api/mcp", json={"name": "my server"})
+    assert res.status_code == 422
+
+
+def test_post_mcp_accepts_hyphenated_name(client):
+    res = client.post("/api/mcp", json={"name": "my-server"})
+    assert res.status_code == 201
+    data = res.json()
+    assert any(s["name"] == "my-server" for s in data["servers"])
+
+
+def test_post_mcp_persists_to_yaml(client, mcp_home):
+    client.post("/api/mcp", json={"name": "trace"})
+    saved = yaml.safe_load((mcp_home / "trace_config.yaml").read_text())
+    names = [s["name"] for s in saved.get("mcp_servers", [])]
+    assert "trace" in names
 
 
 # ---------------------------------------------------------------------------
-# monthly_cost_estimate
+# DELETE /api/mcp/{name}
 # ---------------------------------------------------------------------------
 
-def test_monthly_cost_estimate_is_float(client, tmp_path, monkeypatch):
-    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert isinstance(data["monthly_cost_estimate"], (int, float))
-
-
-def test_monthly_cost_estimate_zero_when_no_sessions(client, tmp_path, monkeypatch):
-    """With no sessions in the last 7 days, monthly cost should be 0."""
-    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["monthly_cost_estimate"] == 0.0
-
-
-# ---------------------------------------------------------------------------
-# Resilience
-# ---------------------------------------------------------------------------
-
-def test_api_mcp_handles_malformed_settings(client, tmp_path, monkeypatch):
-    bad = tmp_path / "settings.json"
-    bad.write_text("NOT VALID JSON{{{")
-    _patch(monkeypatch, settings=bad, tmp_path=tmp_path)
-    res = client.get("/api/mcp")
+def test_delete_mcp_removes_server(client):
+    client.post("/api/mcp", json={"name": "trace"})
+    res = client.delete("/api/mcp/trace")
     assert res.status_code == 200
     data = res.json()
-    assert data["servers"] == []
-    assert data["disclaimer"] == _MCP_DISCLAIMER
+    assert all(s["name"] != "trace" for s in data["servers"])
 
 
-def test_api_mcp_handles_missing_mcpservers_key(client, tmp_path, monkeypatch):
-    """settings.json present but no mcpServers key → empty list."""
-    settings = _write(tmp_path, "settings.json", {"other": "data"})
-    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
-    data = client.get("/api/mcp").json()
-    assert data["servers"] == []
-    assert data["total_estimated_tokens"] == 0
+def test_delete_mcp_returns_updated_list(client):
+    client.post("/api/mcp", json={"name": "trace"})
+    client.post("/api/mcp", json={"name": "github"})
+    data = client.delete("/api/mcp/trace").json()
+    names = [s["name"] for s in data["servers"]]
+    assert "trace" not in names
+    assert "github" in names
+
+
+def test_delete_mcp_unknown_returns_404(client):
+    res = client.delete("/api/mcp/does-not-exist")
+    assert res.status_code == 404
+    assert "not found" in res.json()["detail"]
+
+
+def test_delete_mcp_persists_removal_to_yaml(client, mcp_home):
+    client.post("/api/mcp", json={"name": "trace"})
+    client.delete("/api/mcp/trace")
+    saved = yaml.safe_load((mcp_home / "trace_config.yaml").read_text())
+    names = [s["name"] for s in saved.get("mcp_servers", [])]
+    assert "trace" not in names
+
+
+def test_delete_mcp_total_tokens_decreases(client):
+    client.post("/api/mcp", json={"name": "trace"})
+    client.post("/api/mcp", json={"name": "github"})
+    data = client.delete("/api/mcp/trace").json()
+    assert data["total_estimated_tokens"] == _TOKENS_PER_SERVER
+
+
+# ---------------------------------------------------------------------------
+# disclaimer – always present
+# ---------------------------------------------------------------------------
+
+def test_disclaimer_present_on_get(client):
+    assert client.get("/api/mcp").json()["disclaimer"] == _MCP_DISCLAIMER
+
+
+def test_disclaimer_present_on_post(client):
+    assert client.post("/api/mcp", json={"name": "trace"}).json()["disclaimer"] == _MCP_DISCLAIMER
+
+
+def test_disclaimer_present_on_delete(client):
+    client.post("/api/mcp", json={"name": "trace"})
+    assert client.delete("/api/mcp/trace").json()["disclaimer"] == _MCP_DISCLAIMER

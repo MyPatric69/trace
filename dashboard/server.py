@@ -8,16 +8,18 @@ Run with:
 import asyncio
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
+import yaml
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -455,14 +457,11 @@ def api_provider(period: str = "month"):
 
 
 # ---------------------------------------------------------------------------
-# /api/mcp  (MCP server registry + token overhead estimates)
+# /api/mcp  (MCP server registry – config-backed, add/remove via dashboard)
 # ---------------------------------------------------------------------------
 
-_CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
-_CLAUDE_DESKTOP_CONFIG = (
-    Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
-)
 _TOKENS_PER_SERVER = 300
+_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9\-]*$")
 _MCP_DISCLAIMER = (
     "Token overhead per MCP server is estimated from a fixed baseline of "
     "~300 tokens per server per API call. Actual costs vary and cannot be "
@@ -471,66 +470,53 @@ _MCP_DISCLAIMER = (
 )
 
 
-def _read_mcp_servers(path: Path) -> dict[str, dict]:
-    """Return the mcpServers mapping from *path*, or {} if absent/unreadable."""
-    try:
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8")).get("mcpServers", {})
-    except Exception:
-        pass
-    return {}
+def _load_central_config() -> tuple[Path, dict]:
+    """Read ~/.trace/trace_config.yaml; return (path, config_dict)."""
+    path = TRACE_HOME / "trace_config.yaml"
+    with open(path, encoding="utf-8") as f:
+        return path, yaml.safe_load(f) or {}
 
 
-@app.get("/api/mcp")
-def api_mcp():
-    """Return registered MCP servers with estimated per-call token overhead.
+def _save_and_sync_config(path: Path, config: dict) -> None:
+    """Write updated config to *path* and sync to the project trace_config.yaml."""
+    text = yaml.dump(config, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    path.write_text(text, encoding="utf-8")
+    # Sync to project trace_config.yaml (next to dashboard/)
+    project = _DASHBOARD_DIR.parent / "trace_config.yaml"
+    if project.exists():
+        project.write_text(text, encoding="utf-8")
 
-    Merges entries from ~/.claude/settings.json and
-    ~/Library/Application Support/Claude/claude_desktop_config.json.
-    Deduplicates by name; settings.json takes precedence on conflict.
-    """
-    # Collect from both sources; settings.json wins on name collision.
-    merged: dict[str, dict] = {}
-    for source_path in (_CLAUDE_DESKTOP_CONFIG, _CLAUDE_SETTINGS):
-        for name, cfg in _read_mcp_servers(source_path).items():
-            merged[name] = cfg  # later source overwrites → settings.json wins
 
-    servers: list[dict] = [
+def _build_mcp_response(config: dict) -> dict:
+    """Build the standard /api/mcp response dict from a loaded config."""
+    mcp_list = config.get("mcp_servers") or []
+    servers = [
         {
-            "name":             name,
-            "command":          cfg.get("command", ""),
-            "args":             cfg.get("args", []),
+            "name":             s["name"],
             "estimated_tokens": _TOKENS_PER_SERVER,
             "source":           "estimated",
         }
-        for name, cfg in merged.items()
+        for s in mcp_list
+        if isinstance(s, dict) and s.get("name")
     ]
-
     total = len(servers) * _TOKENS_PER_SERVER
 
-    # Monthly cost estimate based on recent session cadence
     monthly_cost = 0.0
     try:
         store = _store()
         seven_days_ago = (date.today() - timedelta(days=7)).isoformat()
         recent = store.get_sessions(since_date=seven_days_ago, limit=1000)
         avg_sessions_per_day = len(recent) / 7
-
-        # Parse turn count from notes like "Auto-logged … – N turns"
         turns_list: list[int] = []
         for s in recent:
             notes = s.get("notes") or ""
             if "turn" in notes.lower():
-                import re
                 m = re.search(r"(\d+)\s+turn", notes, re.IGNORECASE)
                 if m:
                     turns_list.append(int(m.group(1)))
         avg_turns = (sum(turns_list) / len(turns_list)) if turns_list else 10
-
         monthly_calls = avg_sessions_per_day * avg_turns * 30
-
         models_cfg = store.config.get("models", {})
-        # Prefer sonnet-4-6 price; fall back through known sonnet names
         sonnet_price = (
             (models_cfg.get("claude-sonnet-4-6") or {}).get("input_per_1k")
             or (models_cfg.get("claude-sonnet-4-5") or {}).get("input_per_1k")
@@ -546,6 +532,53 @@ def api_mcp():
         "monthly_cost_estimate":  monthly_cost,
         "disclaimer":             _MCP_DISCLAIMER,
     }
+
+
+@app.get("/api/mcp")
+def api_mcp_get():
+    """Return MCP servers registered in ~/.trace/trace_config.yaml."""
+    try:
+        _, config = _load_central_config()
+    except Exception:
+        config = {}
+    return _build_mcp_response(config)
+
+
+class McpServerRequest(BaseModel):
+    name: str
+
+
+@app.post("/api/mcp", status_code=201)
+def api_mcp_add(req: McpServerRequest):
+    """Add a named MCP server to ~/.trace/trace_config.yaml."""
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Server name cannot be empty.")
+    if not _NAME_RE.match(name):
+        raise HTTPException(
+            status_code=422,
+            detail="Name must be lowercase alphanumeric and hyphens only (e.g. github, my-server).",
+        )
+    path, config = _load_central_config()
+    servers = config.setdefault("mcp_servers", [])
+    if any(isinstance(s, dict) and s.get("name") == name for s in servers):
+        raise HTTPException(status_code=409, detail=f"Server '{name}' already exists.")
+    servers.append({"name": name, "estimated_tokens": _TOKENS_PER_SERVER})
+    _save_and_sync_config(path, config)
+    return _build_mcp_response(config)
+
+
+@app.delete("/api/mcp/{name}")
+def api_mcp_remove(name: str):
+    """Remove a named MCP server from ~/.trace/trace_config.yaml."""
+    path, config = _load_central_config()
+    servers = config.get("mcp_servers") or []
+    new_servers = [s for s in servers if not (isinstance(s, dict) and s.get("name") == name)]
+    if len(new_servers) == len(servers):
+        raise HTTPException(status_code=404, detail=f"Server '{name}' not found.")
+    config["mcp_servers"] = new_servers
+    _save_and_sync_config(path, config)
+    return _build_mcp_response(config)
 
 
 # ---------------------------------------------------------------------------

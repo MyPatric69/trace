@@ -587,6 +587,55 @@
       line-height: 1.55;
       opacity: 0.9;
     }
+    .mcp-remove-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 0 0.25rem;
+      line-height: 1;
+      opacity: 0.55;
+      transition: opacity 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .mcp-remove-btn:hover { opacity: 1; color: var(--red); }
+    .mcp-add-form {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .mcp-add-input {
+      font-family: var(--mono);
+      font-size: 0.8125rem;
+      background: var(--body-bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.2rem 0.5rem;
+      color: var(--text);
+      flex: 1;
+      min-width: 0;
+    }
+    .mcp-add-input:focus { outline: none; border-color: var(--teal); }
+    .mcp-add-btn {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 0.2rem 0.75rem;
+      background: var(--teal);
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .mcp-add-btn:hover { background: var(--teal-dark); }
+    .mcp-error {
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      color: var(--red);
+      margin-top: 0.3rem;
+      min-height: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -697,6 +746,11 @@
     <div class="mcp-summary" id="mcp-summary">Loading…</div>
     <div id="mcp-list"></div>
     <div class="mcp-monthly" id="mcp-monthly"></div>
+    <div class="mcp-add-form">
+      <input type="text" class="mcp-add-input" id="mcp-add-input" placeholder="Server name (e.g. github)">
+      <button class="mcp-add-btn" onclick="addMcpServer()">Add</button>
+    </div>
+    <div class="mcp-error" id="mcp-error"></div>
     <div class="mcp-disclaimer" id="mcp-disclaimer"></div>
   </div>
 
@@ -1157,15 +1211,16 @@
 
       const n = d.servers ? d.servers.length : 0;
       if (n === 0) {
-        summary.textContent = 'No MCP servers found in ~/.claude/settings.json';
+        summary.textContent = 'No MCP servers configured yet.';
         list.innerHTML      = '';
       } else {
-        summary.textContent = `Connected: ${n} server${n !== 1 ? 's' : ''} · ~${d.total_estimated_tokens.toLocaleString()} tokens/call`;
+        summary.textContent = `${n} server${n !== 1 ? 's' : ''} · ~${d.total_estimated_tokens.toLocaleString()} tokens/call`;
         list.innerHTML = d.servers.map(s => `
           <div class="mcp-server-row">
             <span class="mcp-server-dot"></span>
             <span class="mcp-server-name">${s.name}</span>
             <span class="mcp-server-tokens">~${s.estimated_tokens} tokens/call</span>
+            <button class="mcp-remove-btn" onclick="removeMcpServer('${s.name.replace(/'/g, "\\'")}')">&#10005;</button>
           </div>`).join('');
       }
 
@@ -1178,6 +1233,52 @@
       if (disc) disc.textContent = '\u26a0 ' + (d.disclaimer || '');
     } catch (e) {
       // non-critical
+    }
+  }
+
+  async function addMcpServer() {
+    const input = $('mcp-add-input');
+    const error = $('mcp-error');
+    if (!input) return;
+    const name = input.value.trim().toLowerCase();
+    if (!name) {
+      if (error) error.textContent = 'Server name cannot be empty.';
+      return;
+    }
+    if (!/^[a-z0-9][a-z0-9\-]*$/.test(name)) {
+      if (error) error.textContent = 'Name must be lowercase alphanumeric and hyphens only.';
+      return;
+    }
+    if (error) error.textContent = '';
+    try {
+      const res = await fetch('/api/mcp', {
+        method:  'POST',
+        headers: { 'content-type': 'application/json' },
+        body:    JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || 'Add failed.');
+      }
+      input.value = '';
+      await loadMcp();
+    } catch (e) {
+      if (error) error.textContent = e.message || 'Failed to add server.';
+    }
+  }
+
+  async function removeMcpServer(name) {
+    const error = $('mcp-error');
+    if (error) error.textContent = '';
+    try {
+      const res = await fetch('/api/mcp/' + encodeURIComponent(name), { method: 'DELETE' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || 'Remove failed.');
+      }
+      await loadMcp();
+    } catch (e) {
+      if (error) error.textContent = e.message || 'Failed to remove server.';
     }
   }
 
@@ -1281,12 +1382,18 @@
     loadTokenizerModels();
   }
 
+  function initMcpPanel() {
+    const addInput = $('mcp-add-input');
+    if (addInput) addInput.addEventListener('keydown', e => { if (e.key === 'Enter') addMcpServer(); });
+  }
+
   // ── Orchestration ─────────────────────────────────────────────────────────
 
   async function init() {
     await Promise.all([loadStatus(), loadProjects(), loadProvider()]);
     await Promise.all([loadAll(), loadLive()]);
     initTokenizer();
+    initMcpPanel();
     setInterval(loadAll, 30_000);   // full refresh backup
     setupWebSocket();               // replaces 5s live-poll with push
   }

@@ -318,28 +318,34 @@ trace/
 - Affected prefixes: `chore`, `docs`, `style`, `test` (conventional commit types that don't change logic)
 - Unrecognised prefixes (`feat`, `fix`, `refactor`, `perf`, `ci`, `build`, etc.) always synthesise
 
-**v0.3.0 Feature 4 – MCP Server Panel (complete – 13 tests):**
-- [x] `dashboard/server.py` – `GET /api/mcp` endpoint
-  - Reads `~/.claude/settings.json`, parses `mcpServers` block
-  - Fixed 300-token baseline per server (`_TOKENS_PER_SERVER`); `source: "estimated"` always
-  - `total_estimated_tokens = n × 300`
-  - `monthly_cost_estimate`: derived from `avg_sessions_per_day × avg_turns × 30 × (total_tokens / 1k) × input_price`; turn count parsed from session notes (`"– N turns"` pattern); falls back to 10 turns/session
-  - `disclaimer` always present in response
-  - Never crashes if `~/.claude/settings.json` absent, malformed, or missing `mcpServers` key
-- [x] `dashboard/index.html` – MCP Servers panel (panel 6, between Model Usage and Token Calculator)
+**v0.3.0 Feature 4 – MCP Server Panel (complete – 23 tests):**
+- [x] `trace_config.yaml` + `~/.trace/trace_config.yaml` – `mcp_servers: []` section (manual config, populated via dashboard UI)
+- [x] `dashboard/server.py` – three endpoints + config helpers:
+  - `_load_central_config()` – reads `TRACE_HOME / "trace_config.yaml"`; returns `(path, dict)`
+  - `_save_and_sync_config(path, config)` – writes central YAML; syncs to project `trace_config.yaml` when present
+  - `_build_mcp_response(config)` – shared response builder; fixed 300-token baseline per server (`_TOKENS_PER_SERVER`); `source: "estimated"` always; `monthly_cost_estimate` via `avg_sessions_per_day × avg_turns × 30 × (total_tokens / 1k) × input_price`; `disclaimer` always present
+  - `GET /api/mcp` – returns server list from config; never crashes if key absent
+  - `POST /api/mcp` – adds server; validates name with `_NAME_RE = r"^[a-z0-9][a-z0-9\-]*$"` (422 on fail); 409 on duplicate; `status_code=201`
+  - `DELETE /api/mcp/{name}` – removes server; 404 when not found
+- [x] `dashboard/index.html` – MCP Servers panel with inline add/remove UI
   - Summary line: `Connected: N servers · ~M tokens/call`
-  - Green dot per server + `~300 tokens/call` per row
-  - Monthly overhead estimate line (shown when > 0)
-  - Disclaimer in amber always visible
-  - `loadMcp()` called from `loadAll()` so it refreshes with the rest of the dashboard
-- [x] `tests/test_mcp_panel.py` – 13 tests: structure, empty/absent/malformed settings, disclaimer always present, total = n × 300, monthly cost is float / zero with no sessions, handles missing `mcpServers` key
+  - `[✕]` remove button per server row; calls `DELETE /api/mcp/{name}`
+  - Add form: text input + Add button; frontend lowercases before POST; inline error display
+  - Monthly overhead estimate line (shown when > 0); disclaimer in amber always visible
+  - `initMcpPanel()` wires Enter key on input; called from `init()`
+- [x] `tests/test_mcp_panel.py` – 23 tests: GET structure/empty/disclaimer/total/missing-key; POST add/fields/total/duplicate-409/empty-422/whitespace-422/uppercase-422/spaces-422/hyphenated-201/persists; DELETE removes/updated-list/404/persists/total-decreases; disclaimer on all three verbs
 
 **MCP Panel behaviour:**
 - All numbers prefixed with `~` in the UI to signal estimates
+- Backend validates name as-sent (no silent lowercasing); frontend lowercases before submit
 - Disclaimer text: "Token overhead per MCP server is estimated from a fixed baseline of ~300 tokens per server per API call…"
-- Panel is non-critical: errors are swallowed silently
+- Panel is non-critical: read errors swallowed silently
 
-**Bug fix – detect_project subdirectory matching (2 new tests → 369 total):**
+**Bug fix – Session Health Bar misleading totals (UI only, no new tests → 369 total):**
+- **Root cause:** "All Projects" view combined token totals across all sessions, compared against per-session thresholds (e.g. 4,809,880 / 100,000).
+- [x] `dashboard/index.html` – health bar hidden for "All Projects" view; replaced with summary line "X sessions today across Y active projects" computed via parallel `/api/costs/{p}?period=today` calls
+
+**Bug fix – detect_project subdirectory matching (2 new tests → 371 total):**
 - **Root cause:** Claude Code passes the currently-open subdirectory as `cwd` in the Stop hook payload (e.g. `/project/app/ui`), not the project root. The exact-path match in `LiveTracker.__init__` failed.
 - [x] `engine/live_tracker.py` – `LiveTracker.__init__` now tries three strategies in order:
   1. Exact resolved-path match (existing)
@@ -348,6 +354,11 @@ trace/
 - [x] `dashboard/index.html` – live panel now shows `"unknown project"` (amber) instead of empty string when `project == "unknown"`; session metrics still displayed
 - [x] `tests/test_live_tracker.py` – two new tests: subdirectory match, name-only fallback match
 
+**v0.3.0 Feature 4 refactor – MCP Panel config-backed (10 new tests → 379 total):**
+- Replaced file-based discovery (`~/.claude/settings.json`, `claude_desktop_config.json`) with explicit manual config in `trace_config.yaml`
+- Added `POST /api/mcp` and `DELETE /api/mcp/{name}` endpoints with full validation and persistence
+- Added inline add/remove UI in dashboard; tests rewritten from 13 → 23 tests
+
 **Next:**
 - [ ] Provider Log Spam fix
 
@@ -355,4 +366,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Auto-synced 1 commit(s) to 8bb4af1
+2026-04-12 – v0.3.0 Feature 4 refactored: config-backed MCP panel, GET/POST/DELETE endpoints, 379/379 tests green

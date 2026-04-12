@@ -10,6 +10,8 @@ api_integration:
 
 projects: []
 
+mcp_servers: []  # populated by dashboard UI
+
 budgets:
   default_monthly_usd: 20.0
   alert_threshold_pct: 80
