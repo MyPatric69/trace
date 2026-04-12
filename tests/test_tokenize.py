@@ -31,6 +31,7 @@ def test_tokenize_returns_correct_structure(monkeypatch):
 
 def test_tokenize_model_field_echoed(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     res = client.post("/api/tokenize", json={"text": "hello", "model": "gpt-4o"})
     assert res.json()["model"] == "gpt-4o"
 
@@ -66,7 +67,8 @@ def test_tokenize_empty_text_no_api_call(monkeypatch):
 # /api/tokenize – approximation methods
 # ---------------------------------------------------------------------------
 
-def test_tokenize_gpt_uses_word_approximation():
+def test_tokenize_gpt_uses_word_approximation(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     text = "one two three four"   # 4 words → int(4 * 1.3) = 5
     res = client.post("/api/tokenize", json={"text": text, "model": "gpt-4o"})
     data = res.json()
@@ -119,12 +121,46 @@ def test_tokenize_api_failure_falls_back_to_approximation(monkeypatch):
     assert data["input_tokens"] > 0
 
 
+def test_tokenize_gpt_with_api_key_calls_openai(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = json.dumps({"input_tokens": 7}).encode()
+    mock_resp.__enter__ = lambda s: s
+    mock_resp.__exit__ = MagicMock(return_value=False)
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        res = client.post("/api/tokenize", json={"text": "hello world", "model": "gpt-4o"})
+    data = res.json()
+    assert data["method"] == "api"
+    assert data["input_tokens"] == 7
+
+
+def test_tokenize_gpt_without_api_key_uses_approximation(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    text = "hello world"
+    res = client.post("/api/tokenize", json={"text": text, "model": "gpt-4o"})
+    data = res.json()
+    assert data["method"] == "approximation"
+    assert data["input_tokens"] == int(len(text.split()) * 1.3)
+
+
+def test_tokenize_gpt_api_failure_falls_back_to_approximation(monkeypatch):
+    import urllib.error
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+    with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
+        res = client.post("/api/tokenize", json={"text": "hello world", "model": "gpt-5"})
+    data = res.json()
+    assert data["method"] == "approximation"
+    assert data["input_tokens"] > 0
+
+
 # ---------------------------------------------------------------------------
 # /api/tokenize – cost calculation
 # ---------------------------------------------------------------------------
 
-def test_tokenize_cost_calculated_from_config():
+def test_tokenize_cost_calculated_from_config(monkeypatch):
     # gpt-4o: input_per_1k = 0.0025 in trace_config.yaml
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     text = "one two three four five six seven eight"   # 8 words → int(8 * 1.3) = 10
     res = client.post("/api/tokenize", json={"text": text, "model": "gpt-4o"})
     data = res.json()

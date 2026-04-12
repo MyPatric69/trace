@@ -1048,7 +1048,10 @@
   let _calcTimer = null;
 
   function _ctxWindow(model) {
-    return model.startsWith('claude') ? 200_000 : 128_000;
+    if (model.startsWith('claude'))   return 200_000;
+    if (model.startsWith('gpt-5.4')) return 1_050_000;  // gpt-5.4, gpt-5.4-mini
+    if (model.startsWith('gpt-5'))   return 400_000;    // gpt-5, gpt-5.2, gpt-5-pro
+    return 128_000;                                      // gpt-4o, gpt-4o-mini, others
   }
 
   async function loadTokenizerModels() {

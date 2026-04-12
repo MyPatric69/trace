@@ -475,9 +475,9 @@ def api_tokenize_models():
 def api_tokenize(req: TokenizeRequest):
     """Count tokens for *text* using *model*, with cost estimate.
 
-    Calls the Anthropic count_tokens API when ANTHROPIC_API_KEY is set and
-    the model starts with "claude". Falls back to character/word approximation
-    for GPT models, unknown models, or when the API key is absent.
+    - claude-*: Anthropic count_tokens API (ANTHROPIC_API_KEY), fallback char approx
+    - gpt-*:    OpenAI input_tokens API  (OPENAI_API_KEY),     fallback word approx
+    - other:    char approximation (len / 3.5)
     """
     text  = req.text
     model = req.model
@@ -527,7 +527,30 @@ def api_tokenize(req: TokenizeRequest):
         else:
             input_tokens = int(len(text) / 3.5)
     elif model.startswith("gpt"):
-        input_tokens = int(len(text.split()) * 1.3)
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if api_key:
+            try:
+                payload = json.dumps({
+                    "model": model,
+                    "input": text,
+                }).encode()
+                request = urllib.request.Request(
+                    "https://api.openai.com/v1/responses/input_tokens",
+                    data=payload,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type":  "application/json",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(request, timeout=3) as resp:
+                    data = json.loads(resp.read())
+                    input_tokens = int(data["input_tokens"])
+                method = "api"
+            except Exception:
+                input_tokens = int(len(text.split()) * 1.3)
+        else:
+            input_tokens = int(len(text.split()) * 1.3)
     else:
         input_tokens = int(len(text) / 3.5)
 
