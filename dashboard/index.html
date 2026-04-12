@@ -898,7 +898,7 @@
       }
 
       dot.className       = 'live-dot active';
-      project.textContent = d.project !== 'unknown' ? d.project : '';
+      project.textContent = d.project !== 'unknown' ? d.project : 'unknown project';
 
       // Transcript not yet flushed on first Stop event – show placeholder
       if (d.initializing || (d.input_tokens === 0 && d.output_tokens === 0)) {

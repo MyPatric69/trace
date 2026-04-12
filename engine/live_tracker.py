@@ -213,9 +213,24 @@ class LiveTracker:
                 store = _get_default_store()
                 if store is not None:
                     self._store = store
-                    resolved = str(Path(project_path).resolve())
+                    resolved = Path(project_path).resolve()
                     for proj in store.list_projects():
-                        if str(Path(proj["path"]).resolve()) == resolved:
+                        proj_resolved = Path(proj["path"]).resolve()
+                        # 1. Exact match
+                        if resolved == proj_resolved:
+                            self.project_name = proj["name"]
+                            break
+                        # 2. Ancestor match: cwd is inside the registered project path
+                        #    (handles the common case where Claude Code passes the
+                        #    currently-open subdirectory, e.g. /project/app/ui)
+                        try:
+                            resolved.relative_to(proj_resolved)
+                            self.project_name = proj["name"]
+                            break
+                        except ValueError:
+                            pass
+                        # 3. Name fallback: last path component matches
+                        if resolved.name == proj_resolved.name:
                             self.project_name = proj["name"]
                             break
             except Exception as exc:

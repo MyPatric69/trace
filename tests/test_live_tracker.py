@@ -247,6 +247,43 @@ def test_update_project_unknown_when_not_registered(tmp_path, patched_tracker):
     assert result["project"] == "unknown"
 
 
+def test_update_detects_project_from_subdirectory(tmp_path, tmp_store, live_path, monkeypatch):
+    """cwd is a subdirectory of the registered project path – should still match."""
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+    tmp_store.add_project("my-project", str(tmp_path), "Test")
+
+    subdir = tmp_path / "app" / "ui"
+    subdir.mkdir(parents=True)
+
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", output_tokens=10),
+    ])
+    # Pass the subdir as cwd (what Claude Code actually sends)
+    tracker = LiveTracker(str(subdir))
+    assert tracker.project_name == "my-project"
+    result = tracker.update(str(transcript), str(subdir))
+    assert result["project"] == "my-project"
+
+
+def test_update_detects_project_by_name_fallback(tmp_path, tmp_store, live_path, monkeypatch):
+    """Name-only fallback: different parent dirs but same directory name."""
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+    # Register under a different base path
+    registered_path = tmp_path / "registered" / "my-project"
+    registered_path.mkdir(parents=True)
+    tmp_store.add_project("my-project", str(registered_path), "Test")
+
+    # cwd has a different parent but same name
+    different_base = tmp_path / "other" / "my-project"
+    different_base.mkdir(parents=True)
+
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", output_tokens=10),
+    ])
+    tracker = LiveTracker(str(different_base))
+    assert tracker.project_name == "my-project"
+
+
 # ---------------------------------------------------------------------------
 # clear()
 # ---------------------------------------------------------------------------

@@ -339,6 +339,15 @@ trace/
 - Disclaimer text: "Token overhead per MCP server is estimated from a fixed baseline of ~300 tokens per server per API call…"
 - Panel is non-critical: errors are swallowed silently
 
+**Bug fix – detect_project subdirectory matching (2 new tests → 369 total):**
+- **Root cause:** Claude Code passes the currently-open subdirectory as `cwd` in the Stop hook payload (e.g. `/project/app/ui`), not the project root. The exact-path match in `LiveTracker.__init__` failed.
+- [x] `engine/live_tracker.py` – `LiveTracker.__init__` now tries three strategies in order:
+  1. Exact resolved-path match (existing)
+  2. Ancestor check: `resolved_cwd.relative_to(proj_resolved)` — succeeds when cwd is anywhere inside the registered project tree
+  3. Name fallback: `resolved_cwd.name == proj_resolved.name`
+- [x] `dashboard/index.html` – live panel now shows `"unknown project"` (amber) instead of empty string when `project == "unknown"`; session metrics still displayed
+- [x] `tests/test_live_tracker.py` – two new tests: subdirectory match, name-only fallback match
+
 **Next:**
 - [ ] Provider Log Spam fix
 
@@ -346,4 +355,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Auto-synced 1 commit(s) to bf37bda
+2026-04-12 – Live tracking subdirectory bug fixed; 369/369 tests green
