@@ -211,6 +211,37 @@ bash dashboard/start.sh
 
 Shows live token usage, costs, drift status, and recommendations for all projects.
 
+### Token Calculator – API keys for exact counts
+
+The Token Calculator shows exact token counts when the relevant API key is available:
+
+| Model family | Required key | Without key |
+|---|---|---|
+| Claude models | `ANTHROPIC_API_KEY` | ~estimate |
+| GPT models | `OPENAI_API_KEY` | ~estimate |
+| Other models | n/a | ~estimate |
+
+The `ANTHROPIC_API_KEY` is already required for Claude Code and is available automatically if you use TRACE with Claude Code. No extra setup needed for Claude models.
+
+For GPT models, set `OPENAI_API_KEY` in your environment:
+
+```bash
+export OPENAI_API_KEY=your-key-here
+```
+
+Or store securely in macOS Keychain:
+
+```bash
+security add-generic-password -a "$USER" \
+  -s "OPENAI_API_KEY" -w "your-key-here"
+
+# Add to ~/.zshrc:
+export OPENAI_API_KEY=$(security find-generic-password \
+  -a "$USER" -s "OPENAI_API_KEY" -w 2>/dev/null)
+```
+
+The dashboard shows an amber badge with a hint when running in estimate mode.
+
 ---
 
 ## Expected behaviour
