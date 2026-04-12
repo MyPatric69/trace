@@ -260,9 +260,15 @@ trace/
 - Multiple concurrent browser tabs each get their own connection; all receive broadcasts
 - Fallback: if WS unavailable, falls back to 10s live-poll + 30s full-refresh automatically
 
-**v0.2.0 complete** – 281/281 tests green
+**v0.2.0 complete** – 281/281 tests green ✓
+- Config Auto-Sync ✅  Live Token Tracking ✅  Provider adapters ✅  WebSocket Push ✅
 
-**Next: v0.3.0 planning**
+**Documentation (v0.2.0):**
+- `README.md` – Provider configuration section (table, per-provider setup, adding a new provider)
+- `TROUBLESHOOTING.md` – Issues 13 (token count accuracy), 14 (provider fallback)
+- `dashboard/index.html` – Provider badge in header (shows provider name; amber "manual (fallback)" if configured provider unavailable)
+
+**Next:**
 - [ ] v0.2.1 tag + release notes
 - [ ] v0.3.0 feature planning
 
@@ -270,4 +276,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – v0.2.0 complete: WebSocket Push (281/281 tests green)
+2026-04-12 – v0.2.0 docs + provider badge complete

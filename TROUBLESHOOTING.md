@@ -470,6 +470,41 @@ Always use your provider's official dashboard:
 
 ---
 
+## Issue 14: Provider not available – falling back to manual
+
+**Symptom:**
+Dashboard shows "manual" as provider despite
+configuring anthropic, openai, or vertexai.
+
+**Cause:**
+Credentials are missing or the API call failed.
+TRACE automatically falls back to manual – this
+is safe, expected behaviour.
+
+**Fix – check credentials:**
+
+Anthropic:
+```bash
+echo $ANTHROPIC_API_KEY
+```
+
+OpenAI:
+```bash
+echo $OPENAI_API_KEY
+```
+
+Vertex AI:
+```bash
+gcloud auth application-default print-access-token
+```
+
+Check logs for provider errors:
+```bash
+cat ~/.trace/session_logger.log | grep provider
+```
+
+---
+
 ## Still stuck?
 
 Check the project status:

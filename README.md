@@ -97,6 +97,87 @@ store.add_project('my-project', '/path/to/project', 'Description')
 
 ---
 
+## Provider configuration
+
+TRACE supports multiple AI providers. Configure yours
+in `trace_config.yaml`:
+
+### Supported providers
+
+| Provider  | Usage API | Budget tracking | Credentials       |
+|-----------|-----------|-----------------|-------------------|
+| manual    | local DB  | manual only     | none (default)    |
+| anthropic | ✅        | ✅              | ANTHROPIC_API_KEY |
+| openai    | ✅        | ✅              | OPENAI_API_KEY    |
+| vertexai  | ✅        | optional*       | GCP credentials   |
+
+\*Vertex AI budget tracking depends on quota configuration.
+
+### Configuration
+
+Edit `trace_config.yaml`:
+
+```yaml
+api_integration:
+  provider: "anthropic"    # manual | anthropic | openai | vertexai
+  sync_usage: true
+  budget_source: "api"     # api | manual
+  monthly_budget_usd: 20.0
+```
+
+After changing, sync to runtime config:
+```bash
+cp trace_config.yaml ~/.trace/trace_config.yaml
+```
+
+### Anthropic
+
+Credentials read automatically from:
+1. `ANTHROPIC_API_KEY` environment variable
+2. macOS Keychain (key name: `ANTHROPIC_API_KEY`)
+
+No manual setup needed if you already use Claude Code.
+
+### OpenAI
+
+```bash
+export OPENAI_API_KEY=your-key-here
+```
+
+### Vertex AI
+
+```bash
+gcloud auth application-default login
+```
+
+Or:
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+```
+
+Budget tracking shown only if quotas are configured in your
+Google Cloud project.
+
+### Manual (default)
+
+No credentials needed. Budget set via `monthly_budget_usd`
+in `trace_config.yaml`.
+
+### Adding a new provider
+
+1. Create `engine/providers/yourprovider.py`
+2. Implement `AbstractProvider` (see `engine/providers/base.py`)
+3. Register in `engine/providers/__init__.py`
+4. Open a PR at https://github.com/MyPatric69/trace
+
+### Token count accuracy
+
+A small difference (1–5%) between TRACE and your provider
+dashboard is normal and expected.
+See the [Token count accuracy](#token-count-accuracy) section for details.
+
+---
+
 ## MCP tools
 
 | Tool | Parameters | Description |

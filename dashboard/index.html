@@ -107,7 +107,7 @@
       align-items: center;
       gap: 1.25rem;
     }
-    .mcp-badge, .ws-badge {
+    .mcp-badge, .ws-badge, .provider-badge {
       display: flex;
       align-items: center;
       gap: 0.375rem;
@@ -115,6 +115,7 @@
       font-size: 0.6875rem;
       color: rgba(255,255,255,0.45);
     }
+    .provider-badge.fallback { color: var(--amber); }
     .dot {
       width: 7px; height: 7px;
       border-radius: 50%;
@@ -461,6 +462,7 @@
   <div class="header-right">
     <div class="mcp-badge"><span class="dot"></span> MCP</div>
     <div class="ws-badge"><span class="dot ws-dot" id="ws-dot"></span> WS</div>
+    <div class="provider-badge" id="provider-badge"></div>
     <div id="last-updated">–</div>
   </div>
 </header>
@@ -626,6 +628,25 @@
     const s = await api('/api/status');
     cfg.monthly_budget_usd  = s.monthly_budget_usd;
     cfg.alert_threshold_pct = s.alert_threshold_pct;
+  }
+
+  // ── Provider badge ────────────────────────────────────────────────────────
+
+  async function loadProvider() {
+    try {
+      const p    = await api('/api/provider');
+      const badge = $('provider-badge');
+      if (!badge) return;
+      if (p.fallback) {
+        badge.textContent  = 'manual (fallback)';
+        badge.className    = 'provider-badge fallback';
+      } else {
+        badge.textContent  = p.provider;
+        badge.className    = 'provider-badge';
+      }
+    } catch (e) {
+      // non-critical – leave badge empty on error
+    }
   }
 
   // ── Metric row ────────────────────────────────────────────────────────────
@@ -926,7 +947,7 @@
   }
 
   async function init() {
-    await Promise.all([loadStatus(), loadProjects()]);
+    await Promise.all([loadStatus(), loadProjects(), loadProvider()]);
     await Promise.all([loadAll(), loadLive()]);
     setInterval(loadAll, 30_000);   // full refresh backup
     setupWebSocket();               // replaces 5s live-poll with push
