@@ -209,6 +209,19 @@ def api_live(project: str | None = None):
 
 
 # ---------------------------------------------------------------------------
+# /api/live/clear  (manual clear – e.g. after a DB reset)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/live/clear")
+def api_live_clear():
+    try:
+        LiveTracker(None).clear()
+        return {"cleared": True}
+    except Exception:
+        return {"cleared": False}
+
+
+# ---------------------------------------------------------------------------
 # /api/tips
 # ---------------------------------------------------------------------------
 

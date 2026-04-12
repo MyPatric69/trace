@@ -337,3 +337,22 @@ def test_api_live_project_mismatch_message_names_active_project(client, monkeypa
     monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
     data = client.get("/api/live?project=beta").json()
     assert data["message"] == "Active session is in project alpha"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/live/clear
+# ---------------------------------------------------------------------------
+
+def test_api_live_clear_returns_cleared_true(client, monkeypatch):
+    cleared = []
+    monkeypatch.setattr(dashboard_module.LiveTracker, "clear", lambda self: cleared.append(1))
+    res = client.post("/api/live/clear")
+    assert res.status_code == 200
+    assert res.json()["cleared"] is True
+
+
+def test_api_live_clear_calls_live_tracker_clear(client, monkeypatch):
+    cleared = []
+    monkeypatch.setattr(dashboard_module.LiveTracker, "clear", lambda self: cleared.append(1))
+    client.post("/api/live/clear")
+    assert len(cleared) == 1
