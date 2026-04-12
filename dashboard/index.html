@@ -52,19 +52,55 @@
       color: var(--teal);
       letter-spacing: 0.18em;
     }
-    #project-select {
+    #project-select { display: none; }
+
+    /* ── Custom project dropdown (always opens downward) ── */
+    .proj-dropdown { position: relative; }
+    .proj-trigger {
       background: rgba(255,255,255,0.07);
       color: #E8E5DC;
       border: 1px solid rgba(255,255,255,0.13);
       border-radius: 3px;
-      padding: 0.25rem 0.625rem;
+      padding: 0.25rem 0.5rem 0.25rem 0.625rem;
       font-family: var(--sans);
       font-size: 0.8125rem;
       cursor: pointer;
-      outline: none;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      min-width: 140px;
     }
-    #project-select:focus { border-color: var(--teal); }
-    #project-select option { background: #2C2C2A; }
+    .proj-trigger:focus { outline: none; border-color: var(--teal); }
+    .proj-arrow {
+      font-size: 0.5rem;
+      opacity: 0.5;
+      margin-left: auto;
+      padding-left: 0.5rem;
+    }
+    .proj-menu {
+      position: absolute;
+      top: calc(100% + 3px);
+      left: 0;
+      min-width: 100%;
+      background: #2C2C2A;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 3px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 200;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .proj-menu.open { display: block; }
+    .proj-option {
+      padding: 0.35rem 0.625rem;
+      color: #E8E5DC;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .proj-option:hover  { background: rgba(255,255,255,0.1); }
+    .proj-option.active { color: var(--teal); }
     .header-right {
       margin-left: auto;
       display: flex;
@@ -410,7 +446,14 @@
 
 <header>
   <div class="logo">TRACE</div>
-  <select id="project-select" onchange="onProjectChange()">
+  <div class="proj-dropdown" id="proj-dropdown">
+    <button class="proj-trigger" id="proj-trigger" type="button" onclick="toggleDropdown()">
+      <span id="proj-label">All Projects</span>
+      <span class="proj-arrow">&#9662;</span>
+    </button>
+    <div class="proj-menu" id="proj-menu"></div>
+  </div>
+  <select id="project-select" style="display:none">
     <option value="">All Projects</option>
   </select>
   <div class="header-right">
@@ -516,7 +559,49 @@
     return res.json();
   }
 
-  // ── Projects dropdown ─────────────────────────────────────────────────────
+  // ── Custom project dropdown ───────────────────────────────────────────────
+
+  let dropdownOpen = false;
+
+  function buildMenu() {
+    const menu = $('proj-menu');
+    if (!menu) return;
+    menu.innerHTML = '';
+    [{ value: '', label: 'All Projects' }]
+      .concat(allProjects.map(p => ({ value: p.name, label: p.name })))
+      .forEach(item => {
+        const opt = document.createElement('div');
+        opt.className = 'proj-option' + (selectedProject === item.value ? ' active' : '');
+        opt.textContent = item.label;
+        opt.onclick = () => selectProject(item.value, item.label);
+        menu.appendChild(opt);
+      });
+  }
+
+  function toggleDropdown() {
+    dropdownOpen = !dropdownOpen;
+    $('proj-menu').className = dropdownOpen ? 'proj-menu open' : 'proj-menu';
+  }
+
+  function selectProject(value, label) {
+    selectedProject = value;
+    $('proj-label').textContent = label;
+    $('project-select').value = value;
+    dropdownOpen = false;
+    $('proj-menu').className = 'proj-menu';
+    buildMenu();
+    loadAll();
+    loadLive();
+  }
+
+  document.addEventListener('click', function(e) {
+    const dd = $('proj-dropdown');
+    if (dd && !dd.contains(e.target)) {
+      dropdownOpen = false;
+      const menu = $('proj-menu');
+      if (menu) menu.className = 'proj-menu';
+    }
+  });
 
   async function loadProjects() {
     allProjects = await api('/api/projects');
@@ -529,6 +614,7 @@
       o.textContent = p.name;
       sel.appendChild(o);
     });
+    buildMenu();
   }
 
   // ── Status (config + alltime cost) ────────────────────────────────────────
@@ -606,7 +692,8 @@
   async function loadLive() {
     try {
       const params = selectedProject ? '?project=' + encodeURIComponent(selectedProject) : '';
-      const d = await api('/api/live' + params);
+      const sep    = params ? '&' : '?';
+      const d = await api('/api/live' + params + sep + 't=' + Date.now());
       const dot     = $('live-dot');
       const project = $('live-project');
       const body    = $('live-body');
@@ -659,8 +746,10 @@
 
   async function clearLive() {
     try {
+      $('live-dot').className = 'live-dot inactive';
+      $('live-project').textContent = '';
+      $('live-body').innerHTML = '<div class="live-inactive">No active session</div>';
       await fetch('/api/live/clear', { method: 'POST' });
-      await loadLive();
     } catch (e) {
       // silent
     }

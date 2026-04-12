@@ -234,4 +234,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Dashboard UI fixes: POST /api/live/clear + clear button, alphabetical project sort, native select handles upward opening; 239/239 tests green
+2026-04-12 – Auto-synced 1 commit(s) to c25a047
