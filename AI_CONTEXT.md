@@ -355,4 +355,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Live tracking subdirectory bug fixed; 369/369 tests green
+2026-04-12 – Auto-synced 1 commit(s) to 1d5d200

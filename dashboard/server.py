@@ -459,6 +459,9 @@ def api_provider(period: str = "month"):
 # ---------------------------------------------------------------------------
 
 _CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
+_CLAUDE_DESKTOP_CONFIG = (
+    Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+)
 _TOKENS_PER_SERVER = 300
 _MCP_DISCLAIMER = (
     "Token overhead per MCP server is estimated from a fixed baseline of "
@@ -468,23 +471,40 @@ _MCP_DISCLAIMER = (
 )
 
 
-@app.get("/api/mcp")
-def api_mcp():
-    """Return registered MCP servers with estimated per-call token overhead."""
-    servers: list[dict] = []
+def _read_mcp_servers(path: Path) -> dict[str, dict]:
+    """Return the mcpServers mapping from *path*, or {} if absent/unreadable."""
     try:
-        if _CLAUDE_SETTINGS.exists():
-            raw = json.loads(_CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-            for name, cfg in raw.get("mcpServers", {}).items():
-                servers.append({
-                    "name":             name,
-                    "command":          cfg.get("command", ""),
-                    "args":             cfg.get("args", []),
-                    "estimated_tokens": _TOKENS_PER_SERVER,
-                    "source":           "estimated",
-                })
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8")).get("mcpServers", {})
     except Exception:
         pass
+    return {}
+
+
+@app.get("/api/mcp")
+def api_mcp():
+    """Return registered MCP servers with estimated per-call token overhead.
+
+    Merges entries from ~/.claude/settings.json and
+    ~/Library/Application Support/Claude/claude_desktop_config.json.
+    Deduplicates by name; settings.json takes precedence on conflict.
+    """
+    # Collect from both sources; settings.json wins on name collision.
+    merged: dict[str, dict] = {}
+    for source_path in (_CLAUDE_DESKTOP_CONFIG, _CLAUDE_SETTINGS):
+        for name, cfg in _read_mcp_servers(source_path).items():
+            merged[name] = cfg  # later source overwrites → settings.json wins
+
+    servers: list[dict] = [
+        {
+            "name":             name,
+            "command":          cfg.get("command", ""),
+            "args":             cfg.get("args", []),
+            "estimated_tokens": _TOKENS_PER_SERVER,
+            "source":           "estimated",
+        }
+        for name, cfg in merged.items()
+    ]
 
     total = len(servers) * _TOKENS_PER_SERVER
 

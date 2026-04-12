@@ -2,12 +2,15 @@
 
 Covers:
   - correct response structure
-  - empty server list when settings.json is absent
+  - empty server list when both config files are absent
   - disclaimer always present
   - total_estimated_tokens = n * 300
   - per-server fields (name, command, args, source)
   - monthly_cost_estimate calculation
-  - resilience to malformed settings.json
+  - resilience to malformed files
+  - dual-source merge: ~/.claude/settings.json +
+    ~/Library/Application Support/Claude/claude_desktop_config.json
+  - deduplication by name (settings.json wins on collision)
 """
 from __future__ import annotations
 
@@ -72,10 +75,26 @@ def client(tmp_store, monkeypatch):
     return TestClient(app)
 
 
-def _settings(tmp_path, content: dict) -> Path:
-    p = tmp_path / "settings.json"
+def _write(tmp_path: Path, name: str, content: dict) -> Path:
+    p = tmp_path / name
     p.write_text(json.dumps(content))
     return p
+
+
+def _absent(tmp_path: Path, name: str = "absent.json") -> Path:
+    return tmp_path / name  # does not exist
+
+
+def _patch(monkeypatch, *, settings=None, desktop=None, tmp_path: Path):
+    """Patch both MCP source paths. Pass None to leave as absent."""
+    monkeypatch.setattr(
+        dashboard_module, "_CLAUDE_SETTINGS",
+        settings if settings is not None else _absent(tmp_path, "settings.json"),
+    )
+    monkeypatch.setattr(
+        dashboard_module, "_CLAUDE_DESKTOP_CONFIG",
+        desktop if desktop is not None else _absent(tmp_path, "desktop.json"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +102,8 @@ def _settings(tmp_path, content: dict) -> Path:
 # ---------------------------------------------------------------------------
 
 def test_api_mcp_returns_correct_keys(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, _SAMPLE_SETTINGS))
+    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     res = client.get("/api/mcp")
     assert res.status_code == 200
     data = res.json()
@@ -94,7 +114,8 @@ def test_api_mcp_returns_correct_keys(client, tmp_path, monkeypatch):
 
 
 def test_api_mcp_server_fields(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, _SAMPLE_SETTINGS))
+    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert len(data["servers"]) == 3
     server = next(s for s in data["servers"] if s["name"] == "trace")
@@ -105,18 +126,26 @@ def test_api_mcp_server_fields(client, tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Empty list when settings.json is absent
+# Empty list when both files are absent
 # ---------------------------------------------------------------------------
 
-def test_api_mcp_empty_when_no_settings(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", tmp_path / "nonexistent.json")
+def test_api_mcp_empty_when_both_absent(client, tmp_path, monkeypatch):
+    _patch(monkeypatch, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert data["servers"] == []
     assert data["total_estimated_tokens"] == 0
 
 
-def test_api_mcp_still_returns_disclaimer_when_no_settings(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", tmp_path / "nonexistent.json")
+def test_api_mcp_empty_when_no_settings(client, tmp_path, monkeypatch):
+    """Legacy: only settings path absent, desktop also absent."""
+    _patch(monkeypatch, tmp_path=tmp_path)
+    data = client.get("/api/mcp").json()
+    assert data["servers"] == []
+    assert data["total_estimated_tokens"] == 0
+
+
+def test_api_mcp_still_returns_disclaimer_when_both_absent(client, tmp_path, monkeypatch):
+    _patch(monkeypatch, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert data["disclaimer"] == _MCP_DISCLAIMER
     assert len(data["disclaimer"]) > 20
@@ -127,13 +156,15 @@ def test_api_mcp_still_returns_disclaimer_when_no_settings(client, tmp_path, mon
 # ---------------------------------------------------------------------------
 
 def test_disclaimer_always_present_with_servers(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, _SAMPLE_SETTINGS))
+    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert data["disclaimer"] == _MCP_DISCLAIMER
 
 
 def test_disclaimer_text_mentions_300_tokens(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, _SAMPLE_SETTINGS))
+    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert "300" in data["disclaimer"]
 
@@ -143,22 +174,108 @@ def test_disclaimer_text_mentions_300_tokens(client, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_total_estimated_tokens_three_servers(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, _SAMPLE_SETTINGS))
+    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert data["total_estimated_tokens"] == 3 * _TOKENS_PER_SERVER
 
 
 def test_total_estimated_tokens_one_server(client, tmp_path, monkeypatch):
-    single = {"mcpServers": {"trace": {"command": "python3", "args": []}}}
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, single))
+    settings = _write(tmp_path, "settings.json", {"mcpServers": {"trace": {"command": "python3", "args": []}}})
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert data["total_estimated_tokens"] == _TOKENS_PER_SERVER
 
 
 def test_total_estimated_tokens_empty(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, {"mcpServers": {}}))
+    settings = _write(tmp_path, "settings.json", {"mcpServers": {}})
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert data["total_estimated_tokens"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Dual-source merge
+# ---------------------------------------------------------------------------
+
+def test_merges_servers_from_both_files(client, tmp_path, monkeypatch):
+    """Servers from settings.json and desktop config are combined."""
+    settings = _write(tmp_path, "settings.json", {
+        "mcpServers": {"trace": {"command": "python3", "args": []}},
+    })
+    desktop = _write(tmp_path, "desktop.json", {
+        "mcpServers": {"github": {"command": "npx", "args": ["-y", "github-mcp"]}},
+    })
+    _patch(monkeypatch, settings=settings, desktop=desktop, tmp_path=tmp_path)
+    data = client.get("/api/mcp").json()
+    names = {s["name"] for s in data["servers"]}
+    assert names == {"trace", "github"}
+    assert data["total_estimated_tokens"] == 2 * _TOKENS_PER_SERVER
+
+
+def test_desktop_config_only(client, tmp_path, monkeypatch):
+    """Works when only the desktop config has servers."""
+    desktop = _write(tmp_path, "desktop.json", {
+        "mcpServers": {"filesystem": {"command": "npx", "args": ["-y", "fs-mcp"]}},
+    })
+    _patch(monkeypatch, desktop=desktop, tmp_path=tmp_path)
+    data = client.get("/api/mcp").json()
+    assert len(data["servers"]) == 1
+    assert data["servers"][0]["name"] == "filesystem"
+    assert data["total_estimated_tokens"] == _TOKENS_PER_SERVER
+
+
+def test_deduplicates_by_name(client, tmp_path, monkeypatch):
+    """Same server name in both files → only one entry in the result."""
+    settings = _write(tmp_path, "settings.json", {
+        "mcpServers": {"trace": {"command": "python3", "args": ["-m", "server.main"]}},
+    })
+    desktop = _write(tmp_path, "desktop.json", {
+        "mcpServers": {"trace": {"command": "node", "args": ["trace.js"]}},
+    })
+    _patch(monkeypatch, settings=settings, desktop=desktop, tmp_path=tmp_path)
+    data = client.get("/api/mcp").json()
+    assert len(data["servers"]) == 1
+    assert data["total_estimated_tokens"] == _TOKENS_PER_SERVER
+
+
+def test_settings_wins_on_name_collision(client, tmp_path, monkeypatch):
+    """When both files have the same server name, settings.json wins."""
+    settings = _write(tmp_path, "settings.json", {
+        "mcpServers": {"trace": {"command": "python3", "args": ["-m", "server.main"]}},
+    })
+    desktop = _write(tmp_path, "desktop.json", {
+        "mcpServers": {"trace": {"command": "node", "args": ["trace.js"]}},
+    })
+    _patch(monkeypatch, settings=settings, desktop=desktop, tmp_path=tmp_path)
+    data = client.get("/api/mcp").json()
+    server = data["servers"][0]
+    assert server["command"] == "python3"
+    assert server["args"] == ["-m", "server.main"]
+
+
+def test_desktop_config_malformed_still_returns_settings(client, tmp_path, monkeypatch):
+    """Malformed desktop config → settings.json servers still returned."""
+    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
+    desktop = tmp_path / "desktop.json"
+    desktop.write_text("NOT VALID JSON{{{")
+    _patch(monkeypatch, settings=settings, desktop=desktop, tmp_path=tmp_path)
+    data = client.get("/api/mcp").json()
+    assert len(data["servers"]) == 3
+    assert data["disclaimer"] == _MCP_DISCLAIMER
+
+
+def test_settings_malformed_still_returns_desktop(client, tmp_path, monkeypatch):
+    """Malformed settings.json → desktop config servers still returned."""
+    desktop = _write(tmp_path, "desktop.json", {
+        "mcpServers": {"github": {"command": "npx", "args": []}},
+    })
+    bad = tmp_path / "settings.json"
+    bad.write_text("INVALID{{{")
+    _patch(monkeypatch, settings=bad, desktop=desktop, tmp_path=tmp_path)
+    data = client.get("/api/mcp").json()
+    assert len(data["servers"]) == 1
+    assert data["servers"][0]["name"] == "github"
 
 
 # ---------------------------------------------------------------------------
@@ -166,16 +283,17 @@ def test_total_estimated_tokens_empty(client, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_monthly_cost_estimate_is_float(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, _SAMPLE_SETTINGS))
+    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert isinstance(data["monthly_cost_estimate"], (int, float))
 
 
 def test_monthly_cost_estimate_zero_when_no_sessions(client, tmp_path, monkeypatch):
     """With no sessions in the last 7 days, monthly cost should be 0."""
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, _SAMPLE_SETTINGS))
+    settings = _write(tmp_path, "settings.json", _SAMPLE_SETTINGS)
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
-    # tmp_store has no sessions → avg_sessions_per_day = 0 → cost = 0
     assert data["monthly_cost_estimate"] == 0.0
 
 
@@ -183,10 +301,10 @@ def test_monthly_cost_estimate_zero_when_no_sessions(client, tmp_path, monkeypat
 # Resilience
 # ---------------------------------------------------------------------------
 
-def test_api_mcp_handles_malformed_json(client, tmp_path, monkeypatch):
+def test_api_mcp_handles_malformed_settings(client, tmp_path, monkeypatch):
     bad = tmp_path / "settings.json"
     bad.write_text("NOT VALID JSON{{{")
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", bad)
+    _patch(monkeypatch, settings=bad, tmp_path=tmp_path)
     res = client.get("/api/mcp")
     assert res.status_code == 200
     data = res.json()
@@ -196,7 +314,8 @@ def test_api_mcp_handles_malformed_json(client, tmp_path, monkeypatch):
 
 def test_api_mcp_handles_missing_mcpservers_key(client, tmp_path, monkeypatch):
     """settings.json present but no mcpServers key → empty list."""
-    monkeypatch.setattr(dashboard_module, "_CLAUDE_SETTINGS", _settings(tmp_path, {"other": "data"}))
+    settings = _write(tmp_path, "settings.json", {"other": "data"})
+    _patch(monkeypatch, settings=settings, tmp_path=tmp_path)
     data = client.get("/api/mcp").json()
     assert data["servers"] == []
     assert data["total_estimated_tokens"] == 0
