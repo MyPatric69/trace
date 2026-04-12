@@ -75,7 +75,7 @@ trace/
 │       ├── __init__.py    ← get_provider() – reads api_integration.provider from config
 │       ├── base.py        ← AbstractProvider interface
 │       ├── manual.py      ← default: reads from TraceStore (no credentials needed)
-│       ├── anthropic.py   ← Anthropic Usage API (ANTHROPIC_API_KEY or macOS Keychain)
+│       ├── anthropic.py   ← Anthropic Usage API (ANTHROPIC_ADMIN_API_KEY, Team/Enterprise only)
 │       ├── openai.py      ← OpenAI Usage API (OPENAI_API_KEY)
 │       └── vertexai.py    ← Google Vertex AI / Cloud Billing API
 │
@@ -260,13 +260,19 @@ trace/
 - Multiple concurrent browser tabs each get their own connection; all receive broadcasts
 - Fallback: if WS unavailable, falls back to 10s live-poll + 30s full-refresh automatically
 
-**v0.2.0 complete** – 281/281 tests green ✓
+**v0.2.0 complete** – 292/292 tests green ✓
 - Config Auto-Sync ✅  Live Token Tracking ✅  Provider adapters ✅  WebSocket Push ✅
 
 **Documentation (v0.2.0):**
-- `README.md` – Provider configuration section (table, per-provider setup, adding a new provider)
-- `TROUBLESHOOTING.md` – Issues 13 (token count accuracy), 14 (provider fallback)
-- `dashboard/index.html` – Provider badge in header (shows provider name; amber "manual (fallback)" if configured provider unavailable)
+- `README.md` – Provider configuration section (table, per-provider setup, adding a new provider); Token count accuracy disclaimer
+- `TROUBLESHOOTING.md` – Issues 13 (token count accuracy), 14 (provider fallback / Admin key requirement)
+- `dashboard/index.html` – Provider badge in header (shows provider name; amber "manual (fallback)" if configured provider unavailable); removed redundant clock/timestamp
+- `AnthropicProvider` requires `ANTHROPIC_ADMIN_API_KEY` (Team/Enterprise only); standard `ANTHROPIC_API_KEY` rejected with clear log message
+
+**Combined daily cost view (complete – 10 tests):**
+- [x] `dashboard/server.py` – `GET /api/today` endpoint; merges today's DB token/cost summary with live session (project-filtered); returns DB fields + live fields + combined `total_*` fields; live section zeroed when no active session
+- [x] `dashboard/index.html` – `loadMetrics()` uses `/api/today` as primary source; metric cards show combined DB + live totals; cost sub-label shows "X sessions + live" when live session active
+- [x] `tests/test_dashboard.py` – 10 new tests: structure, all-zeros, DB-only, live-only, combined, cache summing, project filtering (include / exclude), exception resilience
 
 **Next:**
 - [ ] v0.2.1 tag + release notes
@@ -276,4 +282,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Auto-synced 1 commit(s) to c335230
+2026-04-12 – Combined daily cost view (GET /api/today); 292 tests green

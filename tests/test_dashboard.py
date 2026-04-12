@@ -356,3 +356,117 @@ def test_api_live_clear_calls_live_tracker_clear(client, monkeypatch):
     monkeypatch.setattr(dashboard_module.LiveTracker, "clear", lambda self: cleared.append(1))
     client.post("/api/live/clear")
     assert len(cleared) == 1
+
+
+# ---------------------------------------------------------------------------
+# GET /api/today
+# ---------------------------------------------------------------------------
+
+_LIVE_TODAY = {
+    "project":               "alpha",
+    "input_tokens":          500,
+    "cache_creation_tokens": 100,
+    "cache_read_tokens":     50,
+    "output_tokens":         200,
+    "cost_usd":              0.005,
+    "turns":                 2,
+    "health":                "ok",
+}
+
+
+def test_api_today_structure(client, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    data = client.get("/api/today").json()
+    for key in (
+        "input_tokens", "cache_creation_tokens", "cache_read_tokens", "output_tokens",
+        "cost_usd", "session_count",
+        "live_active", "live_input_tokens", "live_cache_creation_tokens",
+        "live_cache_read_tokens", "live_output_tokens", "live_cost_usd",
+        "total_cost_usd", "total_input_tokens", "total_cache_tokens", "total_output_tokens",
+    ):
+        assert key in data, f"Missing key: {key}"
+
+
+def test_api_today_no_sessions_no_live_all_zeros(client, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    data = client.get("/api/today").json()
+    assert data["session_count"]    == 0
+    assert data["cost_usd"]         == 0.0
+    assert data["live_active"]      is False
+    assert data["live_cost_usd"]    == 0.0
+    assert data["total_cost_usd"]   == 0.0
+    assert data["total_input_tokens"] == 0
+
+
+def test_api_today_db_sessions_no_live(client, tmp_store, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    data = client.get("/api/today").json()
+    assert data["session_count"]    == 1
+    assert data["input_tokens"]     == 1000
+    assert data["output_tokens"]    == 500
+    assert data["live_active"]      is False
+    assert data["live_cost_usd"]    == 0.0
+    assert data["total_input_tokens"] == 1000
+    assert data["total_output_tokens"] == 500
+    assert data["total_cost_usd"]   == pytest.approx(data["cost_usd"])
+
+
+def test_api_today_live_session_no_db(client, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    data = client.get("/api/today").json()
+    assert data["live_active"]      is True
+    assert data["live_input_tokens"]  == 500
+    assert data["live_output_tokens"] == 200
+    assert data["live_cost_usd"]    == 0.005
+    assert data["session_count"]    == 0
+    assert data["total_input_tokens"]  == 500
+    assert data["total_output_tokens"] == 200
+    assert data["total_cost_usd"]   == pytest.approx(0.005)
+
+
+def test_api_today_db_plus_live_combined(client, tmp_store, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    data = client.get("/api/today").json()
+    assert data["live_active"]         is True
+    assert data["session_count"]       == 1
+    assert data["total_input_tokens"]  == 1000 + 500     # db + live
+    assert data["total_output_tokens"] == 500  + 200     # db + live
+    assert data["total_cost_usd"]      == pytest.approx(data["cost_usd"] + 0.005)
+
+
+def test_api_today_total_cache_tokens_sums_all_four(client, tmp_store, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500,
+                          cache_creation_tokens=200, cache_read_tokens=100)
+    data = client.get("/api/today").json()
+    # total_cache = db_cc + live_cc + db_cr + live_cr
+    expected = 200 + 100 + 100 + 50
+    assert data["total_cache_tokens"] == expected
+
+
+def test_api_today_project_filter_excludes_other_project(client, tmp_store, monkeypatch):
+    # Live session is for "alpha"; filter by "beta" → live not included
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    tmp_store.add_session("beta", "claude-sonnet-4-5", 2000, 800)
+    data = client.get("/api/today?project=beta").json()
+    assert data["live_active"]        is False
+    assert data["live_input_tokens"]  == 0
+    assert data["input_tokens"]       == 2000
+
+
+def test_api_today_project_filter_includes_matching_live(client, tmp_store, monkeypatch):
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    data = client.get("/api/today?project=alpha").json()
+    assert data["live_active"]       is True
+    assert data["live_input_tokens"] == 500
+
+
+def test_api_today_never_fails_on_live_tracker_exception(client, monkeypatch):
+    def raise_exc(self): raise RuntimeError("disk full")
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", raise_exc)
+    data = client.get("/api/today").json()
+    assert data["live_active"]  is False
+    assert data["total_cost_usd"] >= 0.0

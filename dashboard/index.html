@@ -647,27 +647,30 @@
 
   async function loadMetrics() {
     const proj   = selectedProject;
-    const pParam = proj ? `&project=${encodeURIComponent(proj)}` : '';
+    const pParam = proj ? `?project=${encodeURIComponent(proj)}` : '';
 
-    const [tokens, today, month] = await Promise.all([
-      api('/api/tokens?period=today' + pParam),
-      api('/api/costs' + (proj ? `/${encodeURIComponent(proj)}` : '') + '?period=today'),
+    const [today, tokens, month] = await Promise.all([
+      api('/api/today' + pParam),
+      api('/api/tokens?period=today' + (proj ? `&project=${encodeURIComponent(proj)}` : '')),
       api('/api/costs' + (proj ? `/${encodeURIComponent(proj)}` : '') + '?period=month'),
     ]);
 
-    // Input / cache / output tokens
-    $('m-input').textContent  = num(tokens.total_input_tokens);
-    const cacheTotal = (tokens.total_cache_creation_tokens || 0) + (tokens.total_cache_read_tokens || 0);
-    $('m-cache').textContent     = num(cacheTotal);
-    $('m-cache-sub').textContent = 'creation ' + num(tokens.total_cache_creation_tokens || 0)
-                                 + ' · read ' + num(tokens.total_cache_read_tokens || 0);
-    $('m-output').textContent = num(tokens.total_output_tokens);
+    // Input / cache / output – combined DB + live totals
+    $('m-input').textContent     = num(today.total_input_tokens);
+    $('m-cache').textContent     = num(today.total_cache_tokens);
+    const dbCc = today.cache_creation_tokens || 0;
+    const dbCr = today.cache_read_tokens     || 0;
+    $('m-cache-sub').textContent = 'creation ' + num(dbCc + (today.live_cache_creation_tokens || 0))
+                                 + ' · read '  + num(dbCr + (today.live_cache_read_tokens     || 0));
+    $('m-output').textContent    = num(today.total_output_tokens);
 
-    // Cost today
+    // Cost today – combined; note if live session is included
     $('m-cost').textContent     = usd(today.total_cost_usd);
-    $('m-cost-sub').textContent = today.session_count + ' session' + (today.session_count !== 1 ? 's' : '');
+    $('m-cost-sub').textContent = today.live_active
+      ? today.session_count + ' session' + (today.session_count !== 1 ? 's' : '') + ' + live'
+      : today.session_count + ' session' + (today.session_count !== 1 ? 's' : '');
 
-    // Budget
+    // Budget (monthly – DB only; live contribution is intra-session)
     const spent  = month.total_cost_usd;
     const budget = cfg.monthly_budget_usd;
     const pct    = budget > 0 ? (spent / budget * 100) : 0;
@@ -676,7 +679,7 @@
     $('m-budget').className       = 'metric-value ' + (pct >= cfg.alert_threshold_pct ? 'red' : pct >= cfg.alert_threshold_pct * 0.75 ? 'amber' : 'teal');
     $('m-budget-sub').textContent = '$' + spent.toFixed(2) + ' / $' + budget.toFixed(2);
 
-    // Session health bar
+    // Session health bar (unchanged – uses /api/tokens thresholds)
     const total   = tokens.total_tokens;
     const warnAt  = tokens.warn_at;
     const resetAt = tokens.reset_at;

@@ -254,6 +254,73 @@ def api_tokens(project: str | None = None, period: str = "today"):
 
 
 # ---------------------------------------------------------------------------
+# /api/today  (combined DB + live session view for metric cards)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/today")
+def api_today(project: str | None = None):
+    """Return today's DB sessions merged with any active live session.
+
+    All live_* fields are 0 / False when no live session exists.
+    total_* fields are DB + live combined so the metric cards always
+    reflect the true cost for the day.
+    """
+    store = _store()
+    today_date = _since("today")
+
+    # ── DB totals for today ───────────────────────────────────────────────
+    tokens  = store.get_token_summary(project_name=project, since_date=today_date)
+    costs   = store.get_cost_summary(project_name=project,  since_date=today_date)
+
+    db_input    = tokens["total_input_tokens"]
+    db_cc       = tokens["total_cache_creation_tokens"]
+    db_cr       = tokens["total_cache_read_tokens"]
+    db_output   = tokens["total_output_tokens"]
+    db_cost     = costs["total_cost_usd"]
+    db_sessions = costs["session_count"]
+
+    # ── Live session (stale / missing → zeros) ────────────────────────────
+    live_active = False
+    live_input  = live_cc = live_cr = live_output = 0
+    live_cost   = 0.0
+    try:
+        live = LiveTracker(None).get_live()
+        if live is not None:
+            # Filter by project if requested
+            if project is None or live.get("project") == project:
+                live_active = True
+                live_input  = int(live.get("input_tokens",          0))
+                live_cc     = int(live.get("cache_creation_tokens", 0))
+                live_cr     = int(live.get("cache_read_tokens",     0))
+                live_output = int(live.get("output_tokens",         0))
+                live_cost   = float(live.get("cost_usd",            0.0))
+    except Exception:
+        pass
+
+    return {
+        # DB portion
+        "input_tokens":          db_input,
+        "cache_creation_tokens": db_cc,
+        "cache_read_tokens":     db_cr,
+        "output_tokens":         db_output,
+        "cost_usd":              db_cost,
+        "session_count":         db_sessions,
+        # Live portion
+        "live_active":               live_active,
+        "live_input_tokens":         live_input,
+        "live_cache_creation_tokens": live_cc,
+        "live_cache_read_tokens":    live_cr,
+        "live_output_tokens":        live_output,
+        "live_cost_usd":             live_cost,
+        # Combined
+        "total_cost_usd":      round(db_cost   + live_cost,   6),
+        "total_input_tokens":  db_input  + live_input,
+        "total_cache_tokens":  db_cc     + live_cc + db_cr + live_cr,
+        "total_output_tokens": db_output + live_output,
+    }
+
+
+# ---------------------------------------------------------------------------
 # /api/models  (cost breakdown per model – CSS bar chart)
 # ---------------------------------------------------------------------------
 
