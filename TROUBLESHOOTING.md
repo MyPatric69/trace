@@ -446,6 +446,30 @@ cp trace_config.yaml ~/.trace/trace_config.yaml
 
 ---
 
+## Issue 13: Token counts differ from provider dashboard
+
+**Symptom:**
+TRACE shows different token counts than your
+provider's usage dashboard.
+
+**Explanation:**
+A small difference (1–5%) is expected and normal.
+TRACE reads from Claude Code's session transcript
+which does not include all internal provider overhead.
+
+**When to investigate:**
+If the difference is consistently >10%, this may
+indicate a parsing bug. Please open an issue at
+https://github.com/MyPatric69/trace/issues
+
+**For authoritative billing figures:**
+Always use your provider's official dashboard:
+- Anthropic: https://console.anthropic.com/usage
+- OpenAI: https://platform.openai.com/usage
+- Vertex AI: Google Cloud Console → Billing
+
+---
+
 ## Still stuck?
 
 Check the project status:

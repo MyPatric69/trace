@@ -258,4 +258,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – v0.2.0 provider adapters complete (269/269 tests green)
+2026-04-12 – Auto-synced 1 commit(s) to c487a46

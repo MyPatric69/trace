@@ -152,6 +152,34 @@ Prices are read from `~/.trace/trace_config.yaml` at startup. Adding a new model
 
 ---
 
+## Token count accuracy
+
+> **Note on token count accuracy**
+>
+> TRACE reads token usage directly from Claude Code's
+> session transcripts. The counts will be very close
+> to your provider's billing figures but may differ
+> slightly (typically 1–5%) because:
+>
+> - Providers apply their own system framing and
+>   internal overhead not exposed in the transcript
+> - Caching behaviour and token attribution varies
+>   between providers and model versions
+> - TRACE uses the transcript as its source of truth,
+>   not the provider's billing API
+>
+> TRACE gives you a reliable **directional view** of
+> your token consumption and costs – not a
+> billing-grade exact replica. For authoritative
+> figures, always refer to your provider's usage
+> dashboard.
+>
+> If you consistently see large discrepancies (>10%),
+> please open an issue – that may indicate a parsing
+> bug worth fixing.
+
+---
+
 ## Troubleshooting
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
