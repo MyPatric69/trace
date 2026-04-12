@@ -197,7 +197,7 @@ trace/
     deduplicates by `requestId`; sums `input_tokens + cache_creation_input_tokens`;
     detects most-common model
   - `detect_project(cwd)` – path match → name fallback against `~/.trace/trace.db`
-- [x] `hooks/setup_claude_hook.sh` – installs SessionEnd + PostToolUse in `~/.claude/settings.json`
+- [x] `hooks/setup_claude_hook.sh` – installs SessionEnd + Stop in `~/.claude/settings.json` (migrates PostToolUse → Stop; Desktop App bug #42336)
 - [x] `trace_config.yaml` + `~/.trace/trace_config.yaml` – added `claude-sonnet-4-6` model
 - [x] `TROUBLESHOOTING.md` – Issue 9: sessions not auto-logging
 - [x] 195/195 tests green
@@ -209,10 +209,10 @@ trace/
     writes `~/.trace/live_session.json`
   - `clear()` – deletes live file on SessionEnd
   - `get_live()` – returns data or None if absent / stale (>5 min)
-- [x] `engine/live_session_hook.py` – PostToolUse hook entry point
+- [x] `engine/live_session_hook.py` – Stop hook entry point
 - [x] `dashboard/server.py` – `/api/live` endpoint
 - [x] `dashboard/index.html` – Live Session panel (pulsing dot, 5s refresh)
-- [x] `hooks/setup_claude_hook.sh` – idempotently adds PostToolUse alongside SessionEnd
+- [x] `hooks/setup_claude_hook.sh` – idempotently adds Stop alongside SessionEnd; migrates PostToolUse → Stop
 - [x] 213/213 tests green
 
 **parse_transcript real-world format (Claude Code ≥ 1.x):**
@@ -234,4 +234,4 @@ trace/
 
 ## Last updated
 
-2026-04-11 – Auto-synced 1 commit(s) to 9f674cf
+2026-04-12 – Switched live tracking hook from PostToolUse to Stop (Desktop App bug #42336); updated settings.json, live_session_hook.py docstring, setup_claude_hook.sh; 222/222 tests green

@@ -1,11 +1,10 @@
-"""PostToolUse hook handler – updates live token tracking on every tool call.
+"""Stop hook handler – updates live token tracking after every completed response.
 
-Claude Code invokes this after each tool use, passing JSON on stdin:
+Claude Code invokes this after each completed response, passing JSON on stdin:
   {
     "session_id": str,
     "transcript_path": str,
-    "cwd": str,
-    "tool_name": str
+    "cwd": str
   }
 
 Never prints to stdout – all errors go to ~/.trace/session_logger.log.

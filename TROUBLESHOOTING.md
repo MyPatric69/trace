@@ -270,6 +270,14 @@ Verify the hook is installed:
 cat ~/.claude/settings.json
 ```
 
+**Note – Live Session panel not updating (Desktop App):**
+PostToolUse hooks do not fire reliably in Claude Code
+Desktop App (known Anthropic bug #42336). TRACE uses
+the Stop hook instead, which fires after every completed
+Claude response. If you installed TRACE before v0.2.0,
+re-run `bash hooks/setup_claude_hook.sh` to migrate
+from PostToolUse to Stop automatically.
+
 Manual fallback – log a session manually:
 ```python
 python3 -c "
