@@ -22,18 +22,30 @@ models:
   claude-sonnet-4-6:
     input_per_1k: 0.003
     output_per_1k: 0.015
+    cache_creation_per_1k: 0.00375
+    cache_read_per_1k: 0.0003
   claude-sonnet-4-5:
     input_per_1k: 0.003
     output_per_1k: 0.015
+    cache_creation_per_1k: 0.00375
+    cache_read_per_1k: 0.0003
   claude-opus-4-5:
     input_per_1k: 0.015
     output_per_1k: 0.075
+    cache_creation_per_1k: 0.01875
+    cache_read_per_1k: 0.0015
   claude-haiku-4-5:
     input_per_1k: 0.0008
     output_per_1k: 0.004
+    cache_creation_per_1k: 0.001
+    cache_read_per_1k: 0.00008
   gpt-4o:
-    input_per_1k: 0.005
-    output_per_1k: 0.015
+    input_per_1k: 0.0025
+    output_per_1k: 0.010
+    cache_creation_per_1k: 0.0025
+    cache_read_per_1k: 0.00125
   gpt-4o-mini:
     input_per_1k: 0.00015
     output_per_1k: 0.0006
+    cache_creation_per_1k: 0.00015
+    cache_read_per_1k: 0.000075

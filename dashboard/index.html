@@ -103,7 +103,7 @@
     /* ── Metric Row ── */
     .metrics {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 1rem;
     }
     .metric-card {
@@ -412,6 +412,11 @@
       <div class="metric-value" id="m-input">–</div>
     </div>
     <div class="metric-card">
+      <div class="metric-label">Cache Tokens Today</div>
+      <div class="metric-value" id="m-cache">–</div>
+      <div class="metric-sub" id="m-cache-sub"></div>
+    </div>
+    <div class="metric-card">
       <div class="metric-label">Output Tokens Today</div>
       <div class="metric-value" id="m-output">–</div>
     </div>
@@ -529,8 +534,12 @@
       api('/api/costs' + (proj ? `/${encodeURIComponent(proj)}` : '') + '?period=month'),
     ]);
 
-    // Input / output tokens
+    // Input / cache / output tokens
     $('m-input').textContent  = num(tokens.total_input_tokens);
+    const cacheTotal = (tokens.total_cache_creation_tokens || 0) + (tokens.total_cache_read_tokens || 0);
+    $('m-cache').textContent     = num(cacheTotal);
+    $('m-cache-sub').textContent = 'creation ' + num(tokens.total_cache_creation_tokens || 0)
+                                 + ' · read ' + num(tokens.total_cache_read_tokens || 0);
     $('m-output').textContent = num(tokens.total_output_tokens);
 
     // Cost today

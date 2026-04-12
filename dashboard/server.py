@@ -126,15 +126,23 @@ def api_tokens(project: str | None = None, period: str = "today"):
     since = _since(period)
     tokens = store.get_token_summary(project_name=project, since_date=since)
     session_cfg = store.config.get("session", {})
-    total = tokens["total_input_tokens"] + tokens["total_output_tokens"]
+    # cache_read excluded from total: it re-counts cached context on every
+    # request and inflates session totals far beyond the real context window size.
+    total = (
+        tokens["total_input_tokens"]
+        + tokens["total_cache_creation_tokens"]
+        + tokens["total_output_tokens"]
+    )
     return {
-        "period": period,
-        "project": project or "all",
-        "total_input_tokens": tokens["total_input_tokens"],
-        "total_output_tokens": tokens["total_output_tokens"],
-        "total_tokens": total,
-        "warn_at": session_cfg.get("warn_at_tokens", 30_000),
-        "reset_at": session_cfg.get("recommend_reset_at", 50_000),
+        "period":                        period,
+        "project":                       project or "all",
+        "total_input_tokens":            tokens["total_input_tokens"],
+        "total_cache_creation_tokens":   tokens["total_cache_creation_tokens"],
+        "total_cache_read_tokens":       tokens["total_cache_read_tokens"],
+        "total_output_tokens":           tokens["total_output_tokens"],
+        "total_tokens":                  total,
+        "warn_at":                       session_cfg.get("warn_at_tokens",        30_000),
+        "reset_at":                      session_cfg.get("recommend_reset_at",    50_000),
     }
 
 

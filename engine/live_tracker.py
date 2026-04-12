@@ -79,18 +79,22 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
     path = Path(transcript_path)
 
     # Carry forward accumulated state
-    acc_input: int = int(prev["input_tokens"]) if prev else 0
-    acc_output: int = int(prev["output_tokens"]) if prev else 0
-    acc_turns: int = int(prev.get("turns", 0)) if prev else 0
-    prev_model: str = prev.get("model", "unknown") if prev else "unknown"
-    start_offset: int = int(prev.get("last_byte_offset", 0)) if prev else 0
+    acc_input:          int = int(prev["input_tokens"])                       if prev else 0
+    acc_cache_creation: int = int(prev.get("cache_creation_tokens", 0))       if prev else 0
+    acc_cache_read:     int = int(prev.get("cache_read_tokens", 0))            if prev else 0
+    acc_output:         int = int(prev["output_tokens"])                       if prev else 0
+    acc_turns:          int = int(prev.get("turns", 0))                        if prev else 0
+    prev_model:         str = prev.get("model", "unknown")                     if prev else "unknown"
+    start_offset:       int = int(prev.get("last_byte_offset", 0))             if prev else 0
 
     _empty = {
-        "input_tokens": acc_input,
-        "output_tokens": acc_output,
-        "model": prev_model,
-        "turns": acc_turns,
-        "last_byte_offset": start_offset,
+        "input_tokens":          acc_input,
+        "cache_creation_tokens": acc_cache_creation,
+        "cache_read_tokens":     acc_cache_read,
+        "output_tokens":         acc_output,
+        "model":                 prev_model,
+        "turns":                 acc_turns,
+        "last_byte_offset":      start_offset,
     }
 
     if not path.exists():
@@ -101,16 +105,18 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
     # File rotated / truncated – restart from the beginning
     if start_offset > file_size:
         start_offset = 0
-        acc_input = acc_output = acc_turns = 0
+        acc_input = acc_cache_creation = acc_cache_read = acc_output = acc_turns = 0
         prev_model = "unknown"
 
     # Nothing new to read
     if start_offset == file_size:
         return _empty
 
-    new_input = 0
-    new_output = 0
-    new_turns = 0
+    new_input          = 0
+    new_cache_creation = 0
+    new_cache_read     = 0
+    new_output         = 0
+    new_turns          = 0
     model_counts: Counter = Counter()
 
     try:
@@ -158,34 +164,39 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
 
             usage = msg.get("usage") or {}
             if isinstance(usage, dict):
-                new_input += (
-                    int(usage.get("input_tokens") or 0)
-                    + int(usage.get("cache_creation_input_tokens") or 0)
-                )
-                new_output += int(usage.get("output_tokens") or 0)
+                new_input          += int(usage.get("input_tokens")                or 0)
+                new_cache_creation += int(usage.get("cache_creation_input_tokens") or 0)
+                new_cache_read     += int(usage.get("cache_read_input_tokens")     or 0)
+                new_output         += int(usage.get("output_tokens")               or 0)
 
     except Exception as exc:
         _log.error("_incremental_parse failed for %s: %s", transcript_path, exc)
         return _empty
 
-    total_input = acc_input + new_input
-    total_output = acc_output + new_output
-    total_turns = acc_turns + new_turns
+    total_input          = acc_input          + new_input
+    total_cache_creation = acc_cache_creation + new_cache_creation
+    total_cache_read     = acc_cache_read     + new_cache_read
+    total_output         = acc_output         + new_output
+    total_turns          = acc_turns          + new_turns
     model = model_counts.most_common(1)[0][0] if model_counts else prev_model
 
-    if total_input > _SANITY_LIMIT:
+    effective_input = total_input + total_cache_creation
+    if effective_input > _SANITY_LIMIT:
         _log.warning(
-            "_incremental_parse: input_tokens=%d exceeds %d for %s "
-            "(long session with large cache – value recorded as-is)",
-            total_input, _SANITY_LIMIT, transcript_path,
+            "_incremental_parse: effective_input=%d (input=%d + cache_creation=%d) "
+            "exceeds %d for %s (long session – value recorded as-is)",
+            effective_input, total_input, total_cache_creation,
+            _SANITY_LIMIT, transcript_path,
         )
 
     return {
-        "input_tokens": total_input,
-        "output_tokens": total_output,
-        "model": model,
-        "turns": total_turns,
-        "last_byte_offset": new_offset,
+        "input_tokens":          total_input,
+        "cache_creation_tokens": total_cache_creation,
+        "cache_read_tokens":     total_cache_read,
+        "output_tokens":         total_output,
+        "model":                 model,
+        "turns":                 total_turns,
+        "last_byte_offset":      new_offset,
     }
 
 
@@ -230,31 +241,39 @@ class LiveTracker:
             time.sleep(0.5)
             usage = _incremental_parse(transcript_path, None)
 
-        input_tokens = usage["input_tokens"]
-        output_tokens = usage["output_tokens"]
-        model = usage["model"]
-        turns = usage["turns"]
-        last_byte_offset = usage["last_byte_offset"]
-        initializing = (input_tokens == 0 and output_tokens == 0)
+        input_tokens          = usage["input_tokens"]
+        cache_creation_tokens = usage.get("cache_creation_tokens", 0)
+        cache_read_tokens     = usage.get("cache_read_tokens", 0)
+        output_tokens         = usage["output_tokens"]
+        model                 = usage["model"]
+        turns                 = usage["turns"]
+        last_byte_offset      = usage["last_byte_offset"]
+        initializing          = (input_tokens == 0 and cache_creation_tokens == 0
+                                 and output_tokens == 0)
 
-        # Cost calculation
+        # Cost calculation – all four token types at their respective rates
         cost_usd = 0.0
         try:
             store = self._store or _get_default_store()
             if store is not None:
-                cost_usd = store.calculate_cost(model, input_tokens, output_tokens)
+                cost_usd = store.calculate_cost(
+                    model, input_tokens, output_tokens,
+                    cache_creation_tokens, cache_read_tokens,
+                )
         except Exception:
             pass
 
-        # Health based on total token consumption vs config thresholds
+        # Health based on effective context consumption (cache_read excluded –
+        # it re-counts cached context on every request and would inflate the total
+        # to millions of tokens for a session that never exceeded 200K).
         health = "ok"
         try:
             store = self._store or _get_default_store()
             if store is not None:
                 session_cfg = store.config.get("session", {})
-                warn_at = session_cfg.get("warn_at_tokens", 60_000)
+                warn_at  = session_cfg.get("warn_at_tokens", 60_000)
                 reset_at = session_cfg.get("recommend_reset_at", 100_000)
-                total = input_tokens + output_tokens
+                total = input_tokens + cache_creation_tokens + output_tokens
                 if total >= reset_at:
                     health = "reset"
                 elif total >= warn_at:
@@ -263,18 +282,20 @@ class LiveTracker:
             pass
 
         data: dict = {
-            "session_id": session_id,
-            "project": self.project_name or "unknown",
-            "cwd": cwd,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "cost_usd": cost_usd,
-            "model": model,
-            "turns": turns,
-            "health": health,
-            "initializing": initializing,
-            "last_byte_offset": last_byte_offset,
-            "updated_at": datetime.now().isoformat(timespec="seconds"),
+            "session_id":            session_id,
+            "project":               self.project_name or "unknown",
+            "cwd":                   cwd,
+            "input_tokens":          input_tokens,
+            "cache_creation_tokens": cache_creation_tokens,
+            "cache_read_tokens":     cache_read_tokens,
+            "output_tokens":         output_tokens,
+            "cost_usd":              cost_usd,
+            "model":                 model,
+            "turns":                 turns,
+            "health":                health,
+            "initializing":          initializing,
+            "last_byte_offset":      last_byte_offset,
+            "updated_at":            datetime.now().isoformat(timespec="seconds"),
         }
 
         try:

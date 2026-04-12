@@ -234,4 +234,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Fixed live session panel per-project filtering: /api/live?project= param added to server, frontend passes selectedProject, 5 new tests; 227/227 green
+2026-04-12 – Complete cache token cost fix: 4-param cost formula (input/cache_creation/cache_read/output); new DB columns; separate fields through parser→logger→tracker→dashboard; 10 new tests, 237/237 green; config synced to ~/.trace/

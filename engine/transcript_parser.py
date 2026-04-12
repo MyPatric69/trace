@@ -34,15 +34,21 @@ def parse_transcript(transcript_path: str) -> dict:
     window size (e.g. 87 requests x 20K cached context = 1.7M for a ~200K session).
 
     Returns:
-        dict with keys: input_tokens, output_tokens, model, turns
+        dict with keys: input_tokens, cache_creation_tokens, cache_read_tokens,
+        output_tokens, model, turns.
         All values are 0 / "unknown" if the file is missing or unparseable.
     """
     path = Path(transcript_path)
     if not path.exists():
-        return {"input_tokens": 0, "output_tokens": 0, "model": "unknown", "turns": 0}
+        return {
+            "input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0,
+            "output_tokens": 0, "model": "unknown", "turns": 0,
+        }
 
-    input_tokens = 0
-    output_tokens = 0
+    input_tokens          = 0
+    cache_creation_tokens = 0
+    cache_read_tokens     = 0
+    output_tokens         = 0
     model_counts: Counter = Counter()
     turns = 0
     seen_request_ids: set = set()
@@ -80,35 +86,42 @@ def parse_transcript(transcript_path: str) -> dict:
                 if isinstance(model_field, str) and model_field:
                     model_counts[model_field] += 1
 
-                # Usage
-                # input_tokens:                new non-cached tokens
-                # cache_creation_input_tokens: tokens written to cache
-                # cache_read_input_tokens:     reused cached bytes – excluded (inflates
-                #                              totals 100x for long sessions)
+                # Usage – track all four token types separately so each can be
+                # priced correctly (cache_creation and cache_read have different
+                # per-token rates than regular input).
                 usage = msg.get("usage") or {}
                 if isinstance(usage, dict):
-                    input_tokens += (
-                        int(usage.get("input_tokens") or 0)
-                        + int(usage.get("cache_creation_input_tokens") or 0)
-                    )
-                    output_tokens += int(usage.get("output_tokens") or 0)
+                    input_tokens          += int(usage.get("input_tokens")                  or 0)
+                    cache_creation_tokens += int(usage.get("cache_creation_input_tokens")   or 0)
+                    cache_read_tokens     += int(usage.get("cache_read_input_tokens")       or 0)
+                    output_tokens         += int(usage.get("output_tokens")                 or 0)
 
     except Exception as exc:
         _log.error("parse_transcript failed for %s: %s", transcript_path, exc)
-        return {"input_tokens": 0, "output_tokens": 0, "model": "unknown", "turns": 0}
+        return {
+            "input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0,
+            "output_tokens": 0, "model": "unknown", "turns": 0,
+        }
 
     model = model_counts.most_common(1)[0][0] if model_counts else "unknown"
 
-    if input_tokens > _SANITY_LIMIT:
+    # Sanity check: warn when combined input context exceeds a single context window.
+    # cache_read excluded here – it re-counts cached context on every request and
+    # would trigger the warning on every turn of a cached session.
+    effective_input = input_tokens + cache_creation_tokens
+    if effective_input > _SANITY_LIMIT:
         _log.warning(
-            "parse_transcript: input_tokens=%d exceeds %d for %s "
-            "(long session with large cache – value recorded as-is)",
-            input_tokens, _SANITY_LIMIT, transcript_path,
+            "parse_transcript: effective_input=%d (input=%d + cache_creation=%d) "
+            "exceeds %d for %s (long session – value recorded as-is)",
+            effective_input, input_tokens, cache_creation_tokens,
+            _SANITY_LIMIT, transcript_path,
         )
 
     return {
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "model": model,
-        "turns": turns,
+        "input_tokens":          input_tokens,
+        "cache_creation_tokens": cache_creation_tokens,
+        "cache_read_tokens":     cache_read_tokens,
+        "output_tokens":         output_tokens,
+        "model":                 model,
+        "turns":                 turns,
     }

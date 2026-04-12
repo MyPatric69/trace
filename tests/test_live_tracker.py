@@ -18,7 +18,10 @@ from engine.store import TraceStore
 # ---------------------------------------------------------------------------
 
 _MODEL_PRICES = {
-    "claude-sonnet-4-6": {"input_per_1k": 0.003, "output_per_1k": 0.015},
+    "claude-sonnet-4-6": {
+        "input_per_1k": 0.003, "output_per_1k": 0.015,
+        "cache_creation_per_1k": 0.00375, "cache_read_per_1k": 0.0003,
+    },
 }
 
 _SESSION_CFG = {
@@ -114,8 +117,10 @@ def test_update_returns_correct_token_counts(tmp_path, patched_tracker):
         _assistant_turn("req_2", input_tokens=50, output_tokens=20),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
-    assert result["input_tokens"] == 550   # cache_read excluded
-    assert result["output_tokens"] == 100
+    assert result["input_tokens"]          == 250   # 200 + 50 (regular input only)
+    assert result["cache_creation_tokens"] == 300
+    assert result["cache_read_tokens"]     == 9999
+    assert result["output_tokens"]         == 100
 
 
 def test_update_session_id_derived_from_filename(tmp_path, patched_tracker):
@@ -141,6 +146,33 @@ def test_update_calculates_cost(tmp_path, patched_tracker):
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
     assert result["cost_usd"] == pytest.approx(0.0105)
+
+
+def test_update_result_has_cache_token_fields(tmp_path, patched_tracker):
+    """update() result always includes cache_creation_tokens and cache_read_tokens."""
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=100, cache_creation=200,
+                        cache_read=999, output_tokens=50),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["cache_creation_tokens"] == 200
+    assert result["cache_read_tokens"]     == 999
+    assert result["input_tokens"]          == 100
+
+
+def test_update_cost_includes_cache_creation(tmp_path, patched_tracker):
+    # claude-sonnet-4-6 fixture prices:
+    #   input:          1000 × 0.003 / 1k   = 0.003
+    #   cache_creation: 500  × 0.00375 / 1k = 0.001875
+    #   cache_read:     0    × 0.0003 / 1k  = 0.0
+    #   output:         400  × 0.015 / 1k   = 0.006
+    #   total                                = 0.010875
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=1000, cache_creation=500,
+                        cache_read=0, output_tokens=400),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["cost_usd"] == pytest.approx(0.010875)
 
 
 # ---------------------------------------------------------------------------

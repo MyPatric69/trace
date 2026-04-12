@@ -4,8 +4,14 @@ import yaml
 from engine.store import TraceStore
 
 _MODEL_PRICES = {
-    "claude-sonnet-4-5": {"input_per_1k": 0.003, "output_per_1k": 0.015},
-    "gpt-4o": {"input_per_1k": 0.005, "output_per_1k": 0.015},
+    "claude-sonnet-4-5": {
+        "input_per_1k": 0.003, "output_per_1k": 0.015,
+        "cache_creation_per_1k": 0.00375, "cache_read_per_1k": 0.0003,
+    },
+    "gpt-4o": {
+        "input_per_1k": 0.005, "output_per_1k": 0.015,
+        "cache_creation_per_1k": 0.005, "cache_read_per_1k": 0.0025,
+    },
 }
 
 

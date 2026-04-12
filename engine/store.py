@@ -104,17 +104,35 @@ class TraceStore:
                 );
 
                 CREATE TABLE IF NOT EXISTS sessions (
-                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                    project_id    INTEGER NOT NULL REFERENCES projects(id),
-                    date          TEXT    NOT NULL DEFAULT (date('now')),
-                    model         TEXT    NOT NULL,
-                    input_tokens  INTEGER NOT NULL DEFAULT 0,
-                    output_tokens INTEGER NOT NULL DEFAULT 0,
-                    cost_usd      REAL    NOT NULL DEFAULT 0.0,
-                    notes         TEXT,
-                    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+                    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id             INTEGER NOT NULL REFERENCES projects(id),
+                    date                   TEXT    NOT NULL DEFAULT (date('now')),
+                    model                  TEXT    NOT NULL,
+                    input_tokens           INTEGER NOT NULL DEFAULT 0,
+                    cache_creation_tokens  INTEGER NOT NULL DEFAULT 0,
+                    cache_read_tokens      INTEGER NOT NULL DEFAULT 0,
+                    output_tokens          INTEGER NOT NULL DEFAULT 0,
+                    cost_usd               REAL    NOT NULL DEFAULT 0.0,
+                    notes                  TEXT,
+                    created_at             TEXT    NOT NULL DEFAULT (datetime('now'))
                 );
             """)
+            self._migrate_schema(conn)
+
+    @staticmethod
+    def _migrate_schema(conn: sqlite3.Connection) -> None:
+        """Add new columns to existing sessions tables (idempotent)."""
+        existing = {
+            row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
+        }
+        for col, definition in [
+            ("cache_creation_tokens", "INTEGER NOT NULL DEFAULT 0"),
+            ("cache_read_tokens",     "INTEGER NOT NULL DEFAULT 0"),
+        ]:
+            if col not in existing:
+                conn.execute(
+                    f"ALTER TABLE sessions ADD COLUMN {col} {definition}"
+                )
 
     def add_project(self, name: str, path: str, description: str = "") -> int:
         with self._connect() as conn:
@@ -138,17 +156,35 @@ class TraceStore:
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def _calculate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def _calculate_cost(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_tokens: int = 0,
+        cache_read_tokens: int = 0,
+    ) -> float:
         prices = self.model_prices.get(model)
         if not prices:
             return 0.0
-        input_cost = (input_tokens / 1000) * prices["input_per_1k"]
-        output_cost = (output_tokens / 1000) * prices["output_per_1k"]
-        return round(input_cost + output_cost, 6)
+        input_cost          = (input_tokens          / 1000) * prices["input_per_1k"]
+        cache_creation_cost = (cache_creation_tokens / 1000) * prices.get("cache_creation_per_1k", 0.0)
+        cache_read_cost     = (cache_read_tokens     / 1000) * prices.get("cache_read_per_1k",     0.0)
+        output_cost         = (output_tokens         / 1000) * prices["output_per_1k"]
+        return round(input_cost + cache_creation_cost + cache_read_cost + output_cost, 6)
 
-    def calculate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def calculate_cost(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_tokens: int = 0,
+        cache_read_tokens: int = 0,
+    ) -> float:
         """Public cost calculator – uses model prices from trace_config.yaml."""
-        return self._calculate_cost(model, input_tokens, output_tokens)
+        return self._calculate_cost(
+            model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+        )
 
     def add_session(
         self,
@@ -157,21 +193,31 @@ class TraceStore:
         input_tokens: int,
         output_tokens: int,
         notes: str = "",
+        cache_creation_tokens: int = 0,
+        cache_read_tokens: int = 0,
     ) -> int:
         """Inserts a session row and returns the new session_id."""
         project = self.get_project(project_name)
         if project is None:
             raise ValueError(f"Project '{project_name}' not found.")
 
-        cost_usd = self._calculate_cost(model, input_tokens, output_tokens)
+        cost_usd = self._calculate_cost(
+            model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+        )
         today = date.today().isoformat()
 
         with self._connect() as conn:
             cursor = conn.execute(
                 """INSERT INTO sessions
-                   (project_id, date, model, input_tokens, output_tokens, cost_usd, notes)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (project["id"], today, model, input_tokens, output_tokens, cost_usd, notes),
+                   (project_id, date, model,
+                    input_tokens, cache_creation_tokens, cache_read_tokens,
+                    output_tokens, cost_usd, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    project["id"], today, model,
+                    input_tokens, cache_creation_tokens, cache_read_tokens,
+                    output_tokens, cost_usd, notes,
+                ),
             )
             return cursor.lastrowid
 
@@ -254,7 +300,12 @@ class TraceStore:
             if project_name is not None:
                 project = self.get_project(project_name)
                 if project is None:
-                    return {"total_input_tokens": 0, "total_output_tokens": 0}
+                    return {
+                        "total_input_tokens": 0,
+                        "total_cache_creation_tokens": 0,
+                        "total_cache_read_tokens": 0,
+                        "total_output_tokens": 0,
+                    }
                 conditions.append("project_id = ?")
                 params.append(project["id"])
 
@@ -265,14 +316,19 @@ class TraceStore:
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
             row = conn.execute(
-                f"""SELECT COALESCE(SUM(input_tokens), 0) AS total_input,
-                           COALESCE(SUM(output_tokens), 0) AS total_output
+                f"""SELECT
+                       COALESCE(SUM(input_tokens),          0) AS total_input,
+                       COALESCE(SUM(cache_creation_tokens), 0) AS total_cache_creation,
+                       COALESCE(SUM(cache_read_tokens),     0) AS total_cache_read,
+                       COALESCE(SUM(output_tokens),         0) AS total_output
                     FROM sessions {where}""",
                 params,
             ).fetchone()
             return {
-                "total_input_tokens": row["total_input"],
-                "total_output_tokens": row["total_output"],
+                "total_input_tokens":          row["total_input"],
+                "total_cache_creation_tokens": row["total_cache_creation"],
+                "total_cache_read_tokens":     row["total_cache_read"],
+                "total_output_tokens":         row["total_output"],
             }
 
     def get_cost_summary(

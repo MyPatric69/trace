@@ -8,8 +8,14 @@ from dashboard.server import app
 from engine.store import TraceStore
 
 _MODEL_PRICES = {
-    "claude-sonnet-4-5": {"input_per_1k": 0.003, "output_per_1k": 0.015},
-    "gpt-4o":            {"input_per_1k": 0.005, "output_per_1k": 0.015},
+    "claude-sonnet-4-5": {
+        "input_per_1k": 0.003, "output_per_1k": 0.015,
+        "cache_creation_per_1k": 0.00375, "cache_read_per_1k": 0.0003,
+    },
+    "gpt-4o": {
+        "input_per_1k": 0.005, "output_per_1k": 0.015,
+        "cache_creation_per_1k": 0.005, "cache_read_per_1k": 0.0025,
+    },
 }
 
 
@@ -165,7 +171,10 @@ def test_api_tokens_structure(client):
     res = client.get("/api/tokens")
     assert res.status_code == 200
     data = res.json()
-    for key in ("total_input_tokens", "total_output_tokens", "total_tokens", "warn_at", "reset_at"):
+    for key in (
+        "total_input_tokens", "total_cache_creation_tokens", "total_cache_read_tokens",
+        "total_output_tokens", "total_tokens", "warn_at", "reset_at",
+    ):
         assert key in data
 
 
@@ -187,6 +196,22 @@ def test_api_tokens_uses_config_thresholds(client):
 def test_api_tokens_zero_when_no_sessions(client):
     data = client.get("/api/tokens").json()
     assert data["total_tokens"] == 0
+
+
+def test_api_tokens_total_excludes_cache_read(client, tmp_store):
+    # total_tokens = input + cache_creation + output (NOT cache_read)
+    tmp_store.add_session(
+        "alpha", "claude-sonnet-4-5",
+        input_tokens=1000, output_tokens=500,
+        cache_creation_tokens=200, cache_read_tokens=99999,
+    )
+    data = client.get("/api/tokens?period=today").json()
+    assert data["total_input_tokens"]          == 1000
+    assert data["total_cache_creation_tokens"] == 200
+    assert data["total_cache_read_tokens"]     == 99999
+    assert data["total_output_tokens"]         == 500
+    # Health bar total excludes cache_read to avoid 100x inflation
+    assert data["total_tokens"]                == 1000 + 200 + 500  # 1700
 
 
 # ---------------------------------------------------------------------------

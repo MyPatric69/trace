@@ -66,7 +66,7 @@ def _user_turn(content: str = "Hello") -> dict:
 # ---------------------------------------------------------------------------
 
 def test_parse_transcript_returns_correct_tokens(tmp_path):
-    """input_tokens sums regular + cache_creation only (cache_read excluded)."""
+    """Token types are returned separately; none are combined."""
     transcript = _write_transcript(tmp_path, [
         _user_turn(),
         _assistant_turn("req_1", input_tokens=10, cache_creation=200,
@@ -76,8 +76,10 @@ def test_parse_transcript_returns_correct_tokens(tmp_path):
                         cache_read=150, output_tokens=80),
     ])
     result = parse_transcript(str(transcript))
-    assert result["input_tokens"] == 10 + 200 + 5 + 100  # 315 (cache_read excluded)
-    assert result["output_tokens"] == 130
+    assert result["input_tokens"]          == 10 + 5        # 15  (regular input only)
+    assert result["cache_creation_tokens"] == 200 + 100     # 300
+    assert result["cache_read_tokens"]     == 300 + 150     # 450
+    assert result["output_tokens"]         == 130
 
 
 def test_parse_transcript_returns_correct_turn_count(tmp_path):
@@ -105,8 +107,9 @@ def test_parse_transcript_deduplicates_by_request_id(tmp_path):
                         output_tokens=20),
     ])
     result = parse_transcript(str(transcript))
-    assert result["input_tokens"] == 165  # req_1(10+100) + req_2(5+50), not 495
-    assert result["output_tokens"] == 70  # req_1(50) + req_2(20), not 170
+    assert result["input_tokens"]          == 10 + 5   # req_1 + req_2, not 35
+    assert result["cache_creation_tokens"] == 100 + 50 # req_1 + req_2, not 350
+    assert result["output_tokens"]         == 70       # req_1(50) + req_2(20), not 170
     assert result["turns"] == 2
 
 
@@ -169,6 +172,43 @@ def test_parse_transcript_unknown_model_when_no_model_field(tmp_path):
     ])
     result = parse_transcript(str(transcript))
     assert result["model"] == "unknown"
+
+
+def test_parse_transcript_returns_cache_fields(tmp_path):
+    """parse_transcript returns all four token types as separate keys."""
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("req_1", input_tokens=100, cache_creation=200,
+                        cache_read=999, output_tokens=50),
+    ])
+    result = parse_transcript(str(transcript))
+    assert "cache_creation_tokens" in result
+    assert "cache_read_tokens"     in result
+    assert result["input_tokens"]          == 100
+    assert result["cache_creation_tokens"] == 200
+    assert result["cache_read_tokens"]     == 999
+    assert result["output_tokens"]         == 50
+
+
+def test_run_passes_cache_tokens_to_store(tmp_path, tmp_store, monkeypatch):
+    """run() stores cache_creation and cache_read separately – not merged into input."""
+    monkeypatch.setattr(sl_module, "_store", lambda: tmp_store)
+    tmp_store.add_project("cache-project", str(tmp_path), "Test")
+
+    stdin_data = _make_run_input(tmp_path, [
+        _assistant_turn("req_1", model="claude-sonnet-4-5",
+                        input_tokens=100, cache_creation=500, cache_read=300,
+                        output_tokens=150),
+    ], str(tmp_path))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
+
+    run()
+
+    sessions = tmp_store.get_sessions("cache-project")
+    assert len(sessions) == 1
+    assert sessions[0]["input_tokens"]          == 100
+    assert sessions[0]["cache_creation_tokens"] == 500
+    assert sessions[0]["cache_read_tokens"]     == 300
+    assert sessions[0]["output_tokens"]         == 150
 
 
 # ---------------------------------------------------------------------------
@@ -241,8 +281,10 @@ def test_run_logs_session_when_project_found(tmp_path, tmp_store, monkeypatch):
 
     sessions = tmp_store.get_sessions("run-project")
     assert len(sessions) == 1
-    assert sessions[0]["input_tokens"] == 350   # 50 + 300 (cache_read excluded)
-    assert sessions[0]["output_tokens"] == 200
+    assert sessions[0]["input_tokens"]          == 50
+    assert sessions[0]["cache_creation_tokens"] == 300
+    assert sessions[0]["cache_read_tokens"]     == 9999
+    assert sessions[0]["output_tokens"]         == 200
     assert sessions[0]["model"] == "claude-sonnet-4-6"
     assert "Auto-logged" in sessions[0]["notes"]
 

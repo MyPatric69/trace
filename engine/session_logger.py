@@ -102,12 +102,14 @@ def run() -> None:
     session_id = data.get("session_id", "")
 
     usage = parse_transcript(transcript_path)
-    input_tokens = usage["input_tokens"]
-    output_tokens = usage["output_tokens"]
-    model = usage["model"]
-    turns = usage["turns"]
+    input_tokens          = usage["input_tokens"]
+    cache_creation_tokens = usage["cache_creation_tokens"]
+    cache_read_tokens     = usage["cache_read_tokens"]
+    output_tokens         = usage["output_tokens"]
+    model                 = usage["model"]
+    turns                 = usage["turns"]
 
-    if not input_tokens and not output_tokens:
+    if not input_tokens and not cache_creation_tokens and not output_tokens:
         _log.info("No tokens found for session %s – skipping", session_id)
         return
 
@@ -128,12 +130,17 @@ def run() -> None:
             input_tokens,
             output_tokens,
             f"Auto-logged via SessionEnd hook – {turns} turns",
+            cache_creation_tokens=cache_creation_tokens,
+            cache_read_tokens=cache_read_tokens,
         )
         _log.info(
-            "Logged session %s for project '%s': %d input, %d output tokens (%s)",
+            "Logged session %s for project '%s': "
+            "%d input, %d cache_creation, %d cache_read, %d output tokens (%s)",
             session_id,
             project_name,
             input_tokens,
+            cache_creation_tokens,
+            cache_read_tokens,
             output_tokens,
             model,
         )

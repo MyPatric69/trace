@@ -73,8 +73,71 @@ def test_add_session_returns_int_id(tmp_store: TraceStore):
 def test_calculate_cost_correct(tmp_store: TraceStore):
     # claude-sonnet-4-5: 1000 in × $0.003 + 500 out × $0.015 = $0.003 + $0.0075 = $0.0105
     assert tmp_store.calculate_cost("claude-sonnet-4-5", 1000, 500) == pytest.approx(0.0105)
-    # gpt-4o: 2000 in × $0.005 + 1000 out × $0.015 = $0.010 + $0.015 = $0.025
+    # gpt-4o (fixture): 2000 in × $0.005 + 1000 out × $0.015 = $0.010 + $0.015 = $0.025
     assert tmp_store.calculate_cost("gpt-4o", 2000, 1000) == pytest.approx(0.025)
+
+
+def test_calculate_cost_with_cache_tokens(tmp_store: TraceStore):
+    # claude-sonnet-4-5 fixture prices:
+    #   input:          1000 × $0.003 / 1k  = $0.003
+    #   cache_creation: 500  × $0.00375 / 1k = $0.001875
+    #   cache_read:     200  × $0.0003 / 1k  = $0.00006
+    #   output:         400  × $0.015 / 1k   = $0.006
+    #   total                                 = $0.010935
+    cost = tmp_store.calculate_cost(
+        "claude-sonnet-4-5",
+        input_tokens=1000,
+        output_tokens=400,
+        cache_creation_tokens=500,
+        cache_read_tokens=200,
+    )
+    assert cost == pytest.approx(0.010935)
+
+
+def test_add_session_with_cache_tokens(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    sid = tmp_store.add_session(
+        "alpha", "claude-sonnet-4-5",
+        input_tokens=1000, output_tokens=400,
+        cache_creation_tokens=500, cache_read_tokens=200,
+    )
+    assert isinstance(sid, int)
+    sessions = tmp_store.get_sessions("alpha")
+    assert sessions[0]["cache_creation_tokens"] == 500
+    assert sessions[0]["cache_read_tokens"]     == 200
+
+
+def test_add_session_cache_tokens_included_in_cost(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    tmp_store.add_session(
+        "alpha", "claude-sonnet-4-5",
+        input_tokens=1000, output_tokens=400,
+        cache_creation_tokens=500, cache_read_tokens=200,
+    )
+    sessions = tmp_store.get_sessions("alpha")
+    assert sessions[0]["cost_usd"] == pytest.approx(0.010935)
+
+
+def test_get_token_summary_includes_cache_fields(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    tmp_store.add_session(
+        "alpha", "claude-sonnet-4-5",
+        input_tokens=1000, output_tokens=500,
+        cache_creation_tokens=300, cache_read_tokens=9999,
+    )
+    summary = tmp_store.get_token_summary("alpha")
+    assert summary["total_input_tokens"]          == 1000
+    assert summary["total_cache_creation_tokens"] == 300
+    assert summary["total_cache_read_tokens"]     == 9999
+    assert summary["total_output_tokens"]         == 500
+
+
+def test_schema_migration_adds_cache_columns(tmp_store: TraceStore):
+    import sqlite3
+    with sqlite3.connect(tmp_store.db_path) as conn:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+    assert "cache_creation_tokens" in columns
+    assert "cache_read_tokens" in columns
 
 
 def test_add_session_unknown_project_raises(tmp_store: TraceStore):
