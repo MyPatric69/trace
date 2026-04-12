@@ -1,31 +1,19 @@
 trace:
   db_path: trace.db
-  version: "0.2.0"
-
+  version: 0.2.0
 api_integration:
-  provider: "anthropic"        # manual | anthropic | openai | vertexai
-  sync_usage: true         # fetch real usage from provider API
-  budget_source: "manual"   # manual | api
-  monthly_budget_usd: 20.0  # used when budget_source: manual
-
+  provider: anthropic
+  sync_usage: true
+  budget_source: manual
+  monthly_budget_usd: 20.0
 projects: []
-
-mcp_servers: []  # populated by dashboard UI
-
 budgets:
   default_monthly_usd: 20.0
   alert_threshold_pct: 80
-
 session:
-  # Warn when a single session approaches this token count
   warn_at_tokens: 60000
-  # Recommend new_session() at this threshold
   recommend_reset_at: 100000
-  # Claude Code auto-compact kicks in around 180000 tokens
-  # TRACE acts proactively well before that point
-  # Informational only – do not reach this
   claude_autocompact_approx: 180000
-
 models:
   claude-sonnet-4-6:
     input_per_1k: 0.003
@@ -46,17 +34,17 @@ models:
     input_per_1k: 0.0008
     output_per_1k: 0.004
     cache_creation_per_1k: 0.001
-    cache_read_per_1k: 0.00008
+    cache_read_per_1k: 8.0e-05
   gpt-4o:
     input_per_1k: 0.0025
-    output_per_1k: 0.010
+    output_per_1k: 0.01
     cache_creation_per_1k: 0.0025
     cache_read_per_1k: 0.00125
   gpt-4o-mini:
     input_per_1k: 0.00015
     output_per_1k: 0.0006
     cache_creation_per_1k: 0.00015
-    cache_read_per_1k: 0.000075
+    cache_read_per_1k: 7.5e-05
   gpt-5:
     input_per_1k: 0.000625
     output_per_1k: 0.005
@@ -75,3 +63,8 @@ models:
     cache_creation_per_1k: 0.00075
     cache_read_per_1k: 0.000375
     context_window: 128000
+mcp_servers:
+- name: trace
+  estimated_tokens: 300
+- name: github
+  estimated_tokens: 300

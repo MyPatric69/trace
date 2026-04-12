@@ -366,4 +366,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – v0.3.0 Feature 4 refactored: config-backed MCP panel, GET/POST/DELETE endpoints, 379/379 tests green
+2026-04-12 – Auto-synced 1 commit(s) to 2f0d5b0
