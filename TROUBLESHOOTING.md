@@ -326,6 +326,126 @@ config sync between the project and `~/.trace/`.
 
 ---
 
+## Issue 11: How to reset the database
+
+Three options depending on how much you want to clear.
+
+---
+
+**Option A – Clear all sessions, keep projects**
+
+Removes every session row but leaves all registered
+projects intact. Use this after a testing period to
+start fresh cost tracking.
+
+```python
+python3 -c "
+import sqlite3
+from pathlib import Path
+db = Path.home() / '.trace' / 'trace.db'
+conn = sqlite3.connect(db)
+conn.execute('DELETE FROM sessions')
+conn.commit()
+conn.close()
+print('All sessions deleted.')
+"
+```
+
+---
+
+**Option B – Clear sessions for one project**
+
+```python
+python3 -c "
+import sqlite3
+from pathlib import Path
+from engine.store import TraceStore
+store = TraceStore.default()
+project = store.get_project('your-project-name')
+if project is None:
+    print('Project not found.')
+else:
+    db = Path.home() / '.trace' / 'trace.db'
+    conn = sqlite3.connect(db)
+    conn.execute('DELETE FROM sessions WHERE project_id = ?', (project['id'],))
+    conn.commit()
+    conn.close()
+    print(f'Sessions deleted for project: {project[\"name\"]}')
+"
+```
+
+Replace `your-project-name` with the actual project name.
+
+---
+
+**Option C – Full reset (delete DB, recreate, re-register)**
+
+Use this to wipe everything and start completely fresh.
+
+1. Note your registered projects first:
+```python
+python3 -c "
+from engine.store import TraceStore
+for p in TraceStore.default().list_projects():
+    print(f'{p[\"name\"]}  →  {p[\"path\"]}  ({p[\"description\"]})')
+"
+```
+
+2. Delete the database:
+```bash
+rm ~/.trace/trace.db
+```
+
+3. Re-initialise and re-register each project:
+```python
+python3 -c "
+from engine.store import TraceStore
+store = TraceStore.default()
+store.init_db()
+store.add_project('your-project', '/path/to/project', 'Description')
+print('Done.')
+"
+```
+
+4. Reinstall git hooks if needed:
+```bash
+bash hooks/install_hook.sh /path/to/project
+```
+
+---
+
+## Issue 12: Anthropic Usage board shows different costs than TRACE
+
+**Symptom:**
+The Anthropic Usage dashboard shows lower costs than
+TRACE, or shows zero usage for a session you just ran.
+
+**Cause:**
+The Anthropic Usage board has a **15–60 minute delay**.
+It does not reflect real-time API consumption.
+
+TRACE reads token counts directly from the Claude Code
+transcript file at session end and calculates cost
+locally using the prices in `trace_config.yaml`.
+TRACE is the real-time source.
+
+**Expected difference:**
+- Anthropic Usage: delayed by 15–60 min, aggregated
+  by billing period
+- TRACE: immediate, per-session breakdown with
+  cache token cost breakdown (input, cache_creation,
+  cache_read, output)
+
+**If costs differ significantly after the delay clears:**
+Check that your `trace_config.yaml` model prices match
+the current Anthropic pricing page. Update if needed:
+```bash
+# After editing trace_config.yaml:
+cp trace_config.yaml ~/.trace/trace_config.yaml
+```
+
+---
+
 ## Still stuck?
 
 Check the project status:

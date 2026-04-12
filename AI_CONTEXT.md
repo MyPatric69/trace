@@ -234,4 +234,4 @@ trace/
 
 ## Last updated
 
-2026-04-12 – Complete cache token cost fix: 4-param cost formula (input/cache_creation/cache_read/output); new DB columns; separate fields through parser→logger→tracker→dashboard; 10 new tests, 237/237 green; config synced to ~/.trace/
+2026-04-12 – Auto-synced 1 commit(s) to 905434b
