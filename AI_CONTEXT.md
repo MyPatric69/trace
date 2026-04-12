@@ -359,11 +359,17 @@ trace/
 - Added `POST /api/mcp` and `DELETE /api/mcp/{name}` endpoints with full validation and persistence
 - Added inline add/remove UI in dashboard; tests rewritten from 13 → 23 tests
 
+**Provider Log Spam fix (complete – no new tests, 379 total):**
+- **Root cause:** `dashboard/server.py` called `get_provider()` on every `/api/provider` request (every 5 s from dashboard polling); `get_provider()` logged a WARNING on every call when credentials were missing.
+- [x] `engine/providers/__init__.py` – added `_warned: bool = False`; warning now fires at most once per process lifetime; subsequent unavailable-provider calls return `ManualProvider` silently
+- [x] `dashboard/server.py` – added `_provider` + `_provider_warned` module-level cache; `_get_provider(config)` helper evaluates the provider once and caches it for the lifetime of the dashboard process; `api_provider()` endpoint now calls `_get_provider()` instead of `get_provider()`
+- Result: exactly one warning on dashboard start; zero new entries in `session_logger.log` during normal polling
+
 **Next:**
-- [ ] Provider Log Spam fix
+- [ ] v0.3.0 tag
 
 ---
 
 ## Last updated
 
-2026-04-12 – Auto-synced 1 commit(s) to 2f0d5b0
+2026-04-12 – Provider Log Spam fix complete

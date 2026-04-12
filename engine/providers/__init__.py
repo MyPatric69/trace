@@ -24,6 +24,7 @@ from engine.providers.base import AbstractProvider
 from engine.providers.manual import ManualProvider
 
 _log = logging.getLogger(__name__)
+_warned: bool = False  # suppress duplicate fallback warnings across calls
 
 __all__ = ["get_provider", "AbstractProvider", "ManualProvider"]
 
@@ -63,11 +64,14 @@ def get_provider(config: dict | None = None) -> AbstractProvider:
         return ManualProvider()
 
     if not isinstance(provider, ManualProvider) and not provider.is_available():
-        _log.warning(
-            "get_provider: provider %r is not available (credentials missing) "
-            "– falling back to ManualProvider",
-            provider_name,
-        )
+        global _warned
+        if not _warned:
+            _log.warning(
+                "get_provider: provider %r is not available (credentials missing) "
+                "– falling back to ManualProvider",
+                provider_name,
+            )
+            _warned = True
         return ManualProvider()
 
     return provider

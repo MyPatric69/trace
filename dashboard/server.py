@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from engine.store import TraceStore, TRACE_HOME
 from engine.live_tracker import LiveTracker
 from engine.providers import get_provider
+from engine.providers.manual import ManualProvider
 from server.tools.context import check_drift, update_context
 from server.tools.session import get_tips, new_session
 
@@ -63,6 +64,32 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+# ---------------------------------------------------------------------------
+# Provider cache – evaluated once per dashboard process, not per request
+# ---------------------------------------------------------------------------
+
+_provider: ManualProvider | None = None  # type: ignore[type-arg]
+_provider_warned: bool = False
+
+
+def _get_provider(config: dict):
+    """Return a cached provider instance; call get_provider() at most once."""
+    global _provider, _provider_warned
+    if _provider is None:
+        _provider = get_provider(config)
+        configured = (config.get("api_integration") or {}).get("provider", "manual")
+        if (
+            not _provider_warned
+            and isinstance(_provider, ManualProvider)
+            and configured != "manual"
+        ):
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "Provider '%s' unavailable – using manual fallback", configured
+            )
+            _provider_warned = True
+    return _provider
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +461,7 @@ def api_new_session(project_name: str, dry_run: bool = True):
 def api_provider(period: str = "month"):
     try:
         store    = _store()
-        provider = get_provider(store.config)
+        provider = _get_provider(store.config)
         name     = provider.get_name()
         fallback = name == "manual" and (
             (store.config.get("api_integration") or {}).get("provider", "manual") != "manual"
