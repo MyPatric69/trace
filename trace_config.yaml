@@ -10,9 +10,9 @@ projects: []
 budgets:
   default_monthly_usd: 20.0
   alert_threshold_pct: 80
-session:
-  warn_at_tokens: 60000
-  recommend_reset_at: 100000
+session_health:
+  warn_tokens: 80000
+  critical_tokens: 150000
   claude_autocompact_approx: 180000
 models:
   claude-sonnet-4-6:

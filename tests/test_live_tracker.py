@@ -24,9 +24,9 @@ _MODEL_PRICES = {
     },
 }
 
-_SESSION_CFG = {
-    "warn_at_tokens": 1_000,
-    "recommend_reset_at": 2_000,
+_SESSION_HEALTH_CFG = {
+    "warn_tokens": 1_000,
+    "critical_tokens": 2_000,
 }
 
 
@@ -36,7 +36,7 @@ def tmp_store(tmp_path):
         "trace": {"db_path": "test.db", "version": "0.1.0"},
         "projects": [],
         "budgets": {"default_monthly_usd": 20.0, "alert_threshold_pct": 80},
-        "session": _SESSION_CFG,
+        "session_health": _SESSION_HEALTH_CFG,
         "models": _MODEL_PRICES,
     }
     cfg_path = tmp_path / "trace_config.yaml"
@@ -179,49 +179,49 @@ def test_update_cost_includes_cache_creation(tmp_path, patched_tracker):
 # update() – health thresholds
 # ---------------------------------------------------------------------------
 
-def test_update_health_ok_below_warn(tmp_path, patched_tracker):
-    # warn_at_tokens = 1000, total = 100 + 50 = 150
+def test_update_health_green_below_warn(tmp_path, patched_tracker):
+    # warn_tokens = 1000, total = 100 + 50 = 150  → green
     transcript = _write_transcript(tmp_path, [
         _assistant_turn("r1", input_tokens=100, output_tokens=50),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
-    assert result["health"] == "ok"
+    assert result["health"] == "green"
 
 
-def test_update_health_warn_above_warn_threshold(tmp_path, patched_tracker):
-    # warn_at_tokens = 1000, total = 700 + 400 = 1100  → warn
+def test_update_health_yellow_above_warn_threshold(tmp_path, patched_tracker):
+    # warn_tokens = 1000, total = 700 + 400 = 1100  → yellow
     transcript = _write_transcript(tmp_path, [
         _assistant_turn("r1", input_tokens=700, output_tokens=400),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
-    assert result["health"] == "warn"
+    assert result["health"] == "yellow"
 
 
-def test_update_health_reset_above_reset_threshold(tmp_path, patched_tracker):
-    # recommend_reset_at = 2000, total = 1500 + 600 = 2100  → reset
+def test_update_health_red_above_critical_threshold(tmp_path, patched_tracker):
+    # critical_tokens = 2000, total = 1500 + 600 = 2100  → red
     transcript = _write_transcript(tmp_path, [
         _assistant_turn("r1", input_tokens=1500, output_tokens=600),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
-    assert result["health"] == "reset"
+    assert result["health"] == "red"
 
 
 def test_update_health_exactly_at_warn(tmp_path, patched_tracker):
-    # exactly at warn_at_tokens = 1000
+    # exactly at warn_tokens = 1000  → yellow
     transcript = _write_transcript(tmp_path, [
         _assistant_turn("r1", input_tokens=600, output_tokens=400),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
-    assert result["health"] == "warn"
+    assert result["health"] == "yellow"
 
 
-def test_update_health_exactly_at_reset(tmp_path, patched_tracker):
-    # exactly at recommend_reset_at = 2000
+def test_update_health_exactly_at_critical(tmp_path, patched_tracker):
+    # exactly at critical_tokens = 2000  → red
     transcript = _write_transcript(tmp_path, [
         _assistant_turn("r1", input_tokens=1200, output_tokens=800),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
-    assert result["health"] == "reset"
+    assert result["health"] == "red"
 
 
 # ---------------------------------------------------------------------------
@@ -308,7 +308,7 @@ def test_get_live_returns_none_when_file_absent(live_path):
 
 
 def test_get_live_returns_data_when_file_exists(tmp_path, live_path):
-    payload = {"session_id": "abc", "input_tokens": 42, "health": "ok"}
+    payload = {"session_id": "abc", "input_tokens": 42, "health": "green"}
     live_path.write_text(json.dumps(payload))
     result = LiveTracker(None).get_live()
     assert result is not None
@@ -356,7 +356,7 @@ def test_update_initializing_true_when_tokens_zero(tmp_path, patched_tracker, mo
     assert result["initializing"] is True
     assert result["input_tokens"] == 0
     assert result["output_tokens"] == 0
-    assert result["health"] == "ok"
+    assert result["health"] == "green"
     # Retry sleep was called once with 0.5s
     assert slept == [0.5]
     # File was written despite zero tokens

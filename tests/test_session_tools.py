@@ -15,9 +15,9 @@ _MIN_CONFIG = {
     "trace": {"db_path": "trace.db", "version": "0.1.0"},
     "projects": [],
     "budgets": {"default_monthly_usd": 20.0, "alert_threshold_pct": 80},
-    "session": {
-        "warn_at_tokens": 30000,
-        "recommend_reset_at": 50000,
+    "session_health": {
+        "warn_tokens": 80000,
+        "critical_tokens": 150000,
         "claude_autocompact_approx": 180000,
     },
     "models": {
@@ -29,9 +29,9 @@ _MIN_CONFIG = {
 
 _WARN_CONFIG = {
     **_MIN_CONFIG,
-    "session": {
-        "warn_at_tokens": 0,        # triggers warn immediately (even with 0 tokens)
-        "recommend_reset_at": 50000,
+    "session_health": {
+        "warn_tokens": 0,        # triggers warn immediately (even with 0 tokens)
+        "critical_tokens": 150000,
         "claude_autocompact_approx": 180000,
     },
 }

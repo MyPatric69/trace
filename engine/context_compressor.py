@@ -32,9 +32,9 @@ class ContextCompressor:
         with open(cfg) as f:
             self.config = yaml.safe_load(f)
 
-        session_cfg = self.config.get("session", {})
-        self.warn_at: int = session_cfg.get("warn_at_tokens", 30_000)
-        self.reset_at: int = session_cfg.get("recommend_reset_at", 50_000)
+        health_cfg = self.config.get("session_health", {})
+        self.warn_at: int = health_cfg.get("warn_tokens", 80_000)
+        self.reset_at: int = health_cfg.get("critical_tokens", 150_000)
 
     # ------------------------------------------------------------------
     # Public API

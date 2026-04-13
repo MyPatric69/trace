@@ -109,8 +109,8 @@ def get_tips(project_name: str | None = None) -> dict:
         project_name=project_name, since_date=month_ago
     )
 
-    session_cfg = config.get("session", {})
-    recommend_reset_at: int = session_cfg.get("recommend_reset_at", 50_000)
+    health_cfg = config.get("session_health", {})
+    recommend_reset_at: int = health_cfg.get("critical_tokens", 150_000)
     budget_cfg = config.get("budgets", {})
     monthly_budget: float = budget_cfg.get("default_monthly_usd", 20.0)
     alert_pct: float = budget_cfg.get("alert_threshold_pct", 80)

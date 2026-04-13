@@ -266,7 +266,7 @@ def api_tokens(project: str | None = None, period: str = "today"):
     store = _store()
     since = _since(period)
     tokens = store.get_token_summary(project_name=project, since_date=since)
-    session_cfg = store.config.get("session", {})
+    health_cfg = store.config.get("session_health", {})
     # cache_read excluded from total: it re-counts cached context on every
     # request and inflates session totals far beyond the real context window size.
     total = (
@@ -282,8 +282,8 @@ def api_tokens(project: str | None = None, period: str = "today"):
         "total_cache_read_tokens":       tokens["total_cache_read_tokens"],
         "total_output_tokens":           tokens["total_output_tokens"],
         "total_tokens":                  total,
-        "warn_at":                       session_cfg.get("warn_at_tokens",        30_000),
-        "reset_at":                      session_cfg.get("recommend_reset_at",    50_000),
+        "warn_at":                       health_cfg.get("warn_tokens",        80_000),
+        "reset_at":                      health_cfg.get("critical_tokens",    150_000),
     }
 
 

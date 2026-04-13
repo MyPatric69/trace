@@ -285,18 +285,18 @@ class LiveTracker:
         # Health based on effective context consumption (cache_read excluded –
         # it re-counts cached context on every request and would inflate the total
         # to millions of tokens for a session that never exceeded 200K).
-        health = "ok"
+        health = "green"
         try:
             store = self._store or _get_default_store()
             if store is not None:
-                session_cfg = store.config.get("session", {})
-                warn_at  = session_cfg.get("warn_at_tokens", 60_000)
-                reset_at = session_cfg.get("recommend_reset_at", 100_000)
+                health_cfg = store.config.get("session_health", {})
+                warn_tokens = health_cfg.get("warn_tokens", 80_000)
+                critical_tokens = health_cfg.get("critical_tokens", 150_000)
                 total = input_tokens + cache_creation_tokens + output_tokens
-                if total >= reset_at:
-                    health = "reset"
-                elif total >= warn_at:
-                    health = "warn"
+                if total >= critical_tokens:
+                    health = "red"
+                elif total >= warn_tokens:
+                    health = "yellow"
         except Exception:
             pass
 

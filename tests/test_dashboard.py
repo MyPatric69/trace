@@ -25,7 +25,7 @@ def tmp_store(tmp_path):
         "trace":   {"db_path": "test.db", "version": "0.1.0"},
         "projects": [],
         "budgets": {"default_monthly_usd": 20.0, "alert_threshold_pct": 80},
-        "session": {"warn_at_tokens": 30_000, "recommend_reset_at": 50_000, "claude_autocompact_approx": 180_000},
+        "session_health": {"warn_tokens": 80_000, "critical_tokens": 150_000, "claude_autocompact_approx": 180_000},
         "models":  _MODEL_PRICES,
     }
     cfg = tmp_path / "trace_config.yaml"
@@ -109,7 +109,7 @@ def test_api_projects_returns_list(client):
 def test_api_projects_empty_when_no_projects(tmp_path, monkeypatch):
     config = {
         "trace": {"db_path": "test.db", "version": "0.1.0"},
-        "projects": [], "budgets": {}, "session": {}, "models": {},
+        "projects": [], "budgets": {}, "session_health": {}, "models": {},
     }
     cfg = tmp_path / "trace_config.yaml"
     cfg.write_text(yaml.dump(config))
@@ -189,8 +189,8 @@ def test_api_tokens_sums_correctly(client, tmp_store):
 
 def test_api_tokens_uses_config_thresholds(client):
     data = client.get("/api/tokens").json()
-    assert data["warn_at"]  == 30_000
-    assert data["reset_at"] == 50_000
+    assert data["warn_at"]  == 80_000
+    assert data["reset_at"] == 150_000
 
 
 def test_api_tokens_zero_when_no_sessions(client):
@@ -301,7 +301,7 @@ def test_api_tips_passes_project_name(client, monkeypatch):
 
 _LIVE_DATA = {
     "project": "alpha", "input_tokens": 1000, "output_tokens": 500,
-    "cost_usd": 0.01, "turns": 3, "health": "ok",
+    "cost_usd": 0.01, "turns": 3, "health": "green",
 }
 
 
@@ -370,7 +370,7 @@ _LIVE_TODAY = {
     "output_tokens":         200,
     "cost_usd":              0.005,
     "turns":                 2,
-    "health":                "ok",
+    "health":                "green",
 }
 
 

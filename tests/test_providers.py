@@ -32,7 +32,7 @@ def tmp_store(tmp_path):
         "trace": {"db_path": "test.db", "version": "0.2.0"},
         "projects": [],
         "budgets": {"default_monthly_usd": 25.0, "alert_threshold_pct": 80},
-        "session": {"warn_at_tokens": 60_000, "recommend_reset_at": 100_000},
+        "session_health": {"warn_tokens": 80_000, "critical_tokens": 150_000},
         "models": _MODEL_PRICES,
         "api_integration": {
             "provider": "manual",

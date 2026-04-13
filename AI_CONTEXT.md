@@ -154,10 +154,10 @@ trace/
 
 ## Next steps
 
-Review recent changes to: engine/__init__.py, engine/auto_register.py, engine/context_compressor.py, engine/doc_synthesizer.py, engine/git_watcher.py (+19 more)
+Session health now uses three-level threshold system (green/yellow/red) – config in trace_config.yaml under session_health with warn_tokens and critical_tokens.
 
 ---
 
 ## Last updated
 
-2026-04-13 – Synced 65 commit(s) to 98886c8
+2026-04-13 – Three-level session health thresholds (green/yellow/red) implemented – all 379 tests pass
