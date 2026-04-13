@@ -373,6 +373,7 @@ class TraceStore:
         self,
         project_name: str | None = None,
         since_date: str | None = None,
+        until_date: str | None = None,
     ) -> dict:
         """Returns summed input/output tokens, optionally filtered by project and date."""
         with self._connect() as conn:
@@ -394,6 +395,10 @@ class TraceStore:
             if since_date is not None:
                 conditions.append("date >= ?")
                 params.append(since_date)
+
+            if until_date is not None:
+                conditions.append("date <= ?")
+                params.append(until_date)
 
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -417,6 +422,7 @@ class TraceStore:
         self,
         project_name: str | None = None,
         since_date: str | None = None,
+        until_date: str | None = None,
     ) -> dict:
         with self._connect() as conn:
             conditions: list[str] = []
@@ -432,6 +438,10 @@ class TraceStore:
             if since_date is not None:
                 conditions.append("date >= ?")
                 params.append(since_date)
+
+            if until_date is not None:
+                conditions.append("date <= ?")
+                params.append(until_date)
 
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 

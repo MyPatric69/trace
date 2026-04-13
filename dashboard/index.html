@@ -533,6 +533,36 @@
       opacity: 0.85;
     }
 
+    /* ── Day Picker ── */
+    .day-picker {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .day-btn {
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      padding: 0.375rem 0.75rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+    .day-btn:hover {
+      background: var(--body-bg);
+      border-color: var(--teal);
+    }
+    .day-btn.active {
+      background: var(--teal);
+      border-color: var(--teal);
+      color: white;
+      font-weight: 600;
+    }
+
     /* ── Session Health summary (all-projects view) ── */
     .health-summary {
       font-family: var(--mono);
@@ -660,6 +690,9 @@
 </header>
 
 <main>
+  <!-- Day Picker -->
+  <div class="day-picker" id="day-picker"></div>
+
   <!-- 1 · Metric row -->
   <div class="metrics">
     <div class="metric-card">
@@ -783,6 +816,7 @@
   }
 
   let selectedProject = '';
+  let selectedDate = '';  // empty = today (default)
   let cfg = { monthly_budget_usd: 20, alert_threshold_pct: 80 };
   let allProjects = [];
 
@@ -850,6 +884,43 @@
     buildMenu();
   }
 
+  // ── Day Picker ────────────────────────────────────────────────────────────
+
+  function formatDayLabel(d, index) {
+    const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const dayName = days[d.getDay()];
+    const dateStr = d.getDate().toString().padStart(2, '0') + '.' + (d.getMonth() + 1).toString().padStart(2, '0') + '.';
+    if (index === 0) return 'Heute';
+    if (index === 1) return 'Gestern';
+    return dayName + ' ' + dateStr;
+  }
+
+  function buildDayPicker() {
+    const picker = $('day-picker');
+    if (!picker) return;
+
+    const today = new Date();
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      days.push(d);
+    }
+
+    picker.innerHTML = days.map((d, i) => {
+      const iso = d.toISOString().split('T')[0];
+      const label = formatDayLabel(d, i);
+      const isActive = (selectedDate === '' && i === 0) || selectedDate === iso;
+      return `<button class="day-btn${isActive ? ' active' : ''}" data-date="${i === 0 ? '' : iso}" onclick="selectDate('${i === 0 ? '' : iso}')">${label}</button>`;
+    }).join('');
+  }
+
+  function selectDate(date) {
+    selectedDate = date;
+    buildDayPicker();
+    loadMetrics();
+  }
+
   // ── Status (config + alltime cost) ────────────────────────────────────────
 
   async function loadStatus() {
@@ -883,6 +954,45 @@
     const proj   = selectedProject;
     const pParam = proj ? `?project=${encodeURIComponent(proj)}` : '';
 
+    // If a specific date is selected, use /api/stats/{date}; otherwise use /api/today
+    if (selectedDate) {
+      const dateParam = proj ? `?project=${encodeURIComponent(proj)}` : '';
+      const [stats, month] = await Promise.all([
+        api('/api/stats/' + selectedDate + dateParam),
+        api('/api/costs' + (proj ? `/${encodeURIComponent(proj)}` : '') + '?period=month'),
+      ]);
+
+      // Input / cache / output – DB only (no live session for historical dates)
+      $('m-input').textContent     = num(stats.input_tokens);
+      $('m-cache').textContent     = num(stats.cache_creation_tokens + stats.cache_read_tokens);
+      $('m-cache-sub').textContent = 'creation ' + num(stats.cache_creation_tokens)
+                                   + ' · read '  + num(stats.cache_read_tokens);
+      $('m-output').textContent    = num(stats.output_tokens);
+
+      // Cost for selected date
+      $('m-cost').textContent     = usd(stats.cost_usd);
+      $('m-cost-sub').textContent = stats.session_count + ' session' + (stats.session_count !== 1 ? 's' : '');
+
+      // Budget (monthly – unchanged)
+      const spent  = month.total_cost_usd;
+      const budget = cfg.monthly_budget_usd;
+      const pct    = budget > 0 ? (spent / budget * 100) : 0;
+      const pctStr = pct.toFixed(1) + '%';
+      $('m-budget').textContent     = pctStr;
+      $('m-budget').className       = 'metric-value ' + (pct >= cfg.alert_threshold_pct ? 'red' : pct >= cfg.alert_threshold_pct * 0.75 ? 'amber' : 'teal');
+      $('m-budget-sub').textContent = '$' + spent.toFixed(2) + ' / $' + budget.toFixed(2);
+
+      // Session health bar – hidden for historical dates
+      $('health-row').style.display     = 'none';
+      $('health-summary').style.display = 'none';
+      const link = $('handoff-link');
+      link.href      = '#';
+      link.className = 'handoff-link disabled';
+
+      return;
+    }
+
+    // Default: today view with live session support
     const [today, tokens, month] = await Promise.all([
       api('/api/today' + pParam),
       api('/api/tokens?period=today' + (proj ? `&project=${encodeURIComponent(proj)}` : '')),
@@ -1400,6 +1510,7 @@
 
   async function init() {
     await Promise.all([loadStatus(), loadProjects(), loadProvider()]);
+    buildDayPicker();  // build day picker before first data load
     await Promise.all([loadAll(), loadLive()]);
     initTokenizer();
     initMcpPanel();

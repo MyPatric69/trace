@@ -470,3 +470,96 @@ def test_api_today_never_fails_on_live_tracker_exception(client, monkeypatch):
     data = client.get("/api/today").json()
     assert data["live_active"]  is False
     assert data["total_cost_usd"] >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# GET /api/stats/{date}
+# ---------------------------------------------------------------------------
+
+def test_api_stats_date_returns_correct_structure(client, tmp_store):
+    import sqlite3
+    # Insert sessions with specific dates
+    with sqlite3.connect(tmp_store.db_path) as conn:
+        project = tmp_store.get_project("alpha")
+        pid = project["id"]
+        conn.execute(
+            """INSERT INTO sessions (project_id, date, model, input_tokens, output_tokens,
+                                     cache_creation_tokens, cache_read_tokens, cost_usd)
+               VALUES (?, '2026-04-13', 'claude-sonnet-4-5', 5000, 2500, 300, 100, 0.0525)""",
+            (pid,)
+        )
+
+    data = client.get("/api/stats/2026-04-13").json()
+    assert data["date"]                 == "2026-04-13"
+    assert data["input_tokens"]         == 5000
+    assert data["cache_creation_tokens"] == 300
+    assert data["cache_read_tokens"]    == 100
+    assert data["output_tokens"]        == 2500
+    assert data["cost_usd"]             == pytest.approx(0.0525)
+    assert data["session_count"]        == 1
+
+
+def test_api_stats_date_filters_to_exact_day(client, tmp_store):
+    import sqlite3
+    with sqlite3.connect(tmp_store.db_path) as conn:
+        project = tmp_store.get_project("alpha")
+        pid = project["id"]
+        # Session on 2026-04-12 (should NOT be included)
+        conn.execute(
+            """INSERT INTO sessions (project_id, date, model, input_tokens, output_tokens, cost_usd)
+               VALUES (?, '2026-04-12', 'claude-sonnet-4-5', 1000, 500, 0.0105)""",
+            (pid,)
+        )
+        # Session on 2026-04-13 (should be included)
+        conn.execute(
+            """INSERT INTO sessions (project_id, date, model, input_tokens, output_tokens, cost_usd)
+               VALUES (?, '2026-04-13', 'claude-sonnet-4-5', 3000, 1500, 0.0315)""",
+            (pid,)
+        )
+        # Session on 2026-04-14 (should NOT be included)
+        conn.execute(
+            """INSERT INTO sessions (project_id, date, model, input_tokens, output_tokens, cost_usd)
+               VALUES (?, '2026-04-14', 'claude-sonnet-4-5', 2000, 1000, 0.021)""",
+            (pid,)
+        )
+
+    data = client.get("/api/stats/2026-04-13").json()
+    assert data["input_tokens"]  == 3000
+    assert data["output_tokens"] == 1500
+    assert data["session_count"] == 1
+
+
+def test_api_stats_date_project_filter(client, tmp_store):
+    import sqlite3
+    with sqlite3.connect(tmp_store.db_path) as conn:
+        alpha = tmp_store.get_project("alpha")
+        beta  = tmp_store.get_project("beta")
+        conn.execute(
+            """INSERT INTO sessions (project_id, date, model, input_tokens, output_tokens, cost_usd)
+               VALUES (?, '2026-04-13', 'claude-sonnet-4-5', 1000, 500, 0.0105)""",
+            (alpha["id"],)
+        )
+        conn.execute(
+            """INSERT INTO sessions (project_id, date, model, input_tokens, output_tokens, cost_usd)
+               VALUES (?, '2026-04-13', 'claude-sonnet-4-5', 4000, 2000, 0.042)""",
+            (beta["id"],)
+        )
+
+    # Filter by project=alpha
+    data = client.get("/api/stats/2026-04-13?project=alpha").json()
+    assert data["input_tokens"]  == 1000
+    assert data["session_count"] == 1
+
+    # Filter by project=beta
+    data = client.get("/api/stats/2026-04-13?project=beta").json()
+    assert data["input_tokens"]  == 4000
+    assert data["session_count"] == 1
+
+
+def test_api_stats_date_empty_day_returns_zeros(client):
+    data = client.get("/api/stats/2099-01-01").json()
+    assert data["date"]          == "2099-01-01"
+    assert data["input_tokens"]  == 0
+    assert data["output_tokens"] == 0
+    assert data["cost_usd"]      == 0.0
+    assert data["session_count"] == 0

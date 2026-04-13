@@ -154,10 +154,10 @@ trace/
 
 ## Next steps
 
-Model price lookup now uses prefix matching – date-suffixed model strings (e.g., `claude-sonnet-4-5-20250929`) automatically resolve to config keys (`claude-sonnet-4-5`). Exact match still works; unknown models return $0.0.
+Dashboard now has a 7-day date picker (Heute, Gestern, + 5 days back) that filters top-row metrics by selected day. New `/api/stats/{date}` endpoint returns daily stats; `until_date` parameter added to `get_token_summary()` and `get_cost_summary()` for exact-day filtering.
 
 ---
 
 ## Last updated
 
-2026-04-13 – Model price lookup prefix matching implemented (382 tests ✓)
+2026-04-13 – Day picker feature implemented (390 tests ✓)

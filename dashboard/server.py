@@ -288,6 +288,37 @@ def api_tokens(project: str | None = None, period: str = "today"):
 
 
 # ---------------------------------------------------------------------------
+# /api/stats/{date}  (metrics for a specific day – used by day picker)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/stats/{date}")
+def api_stats(date: str, project: str | None = None):
+    """Return metrics for a specific date (YYYY-MM-DD format).
+
+    Filters sessions to exactly that day using since_date=date and until_date=date.
+    Used by the dashboard day picker to show historical daily stats.
+    """
+    store = _store()
+
+    tokens = store.get_token_summary(
+        project_name=project, since_date=date, until_date=date
+    )
+    costs = store.get_cost_summary(
+        project_name=project, since_date=date, until_date=date
+    )
+
+    return {
+        "date": date,
+        "input_tokens": tokens["total_input_tokens"],
+        "cache_creation_tokens": tokens["total_cache_creation_tokens"],
+        "cache_read_tokens": tokens["total_cache_read_tokens"],
+        "output_tokens": tokens["total_output_tokens"],
+        "cost_usd": costs["total_cost_usd"],
+        "session_count": costs["session_count"],
+    }
+
+
+# ---------------------------------------------------------------------------
 # /api/today  (combined DB + live session view for metric cards)
 # ---------------------------------------------------------------------------
 
