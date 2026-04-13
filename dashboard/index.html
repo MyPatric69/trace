@@ -1514,7 +1514,7 @@
     await Promise.all([loadAll(), loadLive()]);
     initTokenizer();
     initMcpPanel();
-    setInterval(loadAll, 30_000);   // full refresh backup
+    setInterval(loadAll, 120_000);  // full refresh backup
     setupWebSocket();               // replaces 5s live-poll with push
   }
 

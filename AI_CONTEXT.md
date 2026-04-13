@@ -160,4 +160,4 @@ Dashboard now has a 7-day date picker (Heute, Gestern, + 5 days back) that filte
 
 ## Last updated
 
-2026-04-13 – Day picker feature implemented (390 tests ✓)
+2026-04-13 – Auto-synced 1 commit(s) to a752a80
