@@ -67,6 +67,19 @@ This installs the TRACE post-commit hook into `~/.git-template/hooks/` so every 
 bash hooks/install_hook.sh /path/to/your/project
 ```
 
+**Step 3.5 – Initialize TRACE (required on fresh install):**
+
+```python
+python3 -c "
+from engine.store import TraceStore
+store = TraceStore.default()
+store.init_db()
+print('TRACE initialized at:', store.db_path)
+"
+```
+
+This creates `~/.trace/trace.db` and `~/.trace/trace_config.yaml` on first run.
+
 **Step 4 – Add TRACE to your MCP config:**
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:

@@ -25,6 +25,7 @@ from engine.live_tracker import LiveTracker  # noqa: E402
 
 _LOG_FILE = TRACE_HOME / "session_logger.log"
 
+TRACE_HOME.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     filename=str(_LOG_FILE),
     level=logging.INFO,

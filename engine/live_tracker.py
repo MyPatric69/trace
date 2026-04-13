@@ -32,6 +32,7 @@ _LIVE_PATH = TRACE_HOME / "live_session.json"
 _STALE_SECONDS = 300  # 5 minutes
 _SANITY_LIMIT = 200_000
 
+TRACE_HOME.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     filename=str(_LOG_FILE),
     level=logging.INFO,

@@ -505,6 +505,44 @@ cat ~/.trace/session_logger.log | grep provider
 
 ---
 
+## Issue 15: Fresh install – FileNotFoundError on dashboard start
+
+**Symptom:**
+```
+FileNotFoundError: [Errno 2] No such file or directory: '~/.trace/...'
+```
+
+**Cause:**
+On a fresh install, `~/.trace/` directory and database
+do not exist yet. The dashboard or hooks try to write
+log files before the directory is created.
+
+**Fix:**
+Always run the initialization step after installing TRACE:
+
+```python
+python3 -c "
+from engine.store import TraceStore
+store = TraceStore.default()
+store.init_db()
+print('TRACE initialized at:', store.db_path)
+"
+```
+
+This creates:
+- `~/.trace/trace.db` (empty database with schema)
+- `~/.trace/trace_config.yaml` (bootstrapped from project)
+
+Then start the dashboard:
+```bash
+bash dashboard/start.sh
+```
+
+**Note:** This step is now included in the Installation
+section of the README (Step 3.5) for all fresh installs.
+
+---
+
 ## Still stuck?
 
 Check the project status:
