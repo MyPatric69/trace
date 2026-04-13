@@ -543,6 +543,73 @@ section of the README (Step 3.5) for all fresh installs.
 
 ---
 
+## Issue 16: Second machine install – project already exists error
+
+**Symptom:**
+When registering a project during installation on a second machine:
+```
+sqlite3.IntegrityError: UNIQUE constraint failed: projects.name
+```
+
+**Cause:**
+The `~/.trace/trace.db` database already contains a project with that name, either from:
+- A previous TRACE installation on this machine
+- Shared `~/.trace/` folder (synced home directory, NFS mount, etc.)
+- Copy-pasted command with placeholder name already used
+
+**Fix:**
+
+Check what's already registered:
+```python
+python3 -c "
+from engine.store import TraceStore
+for p in TraceStore.default().list_projects():
+    print(f'  - {p[\"name\"]}  →  {p[\"path\"]}')
+"
+```
+
+**If the project is already correctly registered:**
+This is safe to ignore – the project exists and is ready to use. Just install the git hook:
+```bash
+bash hooks/install_hook.sh /path/to/your/project
+```
+
+**If the name is wrong or points to the wrong path:**
+Either rename the existing project or remove it first:
+
+Rename:
+```python
+python3 -c "
+import sqlite3
+from pathlib import Path
+db = Path.home() / '.trace' / 'trace.db'
+conn = sqlite3.connect(db)
+conn.execute(
+    \"UPDATE projects SET name = 'new-name' \
+      WHERE name = 'old-name'\"
+)
+conn.commit()
+conn.close()
+print('Renamed.')
+"
+```
+
+Remove:
+```python
+python3 -c "
+import sqlite3
+from pathlib import Path
+db = Path.home() / '.trace' / 'trace.db'
+conn = sqlite3.connect(db)
+conn.execute(\"DELETE FROM projects WHERE name = 'project-name'\")
+conn.commit()
+conn.close()
+print('Removed. Now re-run add_project().')
+"
+```
+
+---
+
 ## Still stuck?
 
 Check the project status:

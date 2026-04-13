@@ -108,6 +108,11 @@ store.add_project('my-project', '/path/to/project', 'Description')
 "
 ```
 
+> **Note:** If you get `UNIQUE constraint failed: projects.name`, the project is already registered – safe to ignore. Check with:
+> ```python
+> python3 -c "from engine.store import TraceStore; print([p['name'] for p in TraceStore.default().list_projects()])"
+> ```
+
 ---
 
 ## Provider configuration
