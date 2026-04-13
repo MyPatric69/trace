@@ -154,10 +154,10 @@ trace/
 
 ## Next steps
 
-Session Health indicator is now persistent – yellow/red warnings remain visible after session ends, survive page refreshes, and only reset when a new healthy session starts. Frontend uses `lastHealthState` variable; health bar shows "Session beendet (war gelb/rot)" for ended sessions with warnings.
+Session Health persistence is now server-side – `~/.trace/last_health.json` survives browser refresh. Written by `LiveTracker._write_last_health()` on every update when status is warn/reset; cleared only when new session starts with status ok. Dashboard fetches via `/api/live` response field `last_health`.
 
 ---
 
 ## Last updated
 
-2026-04-13 – Session health persistence implemented (393 tests ✓)
+2026-04-13 – Server-side health persistence implemented (404 tests ✓)

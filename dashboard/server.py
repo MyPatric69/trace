@@ -436,15 +436,36 @@ def api_sync(project_name: str):
 @app.get("/api/live")
 def api_live(project: str | None = None):
     try:
-        data = LiveTracker(None).get_live()
+        tracker = LiveTracker(None)
+        data = tracker.get_live()
+
         if data is None:
-            return {"active": False, "message": "No active session"}
+            # No active session – check for persisted health snapshot
+            last_health = tracker.get_last_health()
+            # Filter by project if requested
+            if project and last_health and last_health.get("project") != project:
+                last_health = None
+            return {
+                "active": False,
+                "message": "No active session",
+                "last_health": last_health,
+            }
+
         if project and data.get("project") != project:
             active_in = data.get("project", "unknown")
-            return {"active": False, "message": f"Active session is in project {active_in}"}
+            # Also include last_health for consistency
+            last_health = tracker.get_last_health()
+            if last_health and last_health.get("project") != project:
+                last_health = None
+            return {
+                "active": False,
+                "message": f"Active session is in project {active_in}",
+                "last_health": last_health,
+            }
+
         return {"active": True, **data}
     except Exception:
-        return {"active": False, "message": "No active session"}
+        return {"active": False, "message": "No active session", "last_health": None}
 
 
 # ---------------------------------------------------------------------------

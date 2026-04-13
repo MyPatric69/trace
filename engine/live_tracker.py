@@ -29,6 +29,7 @@ from engine.store import TraceStore, TRACE_HOME  # noqa: E402
 
 _LOG_FILE = TRACE_HOME / "session_logger.log"
 _LIVE_PATH = TRACE_HOME / "live_session.json"
+_LAST_HEALTH_PATH = TRACE_HOME / "last_health.json"
 _STALE_SECONDS = 300  # 5 minutes
 _SANITY_LIMIT = 200_000
 
@@ -323,6 +324,9 @@ class LiveTracker:
         except Exception as exc:
             _log.error("LiveTracker.update: failed to write %s: %s", _LIVE_PATH, exc)
 
+        # Persist health state snapshot (survive browser refresh + session end)
+        self._write_last_health(data)
+
         return data
 
     def clear(self) -> None:
@@ -343,4 +347,68 @@ class LiveTracker:
                 return None
             return json.loads(_LIVE_PATH.read_text())
         except Exception:
+            return None
+
+    def _write_last_health(self, live_data: dict) -> None:
+        """Persist health snapshot to ~/.trace/last_health.json.
+
+        Only writes when health is 'yellow' or 'red'. Clears the snapshot when
+        health is 'green' AND the session is new (not initializing).
+        """
+        health = live_data.get("health", "green")
+        session_id = live_data.get("session_id")
+        project = live_data.get("project", "unknown")
+        initializing = live_data.get("initializing", False)
+        total_tokens = (
+            live_data.get("input_tokens", 0)
+            + live_data.get("cache_creation_tokens", 0)
+            + live_data.get("output_tokens", 0)
+        )
+
+        # Map health colors to status strings (API uses warn/reset, internal uses yellow/red)
+        status = "ok"
+        if health == "red":
+            status = "reset"
+        elif health == "yellow":
+            status = "warn"
+
+        try:
+            # Read existing last_health to check if session changed
+            prev_health = self.get_last_health()
+            prev_session_id = prev_health.get("session_id") if prev_health else None
+
+            # Clear health snapshot when a new session starts with green health
+            if health == "green" and not initializing:
+                # Only clear if this is a different session than the one that set the warning
+                if prev_session_id and session_id != prev_session_id:
+                    if _LAST_HEALTH_PATH.exists():
+                        _LAST_HEALTH_PATH.unlink()
+                        _log.info("Cleared last_health.json – new session %s is healthy", session_id)
+            elif health in ("yellow", "red"):
+                # Persist warning/critical state
+                snapshot = {
+                    "status": status,
+                    "tokens": total_tokens,
+                    "project": project,
+                    "session_id": session_id,
+                    "updated_at": datetime.now().isoformat(timespec="seconds"),
+                }
+                TRACE_HOME.mkdir(parents=True, exist_ok=True)
+                _LAST_HEALTH_PATH.write_text(json.dumps(snapshot, indent=2))
+                _log.info("Wrote last_health.json: status=%s, tokens=%d, project=%s", status, total_tokens, project)
+        except Exception as exc:
+            _log.error("LiveTracker._write_last_health: %s", exc)
+
+    def get_last_health(self) -> dict | None:
+        """Return last known health snapshot, or None if absent or status was 'ok'."""
+        if not _LAST_HEALTH_PATH.exists():
+            return None
+        try:
+            data = json.loads(_LAST_HEALTH_PATH.read_text())
+            # Return None if status was ok (equivalent to no warning)
+            if data.get("status") == "ok":
+                return None
+            return data
+        except Exception as exc:
+            _log.error("LiveTracker.get_last_health: %s", exc)
             return None

@@ -611,3 +611,54 @@ def test_api_live_health_ok_status(client, monkeypatch):
     data = client.get("/api/live").json()
     assert data["active"] is True
     assert data["health"] == "ok"
+
+
+def test_api_live_no_session_includes_last_health(client, monkeypatch):
+    """Verify that /api/live includes last_health when no active session."""
+    last_health_data = {
+        "status": "warn",
+        "tokens": 95000,
+        "project": "alpha",
+        "session_id": "abc123",
+        "updated_at": "2026-04-13T15:30:00",
+    }
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_last_health", lambda self: dict(last_health_data))
+    data = client.get("/api/live").json()
+    assert data["active"] is False
+    assert "last_health" in data
+    assert data["last_health"]["status"] == "warn"
+    assert data["last_health"]["tokens"] == 95000
+
+
+def test_api_live_no_session_null_last_health_when_missing(client, monkeypatch):
+    """Verify that /api/live returns last_health=null when no health snapshot exists."""
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_last_health", lambda self: None)
+    data = client.get("/api/live").json()
+    assert data["active"] is False
+    assert data["last_health"] is None
+
+
+def test_api_live_project_filter_last_health(client, monkeypatch):
+    """Verify that last_health is filtered by project parameter."""
+    last_health_data = {
+        "status": "reset",
+        "tokens": 160000,
+        "project": "alpha",
+        "session_id": "abc123",
+        "updated_at": "2026-04-13T15:30:00",
+    }
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_last_health", lambda self: dict(last_health_data))
+
+    # Filter by project=alpha → should include last_health
+    data = client.get("/api/live?project=alpha").json()
+    assert data["active"] is False
+    assert data["last_health"] is not None
+    assert data["last_health"]["project"] == "alpha"
+
+    # Filter by project=beta → should exclude last_health (different project)
+    data = client.get("/api/live?project=beta").json()
+    assert data["active"] is False
+    assert data["last_health"] is None

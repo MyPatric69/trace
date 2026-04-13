@@ -55,7 +55,15 @@ def live_path(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def patched_tracker(tmp_store, live_path, monkeypatch):
+def last_health_path(tmp_path, monkeypatch):
+    """Redirect _LAST_HEALTH_PATH to a temp file so tests don't touch ~/.trace/."""
+    path = tmp_path / "last_health.json"
+    monkeypatch.setattr(lt_module, "_LAST_HEALTH_PATH", path)
+    return path
+
+
+@pytest.fixture
+def patched_tracker(tmp_store, live_path, last_health_path, monkeypatch):
     """LiveTracker with store monkeypatched and live path redirected."""
     monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
     return live_path
@@ -484,3 +492,131 @@ def test_update_no_sleep_on_second_call_with_zero_new_tokens(tmp_path, patched_t
     # Second call – same file, same content, no new bytes → no retry
     LiveTracker(None).update(str(transcript), str(tmp_path))
     assert sleep_calls == []
+
+
+# ---------------------------------------------------------------------------
+# Health state persistence (last_health.json)
+# ---------------------------------------------------------------------------
+
+def test_update_writes_last_health_on_warning(tmp_path, patched_tracker, last_health_path):
+    """last_health.json is written when session enters warning state (yellow)."""
+    # 1500 input + 0 cache_creation + 0 output = 1500 total
+    # Threshold: warn_tokens=1000 → health=yellow → status=warn
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=1500, output_tokens=100),
+    ])
+    LiveTracker(None).update(str(transcript), str(tmp_path))
+
+    assert last_health_path.exists()
+    data = json.loads(last_health_path.read_text())
+    assert data["status"] == "warn"
+    assert data["tokens"] == 1600  # 1500 input + 0 cache_creation + 100 output
+    assert data["project"] == "unknown"
+    assert "session_id" in data
+    assert "updated_at" in data
+
+
+def test_update_writes_last_health_on_critical(tmp_path, patched_tracker, last_health_path):
+    """last_health.json is written when session enters critical state (red)."""
+    # 2100 input + 0 cache_creation + 0 output = 2100 total
+    # Threshold: critical_tokens=2000 → health=red → status=reset
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=2100, output_tokens=50),
+    ])
+    LiveTracker(None).update(str(transcript), str(tmp_path))
+
+    assert last_health_path.exists()
+    data = json.loads(last_health_path.read_text())
+    assert data["status"] == "reset"
+    assert data["tokens"] == 2150  # 2100 input + 0 cache_creation + 50 output
+
+
+def test_update_does_not_write_last_health_on_green(tmp_path, patched_tracker, last_health_path):
+    """last_health.json is NOT written when session is healthy (green)."""
+    # 500 input + 0 cache_creation + 0 output = 500 total
+    # Threshold: warn_tokens=1000 → health=green
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=500, output_tokens=50),
+    ])
+    LiveTracker(None).update(str(transcript), str(tmp_path))
+
+    assert not last_health_path.exists()
+
+
+def test_update_clears_last_health_when_new_session_is_green(tmp_path, patched_tracker, last_health_path):
+    """last_health.json is cleared when a new session starts with green health."""
+    # First session – red
+    transcript_a = tmp_path / "session-aaa.jsonl"
+    transcript_a.write_text(
+        json.dumps(_assistant_turn("r1", input_tokens=2500, output_tokens=100)) + "\n"
+    )
+    LiveTracker(None).update(str(transcript_a), str(tmp_path))
+    assert last_health_path.exists()
+    data = json.loads(last_health_path.read_text())
+    assert data["status"] == "reset"
+    assert data["session_id"] == "session-aaa"
+
+    # Second session – green (different session_id)
+    transcript_b = tmp_path / "session-bbb.jsonl"
+    transcript_b.write_text(
+        json.dumps(_assistant_turn("r1", input_tokens=500, output_tokens=50)) + "\n"
+    )
+    LiveTracker(None).update(str(transcript_b), str(tmp_path))
+
+    # last_health.json should be deleted (new session is healthy)
+    assert not last_health_path.exists()
+
+
+def test_clear_does_not_delete_last_health(tmp_path, patched_tracker, last_health_path):
+    """LiveTracker.clear() removes live_session.json but NOT last_health.json."""
+    # Create a session with warning state
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=1500, output_tokens=100),
+    ])
+    LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert last_health_path.exists()
+
+    # Call clear() – should only remove live_session.json
+    tracker = LiveTracker(None)
+    tracker.clear()
+
+    # last_health.json should still exist
+    assert last_health_path.exists()
+
+
+def test_get_last_health_returns_data_when_exists(tmp_path, patched_tracker, last_health_path):
+    """get_last_health() returns the persisted health snapshot."""
+    # Create a session with warning state
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=1500, output_tokens=100),
+    ])
+    LiveTracker(None).update(str(transcript), str(tmp_path))
+
+    tracker = LiveTracker(None)
+    health = tracker.get_last_health()
+    assert health is not None
+    assert health["status"] == "warn"
+    assert health["tokens"] == 1600
+
+
+def test_get_last_health_returns_none_when_missing(tmp_path, patched_tracker, last_health_path):
+    """get_last_health() returns None when last_health.json doesn't exist."""
+    tracker = LiveTracker(None)
+    health = tracker.get_last_health()
+    assert health is None
+
+
+def test_get_last_health_returns_none_when_status_ok(tmp_path, patched_tracker, last_health_path):
+    """get_last_health() returns None when status is 'ok'."""
+    # Manually write a last_health.json with status=ok
+    last_health_path.write_text(json.dumps({
+        "status": "ok",
+        "tokens": 500,
+        "project": "test",
+        "session_id": "abc",
+        "updated_at": "2026-04-13T12:00:00",
+    }))
+
+    tracker = LiveTracker(None)
+    health = tracker.get_last_health()
+    assert health is None

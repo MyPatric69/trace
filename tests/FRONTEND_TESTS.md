@@ -2,11 +2,13 @@
 
 These tests verify that the Session Health indicator remains persistent across page refreshes and session state changes.
 
+**UPDATE 2026-04-13:** Health state is now persisted server-side in `~/.trace/last_health.json`. The frontend no longer uses a JS variable — all state comes from `/api/live` response field `last_health`.
+
 ## Prerequisites
 
 1. Start the dashboard: `bash dashboard/start.sh`
 2. Have a project with active Claude Code sessions
-3. Open browser DevTools Console to monitor state
+3. Open browser DevTools Console to monitor `/api/live` responses
 
 ## Test 1: Health State Persists Across Full Refresh
 
@@ -101,10 +103,11 @@ These tests verify that the Session Health indicator remains persistent across p
 
 ## Debugging Tips
 
-If tests fail, check browser console for:
-- `lastHealthState` variable value (should be null or `{status, tokens, warnAt, resetAt, project}`)
-- Network tab: `/api/live` responses include `health`, `warn_at`, `reset_at` fields
-- Health bar DOM element visibility and class names
+If tests fail, check:
+- **Browser console** Network tab: `/api/live` responses include `last_health` field when session has ended
+- **Server-side:** `~/.trace/last_health.json` file contents (should exist when session was yellow/red)
+- **Health bar DOM** element visibility and class names
+- **Backend logs:** `~/.trace/session_logger.log` for health state write/clear events
 
 ## Expected Behavior Summary
 
@@ -118,6 +121,26 @@ If tests fail, check browser console for:
 | Ended, was reset | reset (persisted) | Red bar, "Session beendet (war rot)" |
 | New session starts | ok | Clears persisted state, shows current |
 
+## Server-Side Verification
+
+You can manually check the server-side health state:
+
+```bash
+# View current health snapshot
+cat ~/.trace/last_health.json
+
+# Example output (session was yellow/red):
+{
+  "status": "warn",
+  "tokens": 95000,
+  "project": "trace",
+  "session_id": "abc123",
+  "updated_at": "2026-04-13T15:30:00"
+}
+
+# If file doesn't exist or session was green: no warning to persist
+```
+
 ---
 
-**Last updated:** 2026-04-13
+**Last updated:** 2026-04-13 (server-side persistence)
