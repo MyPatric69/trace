@@ -815,7 +815,7 @@
     return '< $0.000001';
   }
 
-  let selectedProject = '';
+  let selectedProject = localStorage.getItem('trace_selected_project') || '';
   let selectedDate = '';  // empty = today (default)
   let cfg = { monthly_budget_usd: 20, alert_threshold_pct: 80 };
   let allProjects = [];
@@ -852,6 +852,7 @@
 
   function selectProject(value, label) {
     selectedProject = value;
+    localStorage.setItem('trace_selected_project', value);
     $('proj-label').textContent = label;
     $('project-select').value = value;
     dropdownOpen = false;
@@ -882,6 +883,18 @@
       sel.appendChild(o);
     });
     buildMenu();
+
+    // Restore selected project from localStorage if it still exists
+    const stored = localStorage.getItem('trace_selected_project') || '';
+    if (stored && !allProjects.some(p => p.name === stored)) {
+      // Stored project no longer exists – reset to "all projects"
+      selectedProject = '';
+      localStorage.setItem('trace_selected_project', '');
+    }
+    // Update UI to reflect the (possibly restored) selectedProject
+    sel.value = selectedProject;
+    const label = selectedProject ? selectedProject : 'All Projects';
+    $('proj-label').textContent = label;
   }
 
   // ── Day Picker ────────────────────────────────────────────────────────────

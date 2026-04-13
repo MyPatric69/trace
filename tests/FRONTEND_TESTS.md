@@ -141,6 +141,49 @@ cat ~/.trace/last_health.json
 # If file doesn't exist or session was green: no warning to persist
 ```
 
+## Test 6: Selected Project Persists Across Page Refresh
+
+**Goal:** Verify that project filter selection survives browser refresh.
+
+**Steps:**
+1. Open dashboard at http://localhost:8080
+2. Default state: "All Projects" is selected
+3. Select a specific project (e.g., "trace") from dropdown
+4. Verify dashboard shows data for that project only
+5. **Refresh the page (F5 or Cmd+R)**
+6. **Expected:**
+   - Dropdown still shows "trace" (not "All Projects")
+   - Dashboard continues to show data for "trace" only
+   - Session health bar (if visible) remains project-scoped
+
+**Pass Criteria:**
+- Project selection persists across refresh
+- No data from other projects visible
+- localStorage contains `trace_selected_project` = "trace"
+
+## Test 7: Fallback When Stored Project No Longer Exists
+
+**Goal:** Verify graceful fallback if stored project was deleted.
+
+**Steps:**
+1. Select a project (e.g., "test-project")
+2. Verify localStorage has `trace_selected_project` = "test-project"
+3. Close dashboard
+4. Delete the project from the database:
+   ```bash
+   sqlite3 ~/.trace/trace.db "DELETE FROM projects WHERE name='test-project'"
+   ```
+5. Restart dashboard and open in browser
+6. **Expected:**
+   - Dropdown shows "All Projects" (fallback)
+   - localStorage updated to `trace_selected_project` = ""
+   - No errors in browser console
+
+**Pass Criteria:**
+- No crash or errors
+- Automatic fallback to "All Projects"
+- localStorage cleared for non-existent project
+
 ---
 
-**Last updated:** 2026-04-13 (server-side persistence)
+**Last updated:** 2026-04-13 (project filter persistence)

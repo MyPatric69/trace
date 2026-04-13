@@ -2,6 +2,8 @@
 
 > This file is the single re-entry point for AI assistants working on TRACE.
 > Keep it current. It replaces reading 5 separate docs on every session start.
+> 
+> **New sessions:** Also read `WORKING_WITH_CLAUDE.md` for collaboration guidelines.
 
 ---
 
@@ -154,10 +156,10 @@ trace/
 
 ## Next steps
 
-Session Health persistence is now server-side – `~/.trace/last_health.json` survives browser refresh. Written by `LiveTracker._write_last_health()` on every update when status is warn/reset; cleared only when new session starts with status ok. Dashboard fetches via `/api/live` response field `last_health`.
+Project filter selection now persists across page refresh via localStorage. Stored in `trace_selected_project`; auto-fallback to "All Projects" if stored project no longer exists.
 
 ---
 
 ## Last updated
 
-2026-04-13 – Server-side health persistence implemented (404 tests ✓)
+2026-04-13 – Project filter persistence implemented (404 tests ✓)
