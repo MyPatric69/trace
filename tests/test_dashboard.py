@@ -56,7 +56,7 @@ def test_index_returns_html(client):
 
 def test_index_contains_auto_refresh(client):
     res = client.get("/")
-    assert "30_000" in res.text or "30000" in res.text
+    assert "120_000" in res.text or "120000" in res.text
 
 
 # ---------------------------------------------------------------------------
@@ -563,3 +563,51 @@ def test_api_stats_date_empty_day_returns_zeros(client):
     assert data["output_tokens"] == 0
     assert data["cost_usd"]      == 0.0
     assert data["session_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Health State Persistence (Frontend Integration Tests)
+# ---------------------------------------------------------------------------
+
+def test_api_live_includes_health_status(client, monkeypatch):
+    """Verify that /api/live includes health status for frontend persistence."""
+    live_data = {
+        "project": "alpha", "input_tokens": 85000, "output_tokens": 5000,
+        "cache_creation_tokens": 5000, "cache_read_tokens": 1000,
+        "cost_usd": 0.15, "turns": 10, "health": "warn",
+        "warn_at": 80_000, "reset_at": 150_000,
+    }
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(live_data))
+    data = client.get("/api/live").json()
+    assert data["active"] is True
+    assert data["health"] == "warn"
+    assert data["warn_at"] == 80_000
+    assert data["reset_at"] == 150_000
+
+
+def test_api_live_health_reset_status(client, monkeypatch):
+    """Verify that /api/live can return 'reset' health status."""
+    live_data = {
+        "project": "alpha", "input_tokens": 155000, "output_tokens": 10000,
+        "cache_creation_tokens": 10000, "cache_read_tokens": 2000,
+        "cost_usd": 0.35, "turns": 20, "health": "reset",
+        "warn_at": 80_000, "reset_at": 150_000,
+    }
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(live_data))
+    data = client.get("/api/live").json()
+    assert data["active"] is True
+    assert data["health"] == "reset"
+
+
+def test_api_live_health_ok_status(client, monkeypatch):
+    """Verify that /api/live returns 'ok' health status for low-token sessions."""
+    live_data = {
+        "project": "alpha", "input_tokens": 5000, "output_tokens": 1000,
+        "cache_creation_tokens": 500, "cache_read_tokens": 200,
+        "cost_usd": 0.02, "turns": 3, "health": "ok",
+        "warn_at": 80_000, "reset_at": 150_000,
+    }
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(live_data))
+    data = client.get("/api/live").json()
+    assert data["active"] is True
+    assert data["health"] == "ok"

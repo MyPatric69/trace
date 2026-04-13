@@ -154,10 +154,10 @@ trace/
 
 ## Next steps
 
-Dashboard now has a 7-day date picker (Heute, Gestern, + 5 days back) that filters top-row metrics by selected day. New `/api/stats/{date}` endpoint returns daily stats; `until_date` parameter added to `get_token_summary()` and `get_cost_summary()` for exact-day filtering.
+Session Health indicator is now persistent – yellow/red warnings remain visible after session ends, survive page refreshes, and only reset when a new healthy session starts. Frontend uses `lastHealthState` variable; health bar shows "Session beendet (war gelb/rot)" for ended sessions with warnings.
 
 ---
 
 ## Last updated
 
-2026-04-13 – Auto-synced 1 commit(s) to a752a80
+2026-04-13 – Session health persistence implemented (393 tests ✓)

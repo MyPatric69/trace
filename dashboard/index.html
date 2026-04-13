@@ -819,6 +819,7 @@
   let selectedDate = '';  // empty = today (default)
   let cfg = { monthly_budget_usd: 20, alert_threshold_pct: 80 };
   let allProjects = [];
+  let lastHealthState = null;  // persistent health state: { status: 'ok'|'warn'|'reset', tokens: 0, warnAt: 0, resetAt: 0 }
 
   async function api(path) {
     const res = await fetch(path);
@@ -1058,9 +1059,36 @@
       // Health bar shows live session tokens only (not the daily total).
       // /api/today already carries live_* fields for the selected project.
       if (!today.live_active) {
-        $('health-row').style.display     = 'none';
-        $('health-summary').style.display = '';
-        $('health-summary').textContent   = 'No active session';
+        // No active session – check if we have a persisted health state to display
+        // Only show if it matches the currently selected project
+        const matchesProject = !lastHealthState || !lastHealthState.project || lastHealthState.project === proj;
+        if (lastHealthState && lastHealthState.status !== 'ok' && matchesProject) {
+          // Show the persisted warning state even though session has ended
+          const warnAt  = lastHealthState.warnAt;
+          const resetAt = lastHealthState.resetAt;
+          const total   = lastHealthState.tokens;
+          const barPct  = Math.min(total / resetAt * 100, 100);
+          const fill    = $('health-fill');
+          fill.style.width = barPct + '%';
+          fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
+
+          const statusLabel = lastHealthState.status === 'reset' ? 'war rot' : 'war gelb';
+          $('health-label').textContent = num(total) + ' tokens – Session beendet (' + statusLabel + ')';
+
+          const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
+          $('health-warn-label').style.left      = warnPct + '%';
+          $('health-warn-label').style.transform = 'translateX(-50%)';
+          $('health-warn-label').textContent     = 'warn at ' + toK(warnAt);
+          $('health-thresholds').lastElementChild.textContent = 'reset at ' + toK(resetAt);
+
+          $('health-row').style.display     = '';
+          $('health-summary').style.display = 'none';
+        } else {
+          // No persisted warning – show default "no active session"
+          $('health-row').style.display     = 'none';
+          $('health-summary').style.display = '';
+          $('health-summary').textContent   = 'No active session';
+        }
       } else {
         const warnAt  = tokens.warn_at;
         const resetAt = tokens.reset_at;
@@ -1098,6 +1126,7 @@
         dot.className       = 'live-dot inactive';
         project.textContent = '';
         body.innerHTML      = '<div class="live-inactive">' + (d.message || 'No active session') + '</div>';
+        // Do NOT clear lastHealthState here – keep the last warning visible
         return;
       }
 
@@ -1114,6 +1143,21 @@
       const healthLbl = d.health === 'reset' ? 'Reset recommended'
                       : d.health === 'warn'  ? 'Warning'
                       :                        'OK';
+
+      // Persist health state ONLY when session is in warning or critical state
+      const tokens = (d.input_tokens || 0) + (d.cache_creation_tokens || 0);
+      if (d.health === 'warn' || d.health === 'reset') {
+        lastHealthState = {
+          status:  d.health,
+          tokens:  tokens,
+          warnAt:  d.warn_at  || 80_000,
+          resetAt: d.reset_at || 150_000,
+          project: d.project,
+        };
+      } else if (d.health === 'ok') {
+        // Clear persisted state when session is healthy again (e.g., new session started)
+        lastHealthState = null;
+      }
 
       body.innerHTML = `
         <div class="live-metrics">
@@ -1145,7 +1189,9 @@
       $('live-dot').className = 'live-dot inactive';
       $('live-project').textContent = '';
       $('live-body').innerHTML = '<div class="live-inactive">No active session</div>';
+      lastHealthState = null;  // Clear persisted health state on manual clear
       await fetch('/api/live/clear', { method: 'POST' });
+      loadMetrics();  // Refresh metrics to hide health bar
     } catch (e) {
       // silent
     }
