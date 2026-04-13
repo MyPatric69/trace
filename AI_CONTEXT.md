@@ -154,10 +154,10 @@ trace/
 
 ## Next steps
 
-Session health now uses three-level threshold system (green/yellow/red) – config in trace_config.yaml under session_health with warn_tokens and critical_tokens.
+Model price lookup now uses prefix matching – date-suffixed model strings (e.g., `claude-sonnet-4-5-20250929`) automatically resolve to config keys (`claude-sonnet-4-5`). Exact match still works; unknown models return $0.0.
 
 ---
 
 ## Last updated
 
-2026-04-13 – Three-level session health thresholds (green/yellow/red) implemented – all 379 tests pass
+2026-04-13 – Model price lookup prefix matching implemented (382 tests ✓)

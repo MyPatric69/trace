@@ -171,7 +171,9 @@ class TraceStore:
         cache_creation_tokens: int = 0,
         cache_read_tokens: int = 0,
     ) -> float:
-        prices = self.model_prices.get(model)
+        prices = self.model_prices.get(model) or next(
+            (v for k, v in self.model_prices.items() if model.startswith(k)), None
+        )
         if not prices:
             return 0.0
         input_cost          = (input_tokens          / 1000) * prices["input_per_1k"]

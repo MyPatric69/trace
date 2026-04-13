@@ -149,6 +149,36 @@ def test_calculate_cost_unknown_model_returns_zero(tmp_store: TraceStore):
     assert tmp_store.calculate_cost("unknown-model-xyz", 1000, 500) == 0.0
 
 
+def test_calculate_cost_date_suffixed_model_prefix_match(tmp_store: TraceStore):
+    # claude-sonnet-4-5-20250929 should match claude-sonnet-4-5 via prefix
+    # claude-sonnet-4-5: 1000 in × $0.003 + 500 out × $0.015 = $0.003 + $0.0075 = $0.0105
+    cost = tmp_store.calculate_cost("claude-sonnet-4-5-20250929", 1000, 500)
+    assert cost == pytest.approx(0.0105)
+
+
+def test_calculate_cost_exact_match_still_works(tmp_store: TraceStore):
+    # Exact match should still work as before
+    cost = tmp_store.calculate_cost("claude-sonnet-4-5", 1000, 500)
+    assert cost == pytest.approx(0.0105)
+
+
+def test_calculate_cost_prefix_match_with_cache_tokens(tmp_store: TraceStore):
+    # claude-sonnet-4-5-20250929 should match claude-sonnet-4-5 prefix
+    #   input:          1000 × $0.003 / 1k  = $0.003
+    #   cache_creation: 500  × $0.00375 / 1k = $0.001875
+    #   cache_read:     200  × $0.0003 / 1k  = $0.00006
+    #   output:         400  × $0.015 / 1k   = $0.006
+    #   total                                 = $0.010935
+    cost = tmp_store.calculate_cost(
+        "claude-sonnet-4-5-20250929",
+        input_tokens=1000,
+        output_tokens=400,
+        cache_creation_tokens=500,
+        cache_read_tokens=200,
+    )
+    assert cost == pytest.approx(0.010935)
+
+
 # ---------------------------------------------------------------------------
 # get_sessions
 # ---------------------------------------------------------------------------
