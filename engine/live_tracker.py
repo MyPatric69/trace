@@ -330,12 +330,21 @@ class LiveTracker:
         return data
 
     def clear(self) -> None:
-        """Delete ~/.trace/live_session.json. Called when a session ends."""
+        """Delete live_session.json and last_health.json.
+
+        Called when the user explicitly clears the live session via the dashboard.
+        This is the only place last_health.json is deleted.
+        """
         try:
             if _LIVE_PATH.exists():
                 _LIVE_PATH.unlink()
         except Exception as exc:
             _log.error("LiveTracker.clear: %s", exc)
+        try:
+            if _LAST_HEALTH_PATH.exists():
+                _LAST_HEALTH_PATH.unlink()
+        except Exception as exc:
+            _log.error("LiveTracker.clear (last_health): %s", exc)
 
     def get_live(self) -> dict | None:
         """Return live session data, or None if absent or stale (>5 min)."""
@@ -350,15 +359,15 @@ class LiveTracker:
             return None
 
     def _write_last_health(self, live_data: dict) -> None:
-        """Persist health snapshot to ~/.trace/last_health.json.
+        """Persist health snapshot to ~/.trace/last_health.json on every status update.
 
-        Only writes when health is 'yellow' or 'red'. Clears the snapshot when
-        health is 'green' AND the session is new (not initializing).
+        Writes on every call (ok, warn, reset) so the health bar is always visible
+        from the first turn. Never deletes the file – deletion is only done by
+        LiveTracker.clear() when the user explicitly clears the session.
         """
         health = live_data.get("health", "green")
         session_id = live_data.get("session_id")
         project = live_data.get("project", "unknown")
-        initializing = live_data.get("initializing", False)
         total_tokens = (
             live_data.get("input_tokens", 0)
             + live_data.get("cache_creation_tokens", 0)
@@ -373,42 +382,25 @@ class LiveTracker:
             status = "warn"
 
         try:
-            # Read existing last_health to check if session changed
-            prev_health = self.get_last_health()
-            prev_session_id = prev_health.get("session_id") if prev_health else None
-
-            # Clear health snapshot when a new session starts with green health
-            if health == "green" and not initializing:
-                # Only clear if this is a different session than the one that set the warning
-                if prev_session_id and session_id != prev_session_id:
-                    if _LAST_HEALTH_PATH.exists():
-                        _LAST_HEALTH_PATH.unlink()
-                        _log.info("Cleared last_health.json – new session %s is healthy", session_id)
-            elif health in ("yellow", "red"):
-                # Persist warning/critical state
-                snapshot = {
-                    "status": status,
-                    "tokens": total_tokens,
-                    "project": project,
-                    "session_id": session_id,
-                    "updated_at": datetime.now().isoformat(timespec="seconds"),
-                }
-                TRACE_HOME.mkdir(parents=True, exist_ok=True)
-                _LAST_HEALTH_PATH.write_text(json.dumps(snapshot, indent=2))
-                _log.info("Wrote last_health.json: status=%s, tokens=%d, project=%s", status, total_tokens, project)
+            snapshot = {
+                "status": status,
+                "tokens": total_tokens,
+                "project": project,
+                "session_id": session_id,
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+            }
+            TRACE_HOME.mkdir(parents=True, exist_ok=True)
+            _LAST_HEALTH_PATH.write_text(json.dumps(snapshot, indent=2))
+            _log.info("Wrote last_health.json: status=%s, tokens=%d, project=%s", status, total_tokens, project)
         except Exception as exc:
             _log.error("LiveTracker._write_last_health: %s", exc)
 
     def get_last_health(self) -> dict | None:
-        """Return last known health snapshot, or None if absent or status was 'ok'."""
+        """Return last known health snapshot, or None if absent."""
         if not _LAST_HEALTH_PATH.exists():
             return None
         try:
-            data = json.loads(_LAST_HEALTH_PATH.read_text())
-            # Return None if status was ok (equivalent to no warning)
-            if data.get("status") == "ok":
-                return None
-            return data
+            return json.loads(_LAST_HEALTH_PATH.read_text())
         except Exception as exc:
             _log.error("LiveTracker.get_last_health: %s", exc)
             return None

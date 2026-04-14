@@ -1080,20 +1080,27 @@
       } catch (e) { /* silent */ }
 
       if (!today.live_active) {
-        // No active session – check if we have a persisted health state to display
-        if (lastHealth && lastHealth.status !== 'ok') {
-          // Show the persisted warning state even though session has ended
-          // Get thresholds from config (same as live session uses)
+        // No active session – show health bar whenever last_health exists (any status)
+        if (lastHealth) {
           const warnAt  = tokens.warn_at;
           const resetAt = tokens.reset_at;
           const total   = lastHealth.tokens;
           const barPct  = Math.min(total / resetAt * 100, 100);
           const fill    = $('health-fill');
           fill.style.width = barPct + '%';
-          fill.className   = 'health-fill' + (lastHealth.status === 'reset' ? ' red' : ' amber');
 
-          const statusLabel = lastHealth.status === 'reset' ? 'war rot' : 'war gelb';
-          $('health-label').textContent = num(total) + ' tokens – Session beendet (' + statusLabel + ')';
+          let fillClass   = 'health-fill';
+          let statusLabel = 'Session beendet';
+          if (lastHealth.status === 'reset') {
+            fillClass  += ' red';
+            statusLabel = 'Session beendet (war rot)';
+          } else if (lastHealth.status === 'warn') {
+            fillClass  += ' amber';
+            statusLabel = 'Session beendet (war gelb)';
+          }
+          // ok: no extra class → teal/green (default health-fill color)
+          fill.className = fillClass;
+          $('health-label').textContent = num(total) + ' tokens – ' + statusLabel;
 
           const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
           $('health-warn-label').style.left      = warnPct + '%';
@@ -1104,7 +1111,7 @@
           $('health-row').style.display     = '';
           $('health-summary').style.display = 'none';
         } else {
-          // No persisted warning – show default "no active session"
+          // No last_health at all – no session has ever run
           $('health-row').style.display     = 'none';
           $('health-summary').style.display = '';
           $('health-summary').textContent   = 'No active session';

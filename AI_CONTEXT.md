@@ -156,10 +156,10 @@ trace/
 
 ## Next steps
 
-Project filter selection now persists across page refresh via localStorage. Stored in `trace_selected_project`; auto-fallback to "All Projects" if stored project no longer exists.
+No open items – all phases complete and tests green.
 
 ---
 
 ## Last updated
 
-2026-04-13 – Project filter persistence implemented (404 tests ✓)
+2026-04-14 – Fix: health bar visible from first turn (ok/warn/reset always written to last_health.json)
