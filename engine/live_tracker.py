@@ -368,6 +368,7 @@ class LiveTracker:
         health = live_data.get("health", "green")
         session_id = live_data.get("session_id")
         project = live_data.get("project", "unknown")
+        turns = live_data.get("turns", 0)
         total_tokens = (
             live_data.get("input_tokens", 0)
             + live_data.get("cache_creation_tokens", 0)
@@ -385,13 +386,14 @@ class LiveTracker:
             snapshot = {
                 "status": status,
                 "tokens": total_tokens,
+                "turns": turns,
                 "project": project,
                 "session_id": session_id,
                 "updated_at": datetime.now().isoformat(timespec="seconds"),
             }
             TRACE_HOME.mkdir(parents=True, exist_ok=True)
             _LAST_HEALTH_PATH.write_text(json.dumps(snapshot, indent=2))
-            _log.info("Wrote last_health.json: status=%s, tokens=%d, project=%s", status, total_tokens, project)
+            _log.info("Wrote last_health.json: status=%s, tokens=%d, turns=%d, project=%s", status, total_tokens, turns, project)
         except Exception as exc:
             _log.error("LiveTracker._write_last_health: %s", exc)
 

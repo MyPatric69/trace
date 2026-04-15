@@ -112,6 +112,7 @@ class TraceStore:
                     cache_creation_tokens  INTEGER NOT NULL DEFAULT 0,
                     cache_read_tokens      INTEGER NOT NULL DEFAULT 0,
                     output_tokens          INTEGER NOT NULL DEFAULT 0,
+                    turns                  INTEGER NOT NULL DEFAULT 0,
                     cost_usd               REAL    NOT NULL DEFAULT 0.0,
                     notes                  TEXT,
                     session_id             TEXT,
@@ -130,6 +131,7 @@ class TraceStore:
             ("cache_creation_tokens", "INTEGER NOT NULL DEFAULT 0"),
             ("cache_read_tokens",     "INTEGER NOT NULL DEFAULT 0"),
             ("session_id",            "TEXT"),
+            ("turns",                 "INTEGER NOT NULL DEFAULT 0"),
         ]:
             if col not in existing:
                 conn.execute(
@@ -204,6 +206,7 @@ class TraceStore:
         notes: str = "",
         cache_creation_tokens: int = 0,
         cache_read_tokens: int = 0,
+        turns: int = 0,
     ) -> int:
         """Inserts a session row and returns the new session_id."""
         project = self.get_project(project_name)
@@ -220,12 +223,12 @@ class TraceStore:
                 """INSERT INTO sessions
                    (project_id, date, model,
                     input_tokens, cache_creation_tokens, cache_read_tokens,
-                    output_tokens, cost_usd, notes)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    output_tokens, turns, cost_usd, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     project["id"], today, model,
                     input_tokens, cache_creation_tokens, cache_read_tokens,
-                    output_tokens, cost_usd, notes,
+                    output_tokens, turns, cost_usd, notes,
                 ),
             )
             return cursor.lastrowid
@@ -240,6 +243,7 @@ class TraceStore:
         cache_creation_tokens: int = 0,
         cache_read_tokens: int = 0,
         notes: str = "",
+        turns: int = 0,
     ) -> int:
         """Insert or update a live session record keyed on *session_id*.
 
@@ -266,13 +270,13 @@ class TraceStore:
                 conn.execute(
                     """UPDATE sessions SET
                            model = ?, input_tokens = ?, cache_creation_tokens = ?,
-                           cache_read_tokens = ?, output_tokens = ?, cost_usd = ?,
-                           notes = ?
+                           cache_read_tokens = ?, output_tokens = ?, turns = ?,
+                           cost_usd = ?, notes = ?
                        WHERE session_id = ?""",
                     (
                         model, input_tokens, cache_creation_tokens,
-                        cache_read_tokens, output_tokens, cost_usd,
-                        notes, session_id,
+                        cache_read_tokens, output_tokens, turns,
+                        cost_usd, notes, session_id,
                     ),
                 )
                 return existing["id"]
@@ -281,12 +285,12 @@ class TraceStore:
                     """INSERT INTO sessions
                            (project_id, date, model,
                             input_tokens, cache_creation_tokens, cache_read_tokens,
-                            output_tokens, cost_usd, notes, session_id)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            output_tokens, turns, cost_usd, notes, session_id)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         project["id"], today, model,
                         input_tokens, cache_creation_tokens, cache_read_tokens,
-                        output_tokens, cost_usd, notes, session_id,
+                        output_tokens, turns, cost_usd, notes, session_id,
                     ),
                 )
                 return cursor.lastrowid
@@ -407,7 +411,8 @@ class TraceStore:
                        COALESCE(SUM(input_tokens),          0) AS total_input,
                        COALESCE(SUM(cache_creation_tokens), 0) AS total_cache_creation,
                        COALESCE(SUM(cache_read_tokens),     0) AS total_cache_read,
-                       COALESCE(SUM(output_tokens),         0) AS total_output
+                       COALESCE(SUM(output_tokens),         0) AS total_output,
+                       COALESCE(SUM(turns),                 0) AS total_turns
                     FROM sessions {where}""",
                 params,
             ).fetchone()
@@ -416,6 +421,7 @@ class TraceStore:
                 "total_cache_creation_tokens": row["total_cache_creation"],
                 "total_cache_read_tokens":     row["total_cache_read"],
                 "total_output_tokens":         row["total_output"],
+                "total_turns":                 row["total_turns"],
             }
 
     def get_cost_summary(

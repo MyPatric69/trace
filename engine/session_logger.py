@@ -142,6 +142,7 @@ def run() -> None:
             f"Auto-logged via SessionEnd hook – {turns} turns",
             cache_creation_tokens=cache_creation_tokens,
             cache_read_tokens=cache_read_tokens,
+            turns=turns,
         )
         _log.info(
             "Logged session %s for project '%s': "

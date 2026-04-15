@@ -313,6 +313,7 @@ def api_stats(date: str, project: str | None = None):
         "cache_creation_tokens": tokens["total_cache_creation_tokens"],
         "cache_read_tokens": tokens["total_cache_read_tokens"],
         "output_tokens": tokens["total_output_tokens"],
+        "turns": tokens["total_turns"],
         "cost_usd": costs["total_cost_usd"],
         "session_count": costs["session_count"],
     }
@@ -341,12 +342,13 @@ def api_today(project: str | None = None):
     db_cc       = tokens["total_cache_creation_tokens"]
     db_cr       = tokens["total_cache_read_tokens"]
     db_output   = tokens["total_output_tokens"]
+    db_turns    = tokens["total_turns"]
     db_cost     = costs["total_cost_usd"]
     db_sessions = costs["session_count"]
 
     # ── Live session (stale / missing → zeros) ────────────────────────────
     live_active = False
-    live_input  = live_cc = live_cr = live_output = 0
+    live_input  = live_cc = live_cr = live_output = live_turns = 0
     live_cost   = 0.0
     try:
         live = LiveTracker(None).get_live()
@@ -358,6 +360,7 @@ def api_today(project: str | None = None):
                 live_cc     = int(live.get("cache_creation_tokens", 0))
                 live_cr     = int(live.get("cache_read_tokens",     0))
                 live_output = int(live.get("output_tokens",         0))
+                live_turns  = int(live.get("turns",                 0))
                 live_cost   = float(live.get("cost_usd",            0.0))
     except Exception:
         pass
@@ -370,6 +373,7 @@ def api_today(project: str | None = None):
         "output_tokens":         db_output,
         "cost_usd":              db_cost,
         "session_count":         db_sessions,
+        "turns_total":           db_turns + live_turns,
         # Live portion
         "live_active":               live_active,
         "live_input_tokens":         live_input,

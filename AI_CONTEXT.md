@@ -156,10 +156,10 @@ trace/
 
 ## Next steps
 
-No open items – all phases complete and tests green.
+None – all current features complete and tested.
 
 ---
 
 ## Last updated
 
-2026-04-14 – Fix: health bar visible from first turn (ok/warn/reset always written to last_health.json)
+2026-04-15 – Added turns display to dashboard (DB column, API endpoints, 4 UI locations)

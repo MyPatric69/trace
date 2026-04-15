@@ -1059,9 +1059,11 @@
       } catch (e) { /* silent */ }
 
       const sc = today.session_count || 0;
+      const tt = today.turns_total || 0;
       const ap = activeProjects;
       $('health-summary').textContent =
-        sc + ' session' + (sc !== 1 ? 's' : '') + ' today across '
+        sc + ' session' + (sc !== 1 ? 's' : '') + ' · '
+        + tt + ' turn' + (tt !== 1 ? 's' : '') + ' today across '
         + ap + ' active project' + (ap !== 1 ? 's' : '');
     } else {
       // Handoff link is always useful when a project is selected.
@@ -1100,7 +1102,8 @@
           }
           // ok: no extra class → teal/green (default health-fill color)
           fill.className = fillClass;
-          $('health-label').textContent = num(total) + ' tokens – ' + statusLabel;
+          const lastTurns = lastHealth.turns || 0;
+          $('health-label').textContent = 'Turn ' + lastTurns + ' · ' + num(total) + ' tokens – ' + statusLabel;
 
           const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
           $('health-warn-label').style.left      = warnPct + '%';
@@ -1120,11 +1123,12 @@
         const warnAt  = tokens.warn_at;
         const resetAt = tokens.reset_at;
         const total   = (today.live_input_tokens || 0) + (today.live_cache_creation_tokens || 0);
+        const liveTurns = today.turns_total || 0;
         const barPct  = Math.min(total / resetAt * 100, 100);
         const fill    = $('health-fill');
         fill.style.width = barPct + '%';
         fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
-        $('health-label').textContent = num(total) + ' / ' + num(resetAt) + ' tokens';
+        $('health-label').textContent = 'Turn ' + liveTurns + ' · ' + num(total) + ' / ' + num(resetAt) + ' tokens';
 
         const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
         $('health-warn-label').style.left      = warnPct + '%';
