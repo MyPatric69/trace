@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from engine.context_compressor import ContextCompressor
+from engine.handoff_builder import build_handoff
 from engine.store import TraceStore
 
 
@@ -53,6 +54,10 @@ def new_session(project_name: str, dry_run: bool = False) -> dict:
         }
 
     handoff_prompt = compressor.compress()
+    try:
+        handoff_prompt = build_handoff(project_path, handoff_prompt)
+    except Exception:
+        pass  # fall back to base_prompt
 
     if dry_run:
         return {

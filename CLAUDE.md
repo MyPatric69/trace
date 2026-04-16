@@ -10,7 +10,7 @@ TRACE is an MCP server (Python / FastMCP) that provides token cost tracking and 
 
 ## Working directory
 
-/Users/patric.hayna/Documents/github/trace
+/Users/patric/My AI Companion/github/trace
 
 ## Commands
 
@@ -33,10 +33,17 @@ No build step. No compiled assets. Pure Python.
 ## Architecture
 
 ```
-server/main.py          FastMCP entry point – registers tools, calls into engine/
-server/tools/           One file per tool group (costs, context, status, session)
-engine/store.py         SQLite interface – the only layer that touches trace.db
-trace_config.yaml       Single source of truth: db path, model prices, budgets
+server/main.py              FastMCP entry point – registers 6 MCP tools
+server/tools/costs.py       log_session(), get_costs()
+server/tools/context.py     check_drift(), update_context()
+server/tools/session.py     new_session(), get_tips()
+engine/store.py             SQLite interface – the only layer that touches trace.db
+engine/live_tracker.py      PostToolUse hook – incremental transcript parse → live_session.json
+engine/live_session_hook.py Stop hook handler – fires after each completed response
+engine/transcript_parser.py Shared transcript parsing (token counting)
+engine/session_logger.py    SessionEnd hook – parses full transcript, logs to DB
+dashboard/server.py         FastAPI web UI + REST + WebSocket endpoints
+trace_config.yaml           Single source of truth: db path, model prices, budgets, health thresholds
 ```
 
 **Data flow:** MCP tool call → `server/tools/*.py` → `engine/store.py` → `trace.db`. Tools never query SQLite directly; they go through `TraceStore`.
@@ -63,5 +70,7 @@ trace_config.yaml       Single source of truth: db path, model prices, budgets
 ## Phase status
 
 - Phase 1 ✅ Foundation – store.py, trace_config.yaml, FastMCP bootstrap
-- Phase 2 ⏳ Context Intelligence – git watcher, doc synthesizer
-- Phase 3 ⏳ Optimization – context compressor, session reset
+- Phase 2 ✅ Context Intelligence – git watcher, doc synthesizer, hook system
+- Phase 3 ✅ Optimization – context compressor, session tools
+- Phase 4 ✅ Dashboard – FastAPI + web UI, live session tracking, provider badges, turns tracking
+  - 434/434 tests green (2026-04-16, commit 737055a)
