@@ -276,6 +276,15 @@
     .status-dot.red    { background: var(--red); }
     .drift-name   { font-weight: 500; flex: 1; font-size: 0.8125rem; }
     .drift-label  { font-family: var(--mono); font-size: 0.6875rem; color: var(--muted); }
+
+    /* Multi-session live rows */
+    .live-session-row {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.8125rem;
+    }
+    .live-session-row:last-child { border-bottom: none; }
+    .live-session-project { font-weight: 500; flex: 1; }
+    .live-session-stat    { font-family: var(--mono); font-size: 0.6875rem; color: var(--muted); min-width: 4rem; text-align: right; }
     .sync-btn {
       font-family: var(--mono);
       font-size: 0.6563rem;
@@ -1160,47 +1169,65 @@
       const project = $('live-project');
       const body    = $('live-body');
 
-      if (!d.active) {
+      if (!d.active || !d.sessions || !d.sessions.length) {
         dot.className       = 'live-dot inactive';
         project.textContent = '';
         body.innerHTML      = '<div class="live-inactive">' + (d.message || 'No active session') + '</div>';
         return;
       }
 
-      dot.className       = 'live-dot active';
-      project.textContent = d.project !== 'unknown' ? d.project : 'unknown project';
+      dot.className = 'live-dot active';
 
-      // Transcript not yet flushed on first Stop event – show placeholder
-      if (d.initializing || (d.input_tokens === 0 && d.output_tokens === 0)) {
-        body.innerHTML = '<div class="live-inactive">Session starting\u2026</div>';
-        return;
+      if (d.sessions.length === 1) {
+        // Single session – detailed view
+        const s = d.sessions[0];
+        project.textContent = s.project !== 'unknown' ? s.project : 'unknown project';
+
+        if (s.initializing || (s.input_tokens === 0 && s.output_tokens === 0)) {
+          body.innerHTML = '<div class="live-inactive">Session starting\u2026</div>';
+          return;
+        }
+
+        const healthCls = s.health === 'reset' ? 'reset' : s.health === 'warn' ? 'warn' : 'ok';
+        const healthLbl = s.health === 'reset' ? 'Reset recommended'
+                        : s.health === 'warn'  ? 'Warning'
+                        :                        'OK';
+
+        body.innerHTML = `
+          <div class="live-metrics">
+            <div class="live-metric">
+              <div class="live-metric-label">Input Tokens</div>
+              <div class="live-metric-value">${num(s.input_tokens)}</div>
+            </div>
+            <div class="live-metric">
+              <div class="live-metric-label">Output Tokens</div>
+              <div class="live-metric-value">${num(s.output_tokens)}</div>
+            </div>
+            <div class="live-metric">
+              <div class="live-metric-label">Cost so far</div>
+              <div class="live-metric-value">${usd(s.cost_usd)}</div>
+            </div>
+            <div class="live-metric">
+              <div class="live-metric-label">Turns</div>
+              <div class="live-metric-value">${s.turns}</div>
+            </div>
+            <div class="live-health ${healthCls}">${healthLbl}</div>
+          </div>`;
+      } else {
+        // Multiple sessions – compact list view
+        project.textContent = d.sessions.length + ' active sessions';
+        body.innerHTML = d.sessions.map(s => {
+          const healthCls = s.health === 'reset' ? 'reset' : s.health === 'warn' ? 'warn' : 'ok';
+          const healthLbl = healthCls === 'reset' ? 'Reset' : healthCls === 'warn' ? 'Warn' : 'OK';
+          return `<div class="live-session-row">
+            <span class="live-session-project">${s.project !== 'unknown' ? s.project : 'unknown'}</span>
+            <span class="live-session-stat">${num(s.input_tokens + s.cache_creation_tokens)} in</span>
+            <span class="live-session-stat">${usd(s.cost_usd)}</span>
+            <span class="live-session-stat">${s.turns} turns</span>
+            <span class="live-health ${healthCls}" style="font-size:.625rem;padding:.1rem .35rem">${healthLbl}</span>
+          </div>`;
+        }).join('');
       }
-
-      const healthCls = d.health === 'reset' ? 'reset' : d.health === 'warn' ? 'warn' : 'ok';
-      const healthLbl = d.health === 'reset' ? 'Reset recommended'
-                      : d.health === 'warn'  ? 'Warning'
-                      :                        'OK';
-
-      body.innerHTML = `
-        <div class="live-metrics">
-          <div class="live-metric">
-            <div class="live-metric-label">Input Tokens</div>
-            <div class="live-metric-value">${num(d.input_tokens)}</div>
-          </div>
-          <div class="live-metric">
-            <div class="live-metric-label">Output Tokens</div>
-            <div class="live-metric-value">${num(d.output_tokens)}</div>
-          </div>
-          <div class="live-metric">
-            <div class="live-metric-label">Cost so far</div>
-            <div class="live-metric-value">${usd(d.cost_usd)}</div>
-          </div>
-          <div class="live-metric">
-            <div class="live-metric-label">Turns</div>
-            <div class="live-metric-value">${d.turns}</div>
-          </div>
-          <div class="live-health ${healthCls}">${healthLbl}</div>
-        </div>`;
     } catch (e) {
       // silent – live panel is non-critical
     }

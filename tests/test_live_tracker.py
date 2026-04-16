@@ -48,9 +48,18 @@ def tmp_store(tmp_path):
 
 @pytest.fixture
 def live_path(tmp_path, monkeypatch):
-    """Redirect _LIVE_PATH to a temp file so tests don't touch ~/.trace/."""
+    """Redirect _LIVE_PATH (legacy) to a temp file so tests don't touch ~/.trace/."""
     path = tmp_path / "live_session.json"
     monkeypatch.setattr(lt_module, "_LIVE_PATH", path)
+    return path
+
+
+@pytest.fixture
+def live_dir(tmp_path, monkeypatch):
+    """Redirect _LIVE_DIR to a temp directory so tests don't touch ~/.trace/live/."""
+    path = tmp_path / "live"
+    path.mkdir()
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", path)
     return path
 
 
@@ -63,10 +72,10 @@ def last_health_path(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def patched_tracker(tmp_store, live_path, last_health_path, monkeypatch):
-    """LiveTracker with store monkeypatched and live path redirected."""
+def patched_tracker(tmp_store, live_path, live_dir, last_health_path, monkeypatch):
+    """LiveTracker with store monkeypatched and both live paths redirected."""
     monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
-    return live_path
+    return live_dir
 
 
 def _write_transcript(tmp_path: Path, turns: list[dict]) -> Path:
@@ -111,8 +120,10 @@ def test_update_writes_live_session_json(tmp_path, patched_tracker):
     tracker = LiveTracker(None)
     result = tracker.update(str(transcript), str(tmp_path))
 
-    assert lt_module._LIVE_PATH.exists()
-    on_disk = json.loads(lt_module._LIVE_PATH.read_text())
+    session_id = transcript.stem  # "transcript"
+    session_file = lt_module._LIVE_DIR / f"{session_id}.json"
+    assert session_file.exists()
+    on_disk = json.loads(session_file.read_text())
     assert on_disk["input_tokens"] == 100
     assert on_disk["output_tokens"] == 50
     assert on_disk == result
@@ -236,7 +247,7 @@ def test_update_health_exactly_at_critical(tmp_path, patched_tracker):
 # update() – project detection
 # ---------------------------------------------------------------------------
 
-def test_update_detects_project_by_path(tmp_path, tmp_store, live_path, monkeypatch):
+def test_update_detects_project_by_path(tmp_path, tmp_store, live_dir, live_path, monkeypatch):
     monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
     tmp_store.add_project("my-project", str(tmp_path), "Test")
 
@@ -255,7 +266,7 @@ def test_update_project_unknown_when_not_registered(tmp_path, patched_tracker):
     assert result["project"] == "unknown"
 
 
-def test_update_detects_project_from_subdirectory(tmp_path, tmp_store, live_path, monkeypatch):
+def test_update_detects_project_from_subdirectory(tmp_path, tmp_store, live_dir, live_path, monkeypatch):
     """cwd is a subdirectory of the registered project path – should still match."""
     monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
     tmp_store.add_project("my-project", str(tmp_path), "Test")
@@ -273,7 +284,7 @@ def test_update_detects_project_from_subdirectory(tmp_path, tmp_store, live_path
     assert result["project"] == "my-project"
 
 
-def test_update_detects_project_by_name_fallback(tmp_path, tmp_store, live_path, monkeypatch):
+def test_update_detects_project_by_name_fallback(tmp_path, tmp_store, live_dir, live_path, monkeypatch):
     """Name-only fallback: different parent dirs but same directory name."""
     monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
     # Register under a different base path
@@ -296,14 +307,15 @@ def test_update_detects_project_by_name_fallback(tmp_path, tmp_store, live_path,
 # clear()
 # ---------------------------------------------------------------------------
 
-def test_clear_removes_live_session_file(tmp_path, live_path):
-    live_path.write_text('{"active": true}')
+def test_clear_removes_live_session_files(tmp_path, live_dir, live_path):
+    (live_dir / "sess-a.json").write_text('{"session_id": "sess-a"}')
+    (live_dir / "sess-b.json").write_text('{"session_id": "sess-b"}')
     LiveTracker(None).clear()
-    assert not live_path.exists()
+    assert not (live_dir / "sess-a.json").exists()
+    assert not (live_dir / "sess-b.json").exists()
 
 
-def test_clear_noop_when_file_absent(live_path):
-    assert not live_path.exists()
+def test_clear_noop_when_no_files(live_dir, live_path):
     LiveTracker(None).clear()  # must not raise
 
 
@@ -311,28 +323,27 @@ def test_clear_noop_when_file_absent(live_path):
 # get_live()
 # ---------------------------------------------------------------------------
 
-def test_get_live_returns_none_when_file_absent(live_path):
+def test_get_live_returns_none_when_dir_empty(live_dir, live_path):
     assert LiveTracker(None).get_live() is None
 
 
-def test_get_live_returns_data_when_file_exists(tmp_path, live_path):
-    payload = {"session_id": "abc", "input_tokens": 42, "health": "green"}
-    live_path.write_text(json.dumps(payload))
+def test_get_live_returns_data_when_file_exists(tmp_path, live_dir, live_path):
+    payload = {"session_id": "abc", "input_tokens": 42, "health": "green", "updated_at": "2026-01-01T00:00:00"}
+    (live_dir / "abc.json").write_text(json.dumps(payload))
     result = LiveTracker(None).get_live()
     assert result is not None
     assert result["input_tokens"] == 42
 
 
-def test_get_live_returns_none_for_stale_file(tmp_path, live_path, monkeypatch):
-    live_path.write_text('{"session_id": "old"}')
-    # Pretend file is 6 minutes old (stale_seconds = 300)
+def test_get_live_returns_none_for_stale_file(tmp_path, live_dir, live_path, monkeypatch):
+    (live_dir / "old.json").write_text('{"session_id": "old", "updated_at": ""}')
     monkeypatch.setattr(lt_module, "_STALE_SECONDS", 0)
     result = LiveTracker(None).get_live()
     assert result is None
 
 
-def test_get_live_returns_data_within_stale_window(live_path):
-    live_path.write_text('{"session_id": "fresh", "turns": 3}')
+def test_get_live_returns_data_within_stale_window(live_dir, live_path):
+    (live_dir / "fresh.json").write_text('{"session_id": "fresh", "turns": 3, "updated_at": "2026-01-01T00:00:00"}')
     result = LiveTracker(None).get_live()
     assert result is not None
     assert result["turns"] == 3
@@ -368,7 +379,7 @@ def test_update_initializing_true_when_tokens_zero(tmp_path, patched_tracker, mo
     # Retry sleep was called once with 0.5s
     assert slept == [0.5]
     # File was written despite zero tokens
-    assert lt_module._LIVE_PATH.exists()
+    assert (lt_module._LIVE_DIR / "session.json").exists()
 
 
 def test_update_retries_once_before_giving_up(tmp_path, patched_tracker, monkeypatch):

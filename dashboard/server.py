@@ -97,15 +97,26 @@ def _get_provider(config: dict):
 # ---------------------------------------------------------------------------
 
 async def _watch_live_file() -> None:
-    """Broadcast 'live_updated' whenever live_session.json mtime changes."""
-    last_mtime = 0.0
+    """Broadcast 'live_updated' whenever any file in the live/ directory changes."""
+    from engine.live_tracker import _LIVE_DIR as _LIVE_DIR_PATH
+    last_sig = ""
     while True:
         await asyncio.sleep(1)
         try:
+            mtimes: list[float] = []
+            if _LIVE_DIR_PATH.is_dir():
+                for f in _LIVE_DIR_PATH.glob("*.json"):
+                    try:
+                        mtimes.append(f.stat().st_mtime)
+                    except OSError:
+                        pass
+            # Legacy fallback
             p = TRACE_HOME / "live_session.json"
-            mtime = p.stat().st_mtime if p.exists() else 0.0
-            if mtime != last_mtime:
-                last_mtime = mtime
+            if p.exists():
+                mtimes.append(p.stat().st_mtime)
+            sig = str(sorted(mtimes))
+            if sig != last_sig:
+                last_sig = sig
                 await manager.broadcast({
                     "type":      "live_updated",
                     "timestamp": datetime.now().isoformat(timespec="seconds"),
@@ -346,22 +357,22 @@ def api_today(project: str | None = None):
     db_cost     = costs["total_cost_usd"]
     db_sessions = costs["session_count"]
 
-    # ── Live session (stale / missing → zeros) ────────────────────────────
+    # ── Live sessions (stale / missing → zeros) ──────────────────────────
     live_active = False
     live_input  = live_cc = live_cr = live_output = live_turns = 0
     live_cost   = 0.0
     try:
-        live = LiveTracker(None).get_live()
-        if live is not None:
-            # Filter by project if requested
-            if project is None or live.get("project") == project:
-                live_active = True
-                live_input  = int(live.get("input_tokens",          0))
-                live_cc     = int(live.get("cache_creation_tokens", 0))
-                live_cr     = int(live.get("cache_read_tokens",     0))
-                live_output = int(live.get("output_tokens",         0))
-                live_turns  = int(live.get("turns",                 0))
-                live_cost   = float(live.get("cost_usd",            0.0))
+        sessions = LiveTracker(None).get_all_active()
+        matching = [s for s in sessions if project is None or s.get("project") == project]
+        if matching:
+            live_active = True
+            for s in matching:
+                live_input  += int(s.get("input_tokens",          0))
+                live_cc     += int(s.get("cache_creation_tokens", 0))
+                live_cr     += int(s.get("cache_read_tokens",     0))
+                live_output += int(s.get("output_tokens",         0))
+                live_turns  += int(s.get("turns",                 0))
+                live_cost   += float(s.get("cost_usd",            0.0))
     except Exception:
         pass
 
@@ -491,35 +502,35 @@ def api_sync(project_name: str):
 def api_live(project: str | None = None):
     try:
         tracker = LiveTracker(None)
-        data = tracker.get_live()
+        sessions = tracker.get_all_active()
+        last_health = tracker.get_last_health()
 
-        if data is None:
-            # No active session – check for persisted health snapshot
-            last_health = tracker.get_last_health()
-            # Filter by project if requested
+        if not sessions:
             if project and last_health and last_health.get("project") != project:
                 last_health = None
             return {
                 "active": False,
+                "sessions": [],
                 "message": "No active session",
                 "last_health": last_health,
             }
 
-        if project and data.get("project") != project:
-            active_in = data.get("project", "unknown")
-            # Also include last_health for consistency
-            last_health = tracker.get_last_health()
-            if last_health and last_health.get("project") != project:
-                last_health = None
-            return {
-                "active": False,
-                "message": f"Active session is in project {active_in}",
-                "last_health": last_health,
-            }
+        if project:
+            filtered = [s for s in sessions if s.get("project") == project]
+            if not filtered:
+                if last_health and last_health.get("project") != project:
+                    last_health = None
+                return {
+                    "active": False,
+                    "sessions": [],
+                    "message": f"No active session for project {project}",
+                    "last_health": last_health,
+                }
+            return {"active": True, "sessions": filtered, "last_health": last_health}
 
-        return {"active": True, **data}
+        return {"active": True, "sessions": sessions, "last_health": last_health}
     except Exception:
-        return {"active": False, "message": "No active session", "last_health": None}
+        return {"active": False, "sessions": [], "message": "No active session", "last_health": None}
 
 
 # ---------------------------------------------------------------------------

@@ -306,37 +306,37 @@ _LIVE_DATA = {
 
 
 def test_api_live_no_active_session(client, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [])
     data = client.get("/api/live").json()
     assert data["active"] is False
     assert "message" in data
 
 
 def test_api_live_active_no_filter(client, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_DATA)])
     data = client.get("/api/live").json()
     assert data["active"] is True
-    assert data["project"] == "alpha"
+    assert data["sessions"][0]["project"] == "alpha"
 
 
 def test_api_live_project_match_returns_active(client, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_DATA)])
     data = client.get("/api/live?project=alpha").json()
     assert data["active"] is True
-    assert data["project"] == "alpha"
+    assert data["sessions"][0]["project"] == "alpha"
 
 
 def test_api_live_project_mismatch_returns_inactive(client, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_DATA)])
     data = client.get("/api/live?project=beta").json()
     assert data["active"] is False
-    assert "alpha" in data["message"]
+    assert "sessions" in data
 
 
 def test_api_live_project_mismatch_message_names_active_project(client, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_DATA))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_DATA)])
     data = client.get("/api/live?project=beta").json()
-    assert data["message"] == "Active session is in project alpha"
+    assert data["message"] == "No active session for project beta"
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +375,7 @@ _LIVE_TODAY = {
 
 
 def test_api_today_structure(client, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [])
     data = client.get("/api/today").json()
     for key in (
         "input_tokens", "cache_creation_tokens", "cache_read_tokens", "output_tokens",
@@ -388,7 +388,7 @@ def test_api_today_structure(client, monkeypatch):
 
 
 def test_api_today_no_sessions_no_live_all_zeros(client, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [])
     data = client.get("/api/today").json()
     assert data["session_count"]    == 0
     assert data["cost_usd"]         == 0.0
@@ -399,7 +399,7 @@ def test_api_today_no_sessions_no_live_all_zeros(client, monkeypatch):
 
 
 def test_api_today_db_sessions_no_live(client, tmp_store, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [])
     tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
     data = client.get("/api/today").json()
     assert data["session_count"]    == 1
@@ -413,7 +413,7 @@ def test_api_today_db_sessions_no_live(client, tmp_store, monkeypatch):
 
 
 def test_api_today_live_session_no_db(client, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_TODAY)])
     data = client.get("/api/today").json()
     assert data["live_active"]      is True
     assert data["live_input_tokens"]  == 500
@@ -426,7 +426,7 @@ def test_api_today_live_session_no_db(client, monkeypatch):
 
 
 def test_api_today_db_plus_live_combined(client, tmp_store, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_TODAY)])
     tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
     data = client.get("/api/today").json()
     assert data["live_active"]         is True
@@ -437,7 +437,7 @@ def test_api_today_db_plus_live_combined(client, tmp_store, monkeypatch):
 
 
 def test_api_today_total_cache_tokens_sums_all_four(client, tmp_store, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_TODAY)])
     tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500,
                           cache_creation_tokens=200, cache_read_tokens=100)
     data = client.get("/api/today").json()
@@ -448,7 +448,7 @@ def test_api_today_total_cache_tokens_sums_all_four(client, tmp_store, monkeypat
 
 def test_api_today_project_filter_excludes_other_project(client, tmp_store, monkeypatch):
     # Live session is for "alpha"; filter by "beta" → live not included
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_TODAY)])
     tmp_store.add_session("beta", "claude-sonnet-4-5", 2000, 800)
     data = client.get("/api/today?project=beta").json()
     assert data["live_active"]        is False
@@ -457,7 +457,7 @@ def test_api_today_project_filter_excludes_other_project(client, tmp_store, monk
 
 
 def test_api_today_project_filter_includes_matching_live(client, tmp_store, monkeypatch):
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(_LIVE_TODAY))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(_LIVE_TODAY)])
     tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
     data = client.get("/api/today?project=alpha").json()
     assert data["live_active"]       is True
@@ -466,7 +466,7 @@ def test_api_today_project_filter_includes_matching_live(client, tmp_store, monk
 
 def test_api_today_never_fails_on_live_tracker_exception(client, monkeypatch):
     def raise_exc(self): raise RuntimeError("disk full")
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", raise_exc)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", raise_exc)
     data = client.get("/api/today").json()
     assert data["live_active"]  is False
     assert data["total_cost_usd"] >= 0.0
@@ -577,12 +577,12 @@ def test_api_live_includes_health_status(client, monkeypatch):
         "cost_usd": 0.15, "turns": 10, "health": "warn",
         "warn_at": 80_000, "reset_at": 150_000,
     }
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(live_data))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(live_data)])
     data = client.get("/api/live").json()
     assert data["active"] is True
-    assert data["health"] == "warn"
-    assert data["warn_at"] == 80_000
-    assert data["reset_at"] == 150_000
+    assert data["sessions"][0]["health"] == "warn"
+    assert data["sessions"][0]["warn_at"] == 80_000
+    assert data["sessions"][0]["reset_at"] == 150_000
 
 
 def test_api_live_health_reset_status(client, monkeypatch):
@@ -593,10 +593,10 @@ def test_api_live_health_reset_status(client, monkeypatch):
         "cost_usd": 0.35, "turns": 20, "health": "reset",
         "warn_at": 80_000, "reset_at": 150_000,
     }
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(live_data))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(live_data)])
     data = client.get("/api/live").json()
     assert data["active"] is True
-    assert data["health"] == "reset"
+    assert data["sessions"][0]["health"] == "reset"
 
 
 def test_api_live_health_ok_status(client, monkeypatch):
@@ -607,10 +607,10 @@ def test_api_live_health_ok_status(client, monkeypatch):
         "cost_usd": 0.02, "turns": 3, "health": "ok",
         "warn_at": 80_000, "reset_at": 150_000,
     }
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: dict(live_data))
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [dict(live_data)])
     data = client.get("/api/live").json()
     assert data["active"] is True
-    assert data["health"] == "ok"
+    assert data["sessions"][0]["health"] == "ok"
 
 
 def test_api_live_no_session_includes_last_health(client, monkeypatch):
@@ -622,7 +622,7 @@ def test_api_live_no_session_includes_last_health(client, monkeypatch):
         "session_id": "abc123",
         "updated_at": "2026-04-13T15:30:00",
     }
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [])
     monkeypatch.setattr(dashboard_module.LiveTracker, "get_last_health", lambda self: dict(last_health_data))
     data = client.get("/api/live").json()
     assert data["active"] is False
@@ -633,7 +633,7 @@ def test_api_live_no_session_includes_last_health(client, monkeypatch):
 
 def test_api_live_no_session_null_last_health_when_missing(client, monkeypatch):
     """Verify that /api/live returns last_health=null when no health snapshot exists."""
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [])
     monkeypatch.setattr(dashboard_module.LiveTracker, "get_last_health", lambda self: None)
     data = client.get("/api/live").json()
     assert data["active"] is False
@@ -649,7 +649,7 @@ def test_api_live_project_filter_last_health(client, monkeypatch):
         "session_id": "abc123",
         "updated_at": "2026-04-13T15:30:00",
     }
-    monkeypatch.setattr(dashboard_module.LiveTracker, "get_live", lambda self: None)
+    monkeypatch.setattr(dashboard_module.LiveTracker, "get_all_active", lambda self: [])
     monkeypatch.setattr(dashboard_module.LiveTracker, "get_last_health", lambda self: dict(last_health_data))
 
     # Filter by project=alpha → should include last_health

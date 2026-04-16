@@ -28,9 +28,10 @@ if str(_TRACE_ROOT) not in sys.path:
 from engine.store import TraceStore, TRACE_HOME  # noqa: E402
 
 _LOG_FILE = TRACE_HOME / "session_logger.log"
-_LIVE_PATH = TRACE_HOME / "live_session.json"
+_LIVE_DIR  = TRACE_HOME / "live"          # per-session files: {session_id}.json
+_LIVE_PATH = TRACE_HOME / "live_session.json"  # legacy – migrated on first write
 _LAST_HEALTH_PATH = TRACE_HOME / "last_health.json"
-_STALE_SECONDS = 300  # 5 minutes
+_STALE_SECONDS = 600  # 10 minutes
 _SANITY_LIMIT = 200_000
 
 TRACE_HOME.mkdir(parents=True, exist_ok=True)
@@ -54,16 +55,23 @@ def _get_default_store() -> TraceStore | None:
 
 
 def _load_prev_state(session_id: str) -> dict | None:
-    """Load live_session.json if it exists and belongs to the current session."""
-    if not _LIVE_PATH.exists():
-        return None
-    try:
-        data = json.loads(_LIVE_PATH.read_text())
-        if data.get("session_id") != session_id:
-            return None
-        return data
-    except Exception:
-        return None
+    """Load previous state for session_id from the per-session dir, or the legacy file."""
+    new_path = _LIVE_DIR / f"{session_id}.json"
+    if new_path.exists():
+        try:
+            data = json.loads(new_path.read_text())
+            if data.get("session_id") == session_id:
+                return data
+        except Exception:
+            pass
+    if _LIVE_PATH.exists():
+        try:
+            data = json.loads(_LIVE_PATH.read_text())
+            if data.get("session_id") == session_id:
+                return data
+        except Exception:
+            pass
+    return None
 
 
 def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
@@ -319,44 +327,80 @@ class LiveTracker:
         }
 
         try:
-            TRACE_HOME.mkdir(parents=True, exist_ok=True)
-            _LIVE_PATH.write_text(json.dumps(data, indent=2))
+            _LIVE_DIR.mkdir(parents=True, exist_ok=True)
+            session_file = _LIVE_DIR / f"{session_id}.json"
+            session_file.write_text(json.dumps(data, indent=2))
+            # Migrate legacy live_session.json on first write to new layout
+            if _LIVE_PATH.exists():
+                try:
+                    _LIVE_PATH.unlink()
+                except Exception:
+                    pass
         except Exception as exc:
-            _log.error("LiveTracker.update: failed to write %s: %s", _LIVE_PATH, exc)
+            _log.error("LiveTracker.update: failed to write live session: %s", exc)
 
         # Persist health state snapshot (survive browser refresh + session end)
         self._write_last_health(data)
 
         return data
 
-    def clear(self) -> None:
-        """Delete live_session.json and last_health.json.
+    def clear(self, session_id: str | None = None) -> None:
+        """Delete live session file(s) and last_health.json.
 
-        Called when the user explicitly clears the live session via the dashboard.
-        This is the only place last_health.json is deleted.
+        If *session_id* is given, only that session's file is removed.
+        Otherwise all files in _LIVE_DIR are removed (dashboard clear).
         """
+        try:
+            if _LIVE_DIR.is_dir():
+                targets = (
+                    [_LIVE_DIR / f"{session_id}.json"]
+                    if session_id
+                    else list(_LIVE_DIR.glob("*.json"))
+                )
+                for f in targets:
+                    try:
+                        if f.exists():
+                            f.unlink()
+                    except Exception as exc:
+                        _log.error("LiveTracker.clear: %s", exc)
+        except Exception as exc:
+            _log.error("LiveTracker.clear (dir): %s", exc)
+        # Always clear legacy file (no session_id scoping needed)
         try:
             if _LIVE_PATH.exists():
                 _LIVE_PATH.unlink()
         except Exception as exc:
-            _log.error("LiveTracker.clear: %s", exc)
+            _log.error("LiveTracker.clear (legacy): %s", exc)
         try:
             if _LAST_HEALTH_PATH.exists():
                 _LAST_HEALTH_PATH.unlink()
         except Exception as exc:
             _log.error("LiveTracker.clear (last_health): %s", exc)
 
-    def get_live(self) -> dict | None:
-        """Return live session data, or None if absent or stale (>5 min)."""
-        if not _LIVE_PATH.exists():
-            return None
+    def get_all_active(self) -> list[dict]:
+        """Return all non-stale active sessions sorted by updated_at descending."""
+        now = time.time()
+        result: list[dict] = []
         try:
-            age = time.time() - _LIVE_PATH.stat().st_mtime
-            if age > _STALE_SECONDS:
-                return None
-            return json.loads(_LIVE_PATH.read_text())
+            if not _LIVE_DIR.is_dir():
+                return result
+            for f in _LIVE_DIR.glob("*.json"):
+                try:
+                    if now - f.stat().st_mtime > _STALE_SECONDS:
+                        continue
+                    data = json.loads(f.read_text())
+                    result.append(data)
+                except Exception:
+                    continue
         except Exception:
-            return None
+            pass
+        result.sort(key=lambda d: d.get("updated_at", ""), reverse=True)
+        return result
+
+    def get_live(self) -> dict | None:
+        """Return the most recent active session, or None if none are active."""
+        sessions = self.get_all_active()
+        return sessions[0] if sessions else None
 
     def _write_last_health(self, live_data: dict) -> None:
         """Persist health snapshot to ~/.trace/last_health.json on every status update.
