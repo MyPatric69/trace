@@ -65,6 +65,15 @@ class DocSynthesizer:
         path = self.project_path / "AI_CONTEXT.md"
         return path.read_text(encoding="utf-8") if path.exists() else ""
 
+    def get_context_age_days(self) -> int | None:
+        """Return the age in whole days of AI_CONTEXT.md, or None if it does not exist."""
+        from datetime import datetime, timezone
+        path = self.project_path / "AI_CONTEXT.md"
+        if not path.exists():
+            return None
+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+        return (datetime.now(tz=timezone.utc) - mtime).days
+
     # ------------------------------------------------------------------
     # Sync bookmark (.trace_sync)
     # ------------------------------------------------------------------

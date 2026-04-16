@@ -57,6 +57,7 @@ def check_drift(project_name: str) -> dict:
         "changed_files": drift["changed_files"],
         "current_hash": drift["current_hash"],
         "recommendation": _recommendation(drift),
+        "ai_context_age_days": synth.get_context_age_days(),
     }
 
 

@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 469/469 tests green ✓
+**Status:** All 4 phases complete – 449/449 tests green ✓
 
 ---
 
@@ -119,7 +119,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**469/469 tests green ✓ (2026-04-16)**
+**449/449 tests green ✓ (2026-04-16)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -145,6 +145,7 @@ trace/
 - **Live session tracking** – `engine/live_tracker.py` (PostToolUse hook), `engine/live_session_hook.py` (Stop hook), `engine/transcript_parser.py` (shared parsing); `/api/live` + `/api/live/clear` endpoints; WebSocket push to connected browsers
 - **Turns tracking** – `turns` column in `sessions` table; `upsert_live_session()` + `delete_live_session()` in store; turns displayed in live panel, health bar, daily summary
 - **Provider badges** – `resolve_provider(model)` helper + `/api/providers` endpoint; per-project badges with model subtitles; provider detection: `claude-*` → anthropic, `gpt-*/o1-*/o3-*/o4-*` → openai, `gemini-*/gemma-*` → google
+- **Hook refinement** – `engine/hook_runner.py` runs synthesis on every commit type (no `SKIP_PREFIXES`/`should_skip()`); staleness fallback forces synthesis when `AI_CONTEXT.md` is >2 days old; `engine/doc_synthesizer.py` adds `get_context_age_days()`; `/api/drift` response includes `ai_context_age_days`; dashboard shows amber badge when >2 days old
 - **7-day date picker** – `/api/stats/{date}` endpoint + `/api/today` summary
 - **Configurable health thresholds** – green/yellow/red read from `trace_config.yaml` (no hardcoded 100k)
 - **MCP server panel** – add/remove MCP servers via UI; reads from both Claude config locations
@@ -217,4 +218,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-16 – handoff_builder: multi-line test command extraction, join with &&, 200-char truncation (469/469 tests green)
+2026-04-16 – hook refinement: synthesis runs on every commit type, staleness fallback after 2 days, ai_context_age_days in drift API + dashboard amber badge (449/449 tests green)

@@ -93,6 +93,7 @@ def test_check_drift_returns_correct_structure(ctx_env):
     expected_keys = {
         "status", "project", "is_stale", "commits_behind",
         "doc_relevant_changes", "changed_files", "current_hash", "recommendation",
+        "ai_context_age_days",
     }
     assert expected_keys == set(result.keys())
 

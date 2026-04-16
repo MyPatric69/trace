@@ -26,56 +26,19 @@ logging.basicConfig(
 )
 _log = logging.getLogger(__name__)
 
-# Conventional-commit prefixes that don't need doc synthesis.
-# .trace_sync is still advanced so check_drift() stays accurate.
-SKIP_PREFIXES: list[str] = [
-    "chore:",
-    "chore(",
-    "docs:",
-    "docs(",
-    "style:",
-    "style(",
-    "test:",
-    "test(",
-]
-
-
-def should_skip(commit_message: str) -> bool:
-    """Return True if the commit message prefix signals non-code changes.
-
-    Returns False for empty / unrecognised messages so unknown commits are
-    always processed (when in doubt, synthesise).
-    """
-    msg = commit_message.lower().strip()
-    if not msg:
-        return False
-    return any(msg.startswith(p) for p in SKIP_PREFIXES)
+_STALE_DAYS = 2
 
 
 def run(project_path: str) -> None:
-    """Check for drift and update AI_CONTEXT.md if doc-relevant changes exist."""
+    """Check for drift and update AI_CONTEXT.md if needed.
+
+    Synthesis runs when either:
+      - there are doc-relevant file changes since last sync, OR
+      - AI_CONTEXT.md is older than _STALE_DAYS days (staleness fallback)
+    """
     try:
         store = TraceStore.default()
         synth = DocSynthesizer(project_path, config_path=str(store.config_path))
-
-        # Read the latest commit message to decide whether synthesis is needed
-        try:
-            latest_commit = synth.watcher.repo.head.commit
-            latest_msg    = latest_commit.message
-            latest_hash   = latest_commit.hexsha[:7]
-        except Exception:
-            latest_msg  = ""
-            latest_hash = ""
-
-        if should_skip(latest_msg):
-            # Advance .trace_sync so drift detection stays accurate
-            if latest_hash:
-                synth.update_last_synced(latest_hash)
-            _log.info(
-                "Skipped doc synthesis for: %s",
-                latest_msg.strip()[:80],
-            )
-            return
 
         # Determine baseline – use .trace_sync or fall back to oldest commit
         last_hash = synth.get_last_synced()
@@ -88,8 +51,14 @@ def run(project_path: str) -> None:
 
         drift = synth.check_drift(last_hash)
 
-        if not drift["is_stale"] or not drift["doc_relevant_changes"]:
-            return  # nothing worth updating
+        if not drift["is_stale"]:
+            return  # already up to date
+
+        age_days = synth.get_context_age_days()
+        force_by_age = age_days is not None and age_days > _STALE_DAYS
+
+        if not drift["doc_relevant_changes"] and not force_by_age:
+            return  # no meaningful changes and context is fresh
 
         today = date.today().isoformat()
         synth.apply_section_update(

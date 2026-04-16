@@ -1248,6 +1248,10 @@
       const n   = r.commits_behind || 0;
       const cls = n === 0 ? 'green' : n <= 2 ? 'amber' : 'red';
       const lbl = n === 0 ? 'up to date' : n + ' commit' + (n !== 1 ? 's' : '') + ' behind';
+      const ageDays = r.ai_context_age_days;
+      const ageBadge = (ageDays != null && ageDays > 2)
+        ? `<span class="drift-label" style="color:var(--amber);margin-left:.5rem">AI_CONTEXT.md: ${ageDays} day${ageDays !== 1 ? 's' : ''} old</span>`
+        : '';
       const btn = r.is_stale
         ? `<button class="sync-btn" onclick="syncProject('${r.project.replace(/'/g,"\\'")}')">Sync</button>`
         : '';
@@ -1255,6 +1259,7 @@
         <span class="status-dot ${cls}"></span>
         <span class="drift-name">${r.project}</span>
         <span class="drift-label">${lbl}</span>
+        ${ageBadge}
         ${btn}
       </div>`;
     }).join('');

@@ -1,23 +1,25 @@
-"""Tests for v0.3.0 Feature 3 – Hook Refinement (engine/hook_runner.py).
+"""Tests for engine/hook_runner.py – every commit type triggers synthesis.
 
 Covers:
-  - should_skip() returns True for chore/docs/style/test prefixes
-  - should_skip() returns False for feat/fix/refactor/unknown/empty
-  - Case-insensitivity
-  - Integration: skip commit → .trace_sync advances, AI_CONTEXT.md untouched
-  - Integration: feat: commit → synthesis runs, AI_CONTEXT.md updated
+  - chore:/docs:/test: commits with doc-relevant files DO trigger synthesis
+  - feat:/fix: commits still trigger synthesis
+  - No-op: no doc-relevant changes + fresh AI_CONTEXT.md → no synthesis
+  - Staleness fallback: AI_CONTEXT.md > 2 days old forces synthesis even
+    when no doc-relevant files changed
 """
 from __future__ import annotations
 
+import os
+import time
 from pathlib import Path
 
 import git
 import pytest
 
-from engine.hook_runner import run, should_skip
+from engine.hook_runner import run
 
 # ---------------------------------------------------------------------------
-# Helpers (mirrors test_hook_runner.py)
+# Helpers
 # ---------------------------------------------------------------------------
 
 _TEST_CONTEXT = """\
@@ -37,7 +39,6 @@ Test project.
 
 def _init_repo(tmp_path, context_content: str = _TEST_CONTEXT):
     repo = git.Repo.init(str(tmp_path))
-    # Prevent the globally-installed post-commit hook from interfering
     hook_path = tmp_path / ".git" / "hooks" / "post-commit"
     hook_path.parent.mkdir(exist_ok=True)
     hook_path.write_text("#!/bin/sh\nexit 0\n")
@@ -61,73 +62,15 @@ def _add_commit(tmp_path, repo, filename: str, content: str = "# x", msg: str = 
 
 
 # ---------------------------------------------------------------------------
-# should_skip() – True cases
+# Commit-type filtering removed – chore/docs/test now trigger synthesis
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("msg", [
-    "chore: update deps",
-    "chore(deps): bump requests to 2.32",
-    "docs: update README",
-    "docs(api): add endpoint reference",
-    "style: reformat with black",
-    "style(lint): fix whitespace",
-    "test: add store tests",
-    "test(store): cover edge cases",
-])
-def test_should_skip_returns_true_for_skip_prefixes(msg):
-    assert should_skip(msg) is True
-
-
-# ---------------------------------------------------------------------------
-# should_skip() – False cases
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("msg", [
-    "feat: add token calculator",
-    "fix: correct cost calculation",
-    "refactor: extract helper",
-    "perf: speed up query",
-    "ci: update workflow",
-    "build: upgrade Python",
-    "unknown prefix message",
-    "",
-    "   ",
-])
-def test_should_skip_returns_false_for_non_skip_prefixes(msg):
-    assert should_skip(msg) is False
-
-
-# ---------------------------------------------------------------------------
-# should_skip() – case-insensitivity
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("msg", [
-    "CHORE: update deps",
-    "Docs: add README",
-    "STYLE: fix formatting",
-    "TEST: add unit tests",
-    "Chore(CI): update workflow",
-    "DOCS(api): reference",
-])
-def test_should_skip_is_case_insensitive(msg):
-    assert should_skip(msg) is True
-
-
-# ---------------------------------------------------------------------------
-# Integration – skip commit: .trace_sync advances, AI_CONTEXT.md untouched
-# ---------------------------------------------------------------------------
-
-def test_skip_commit_advances_trace_sync_but_not_context(tmp_path):
-    """A chore: commit with a doc-relevant file should advance .trace_sync
-    but leave AI_CONTEXT.md completely unchanged."""
+def test_chore_commit_triggers_synthesis(tmp_path):
+    """chore: + doc-relevant file must trigger synthesis (no prefix filtering)."""
     repo = _init_repo(tmp_path)
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
 
-    context_before = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
-    mtime_before = (tmp_path / "AI_CONTEXT.md").stat().st_mtime
-
-    # Add a doc-relevant commit with a skip prefix
     new_hash = _add_commit(
         tmp_path, repo, "engine/module.py",
         content="# engine update", msg="chore: tidy engine module",
@@ -135,22 +78,17 @@ def test_skip_commit_advances_trace_sync_but_not_context(tmp_path):
 
     run(str(tmp_path))
 
-    # .trace_sync must have advanced to the new commit
     synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
     assert synced == new_hash
-
-    # AI_CONTEXT.md must be completely untouched
-    assert (tmp_path / "AI_CONTEXT.md").stat().st_mtime == mtime_before
-    assert (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8") == context_before
+    context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
+    assert "Auto-synced" in context_after
 
 
-def test_docs_commit_advances_trace_sync_but_not_context(tmp_path):
-    """A docs: commit should behave identically to chore:."""
+def test_docs_commit_triggers_synthesis(tmp_path):
+    """docs: + doc-relevant file must trigger synthesis."""
     repo = _init_repo(tmp_path)
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
-
-    mtime_before = (tmp_path / "AI_CONTEXT.md").stat().st_mtime
 
     new_hash = _add_commit(
         tmp_path, repo, "engine/doc.py",
@@ -159,17 +97,17 @@ def test_docs_commit_advances_trace_sync_but_not_context(tmp_path):
 
     run(str(tmp_path))
 
-    assert (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip() == new_hash
-    assert (tmp_path / "AI_CONTEXT.md").stat().st_mtime == mtime_before
+    synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
+    assert synced == new_hash
+    context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
+    assert "Auto-synced" in context_after
 
 
-def test_test_commit_advances_trace_sync_but_not_context(tmp_path):
-    """A test: commit should not trigger synthesis."""
+def test_test_commit_triggers_synthesis(tmp_path):
+    """test: + doc-relevant file must trigger synthesis."""
     repo = _init_repo(tmp_path)
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
-
-    mtime_before = (tmp_path / "AI_CONTEXT.md").stat().st_mtime
 
     new_hash = _add_commit(
         tmp_path, repo, "tests/test_new.py",
@@ -178,22 +116,21 @@ def test_test_commit_advances_trace_sync_but_not_context(tmp_path):
 
     run(str(tmp_path))
 
-    assert (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip() == new_hash
-    assert (tmp_path / "AI_CONTEXT.md").stat().st_mtime == mtime_before
+    synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
+    assert synced == new_hash
+    context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
+    assert "Auto-synced" in context_after
 
 
 # ---------------------------------------------------------------------------
-# Integration – feat: commit triggers synthesis
+# feat:/fix: commits still trigger synthesis
 # ---------------------------------------------------------------------------
 
 def test_feat_commit_triggers_synthesis(tmp_path):
-    """A feat: commit with a doc-relevant file should update AI_CONTEXT.md
-    and advance .trace_sync."""
     repo = _init_repo(tmp_path)
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
 
-    # Add a doc-relevant commit (engine/ triggers is_doc_relevant=True)
     new_hash = _add_commit(
         tmp_path, repo, "engine/feature.py",
         content="# new feature", msg="feat: add new engine feature",
@@ -201,17 +138,13 @@ def test_feat_commit_triggers_synthesis(tmp_path):
 
     run(str(tmp_path))
 
-    # .trace_sync must advance
     synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
     assert synced == new_hash
-
-    # AI_CONTEXT.md must have been updated (Last updated section modified)
     context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
     assert "Auto-synced" in context_after
 
 
 def test_fix_commit_triggers_synthesis(tmp_path):
-    """A fix: commit with a doc-relevant file should also trigger synthesis."""
     repo = _init_repo(tmp_path)
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
@@ -227,3 +160,65 @@ def test_fix_commit_triggers_synthesis(tmp_path):
     assert synced == new_hash
     context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
     assert "Auto-synced" in context_after
+
+
+# ---------------------------------------------------------------------------
+# File-change guard still works
+# ---------------------------------------------------------------------------
+
+def test_no_synthesis_when_fresh_and_no_doc_relevant_changes(tmp_path):
+    """With a fresh AI_CONTEXT.md and no doc-relevant file changes, no synthesis."""
+    repo = _init_repo(tmp_path)
+    initial_hash = repo.head.commit.hexsha[:7]
+    (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
+
+    mtime_before = (tmp_path / "AI_CONTEXT.md").stat().st_mtime
+
+    _add_commit(
+        tmp_path, repo, "images/logo.png",
+        content="fake binary", msg="chore: add logo",
+    )
+
+    run(str(tmp_path))
+
+    assert (tmp_path / "AI_CONTEXT.md").stat().st_mtime == mtime_before
+
+
+# ---------------------------------------------------------------------------
+# Staleness fallback
+# ---------------------------------------------------------------------------
+
+def test_staleness_fallback_forces_synthesis_without_doc_relevant_changes(tmp_path):
+    """When AI_CONTEXT.md is >2 days old, synthesis is forced even if no
+    doc-relevant files changed."""
+    repo = _init_repo(tmp_path)
+    initial_hash = repo.head.commit.hexsha[:7]
+    (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
+
+    # Make AI_CONTEXT.md appear 3 days old
+    context = tmp_path / "AI_CONTEXT.md"
+    old_time = time.time() - (3 * 24 * 3600)
+    os.utime(context, (old_time, old_time))
+
+    # Commit a non-doc-relevant file
+    _add_commit(tmp_path, repo, "images/logo.png", content="fake", msg="chore: add logo")
+
+    run(str(tmp_path))
+
+    context_after = context.read_text(encoding="utf-8")
+    assert "Auto-synced" in context_after
+
+
+def test_staleness_fallback_inactive_when_context_fresh(tmp_path):
+    """With a fresh AI_CONTEXT.md, a non-doc-relevant commit must NOT synthesise."""
+    repo = _init_repo(tmp_path)
+    initial_hash = repo.head.commit.hexsha[:7]
+    (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
+
+    mtime_before = (tmp_path / "AI_CONTEXT.md").stat().st_mtime
+
+    _add_commit(tmp_path, repo, "images/logo.png", content="fake", msg="chore: add logo")
+
+    run(str(tmp_path))
+
+    assert (tmp_path / "AI_CONTEXT.md").stat().st_mtime == mtime_before
