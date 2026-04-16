@@ -773,7 +773,14 @@
     <div id="models-list"><div class="empty">Loading…</div></div>
   </div>
 
-  <!-- 6 · MCP Servers -->
+  <!-- 6 · AI Providers -->
+  <div class="panel" id="providers-card">
+    <div class="card-title">AI Provider</div>
+    <div id="provider-summary-row" style="margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;"></div>
+    <div id="provider-project-list"></div>
+  </div>
+
+  <!-- 7 · MCP Servers -->
   <div class="panel">
     <div class="card-title">MCP Servers</div>
     <div class="mcp-summary" id="mcp-summary">Loading…</div>
@@ -1310,7 +1317,7 @@
 
   async function loadAll() {
     try {
-      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels(), loadMcp()]);
+      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels(), loadMcp(), loadProviders()]);
     } catch (e) {
       console.error('Refresh error:', e);
     }
@@ -1375,6 +1382,73 @@
       if (dot) dot.style.background = '#6B6760';
       _startFallback();
     };
+  }
+
+  // ── Provider Badges ──────────────────────────────────────────────────────
+
+  function _providerBadge(name) {
+    const cfg = {
+      anthropic: ['#E1F5EE', '#0F6E56'],
+      openai:    ['#EAF3DE', '#3B6D11'],
+      google:    ['#E6F1FB', '#185FA5'],
+      other:     ['#F1EFE8', '#5F5E5A'],
+    };
+    const [bg, fg] = cfg[name] || cfg.other;
+    return `<span style="display:inline-flex;align-items:center;gap:4px;background:${bg};color:${fg};border-radius:20px;padding:2px 8px 2px 6px;font-family:var(--mono);font-size:0.6563rem;font-weight:600;letter-spacing:0.04em;white-space:nowrap;"><span style="width:7px;height:7px;border-radius:50%;background:${fg};flex-shrink:0;display:inline-block;"></span>${name}</span>`;
+  }
+
+  async function loadProviders() {
+    try {
+      const d        = await api('/api/providers');
+      const summaryEl = $('provider-summary-row');
+      const listEl    = $('provider-project-list');
+      if (!summaryEl || !listEl) return;
+
+      // Summary row
+      if (d.summary.length === 0) {
+        summaryEl.innerHTML = '<span style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);">Keine Daten</span>';
+      } else {
+        summaryEl.innerHTML =
+          '<span style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);margin-right:4px;">Aktive Provider:</span>'
+          + d.summary.map(_providerBadge).join('');
+      }
+
+      // Project rows – filter to selected project if one is active
+      const projects = selectedProject
+        ? d.projects.filter(p => p.name === selectedProject)
+        : d.projects;
+
+      if (!projects.length) {
+        listEl.innerHTML = '<div class="empty">Keine Projekte registriert.</div>';
+        return;
+      }
+
+      listEl.innerHTML = projects.map((p, i) => {
+        const isLast      = i === projects.length - 1;
+        const borderStyle = isLast ? 'none' : '1px solid var(--border)';
+        const badges      = p.providers.length
+          ? p.providers.map(_providerBadge).join('')
+          : '<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);">\u2013</span>';
+        const subtitle = p.models.length
+          ? p.models.join(' \u00b7 ')
+          : 'Keine Sessions (letzte 30 Tage)';
+        const sessionsBadge = p.sessions_today > 0
+          ? `<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);margin-right:0.375rem;">${p.sessions_today} heute</span>`
+          : '';
+        return `
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0;border-bottom:${borderStyle};">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:500;font-size:0.8125rem;">${p.name}</div>
+              <div style="font-size:0.6875rem;color:var(--muted);font-family:var(--mono);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+              ${sessionsBadge}${badges}
+            </div>
+          </div>`;
+      }).join('');
+    } catch (e) {
+      // non-critical – leave panel empty on error
+    }
   }
 
   // ── MCP Servers panel ────────────────────────────────────────────────────

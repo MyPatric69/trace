@@ -414,6 +414,56 @@ def api_models(period: str = "week", project: str | None = None):
 
 
 # ---------------------------------------------------------------------------
+# /api/providers  (provider badges per project, derived from model strings)
+# ---------------------------------------------------------------------------
+
+def resolve_provider(model: str) -> str:
+    """Map a model name to its AI provider: anthropic / openai / google / other."""
+    if model.startswith("claude-"):
+        return "anthropic"
+    if (model.startswith("gpt-") or model.startswith("o1-")
+            or model.startswith("o3-") or model.startswith("o4-")):
+        return "openai"
+    if model.startswith("gemini-") or model.startswith("gemma-"):
+        return "google"
+    return "other"
+
+
+@app.get("/api/providers")
+def api_providers():
+    store = _store()
+    thirty_days_ago = (date.today() - timedelta(days=30)).isoformat()
+    today_str = date.today().isoformat()
+    all_projects = store.list_projects()
+
+    result_projects = []
+    summary_providers: set[str] = set()
+
+    for p in all_projects:
+        sessions = store.get_sessions(
+            project_name=p["name"], since_date=thirty_days_ago, limit=1000
+        )
+        distinct_models = sorted({s["model"] for s in sessions})
+        providers = sorted({resolve_provider(m) for m in distinct_models})
+        sessions_today = store.get_cost_summary(
+            project_name=p["name"], since_date=today_str
+        )["session_count"]
+
+        summary_providers.update(providers)
+        result_projects.append({
+            "name":           p["name"],
+            "providers":      providers,
+            "models":         distinct_models,
+            "sessions_today": sessions_today,
+        })
+
+    return {
+        "summary":  sorted(summary_providers),
+        "projects": result_projects,
+    }
+
+
+# ---------------------------------------------------------------------------
 # /api/drift + /api/sync
 # ---------------------------------------------------------------------------
 

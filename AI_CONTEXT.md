@@ -103,7 +103,7 @@ trace/
 
 ## Current phase: Phase 4 complete
 
-**All 6 MCP tools + web dashboard + auto session logging – 194/194 tests green ✓**
+**All 6 MCP tools + web dashboard + auto session logging + provider badges – 434/434 tests green ✓**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -126,6 +126,12 @@ trace/
 - `dashboard/start.sh` – `bash dashboard/start.sh` → http://localhost:8080
 - `engine/store.py` – `get_token_summary()` + `get_sessions_with_projects()` added
 - 9 REST endpoints: `/api/status`, `/api/projects`, `/api/costs[/{project}]`, `/api/tokens`, `/api/models`, `/api/drift/{project}`, `/api/sync/{project}`, `/api/tips`, `/api/new_session/{project}`
+
+**Provider Badges feature (complete – 30 tests):**
+- `dashboard/server.py` – `resolve_provider(model)` helper + `GET /api/providers` endpoint
+- `dashboard/index.html` – "AI Provider" panel: global provider summary row + per-project badges with model subtitles
+- Provider detection: `claude-*` → anthropic, `gpt-*/o1-*/o3-*/o4-*` → openai, `gemini-*/gemma-*` → google, else → other
+- `tests/test_provider_badges.py` – 30 tests (all prefixes, structure, multi-provider, no-recent-sessions)
 
 **Out of scope:**
 - Multi-MCP proxy
@@ -156,10 +162,10 @@ trace/
 
 ## Next steps
 
-None – all current features complete and tested.
+No open items – all phases complete and tests green.
 
 ---
 
 ## Last updated
 
-2026-04-15 – Added turns display to dashboard (DB column, API endpoints, 4 UI locations)
+2026-04-16 – Provider Badges feature: resolve_provider(), /api/providers, dashboard panel, 30 new tests (434 total)
