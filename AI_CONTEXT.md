@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 464/464 tests green ✓
+**Status:** All 4 phases complete – 469/469 tests green ✓
 
 ---
 
@@ -119,7 +119,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**464/464 tests green ✓ (2026-04-16)**
+**469/469 tests green ✓ (2026-04-16)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -217,4 +217,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-16 – Enriched handoff prompt feature added (engine/handoff_builder.py, 464/464 tests green)
+2026-04-16 – handoff_builder: multi-line test command extraction, join with &&, 200-char truncation (469/469 tests green)

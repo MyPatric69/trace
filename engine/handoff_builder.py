@@ -13,7 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _ALLOWED_EXTS = frozenset({".ts", ".tsx", ".md", ".py", ".yaml"})
-_TEST_RE = re.compile(r"\b(pytest|vitest|jest|type.?check|tsc|npm\s+test)\b", re.IGNORECASE)
+_TEST_RE = re.compile(
+    r"\b(pytest|vitest|jest|type.?check|tsc|npm\s+test|test|check|verify)\b",
+    re.IGNORECASE,
+)
+_MAX_TEST_CMD = 200
 
 
 def build_handoff(repo_path: str, base_prompt: str) -> str:
@@ -149,12 +153,28 @@ def _recent_changed_files(repo_path: str) -> list[str]:
 
 
 def _extract_test_command(claude_path: Path) -> str:
-    """Extract the first test/type-check command line from ## Dev Commands."""
+    """Extract all test/type-check command lines from ## Dev Commands.
+
+    All matching lines are joined with ' && '.
+    Code fence markers (``` lines) and comment-only lines (# ...) are skipped.
+    Result is truncated to 200 chars with '...' suffix.
+    """
     section = _extract_section(claude_path, "Dev Commands")
     if not section:
         return ""
+
+    matches: list[str] = []
     for line in section.split("\n"):
         stripped = line.strip()
-        if stripped and _TEST_RE.search(stripped):
-            return stripped
-    return ""
+        if not stripped or stripped.startswith("```") or stripped.startswith("#"):
+            continue
+        if _TEST_RE.search(stripped):
+            matches.append(stripped)
+
+    if not matches:
+        return ""
+
+    result = matches[0] if len(matches) == 1 else " && ".join(matches)
+    if len(result) > _MAX_TEST_CMD:
+        result = result[: _MAX_TEST_CMD - 3] + "..."
+    return result

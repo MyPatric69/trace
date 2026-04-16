@@ -304,6 +304,55 @@ def test_extract_test_command_returns_empty_when_section_missing(tmp_path: Path)
     assert _extract_test_command(tmp_path / "CLAUDE.md") == ""
 
 
+def test_extract_test_command_single_line_returned_as_is(tmp_path: Path):
+    (tmp_path / "CLAUDE.md").write_text(
+        "# C\n\n## Dev Commands\n\n```\nnpm run dev\npytest tests/ -v\n```\n",
+        encoding="utf-8",
+    )
+    cmd = _extract_test_command(tmp_path / "CLAUDE.md")
+    assert cmd == "pytest tests/ -v"
+
+
+def test_extract_test_command_joins_multiple_lines_with_and(tmp_path: Path):
+    (tmp_path / "CLAUDE.md").write_text(
+        "# C\n\n## Dev Commands\n\n```\nnpm test\nnpm run type-check\n```\n",
+        encoding="utf-8",
+    )
+    cmd = _extract_test_command(tmp_path / "CLAUDE.md")
+    assert cmd == "npm test && npm run type-check"
+
+
+def test_extract_test_command_already_joined_not_doubled(tmp_path: Path):
+    (tmp_path / "CLAUDE.md").write_text(
+        "# C\n\n## Dev Commands\n\n```\nnpm test && npx tsc --noEmit\n```\n",
+        encoding="utf-8",
+    )
+    cmd = _extract_test_command(tmp_path / "CLAUDE.md")
+    assert cmd == "npm test && npx tsc --noEmit"
+    assert cmd.count("&&") == 1
+
+
+def test_extract_test_command_strips_code_fence_markers(tmp_path: Path):
+    (tmp_path / "CLAUDE.md").write_text(
+        "# C\n\n## Dev Commands\n\n```bash\npytest tests/\n```\n",
+        encoding="utf-8",
+    )
+    cmd = _extract_test_command(tmp_path / "CLAUDE.md")
+    assert "```" not in cmd
+    assert "pytest" in cmd
+
+
+def test_extract_test_command_truncates_at_200_chars(tmp_path: Path):
+    long_cmd = "pytest " + "x" * 200
+    (tmp_path / "CLAUDE.md").write_text(
+        f"# C\n\n## Dev Commands\n\n```\n{long_cmd}\n```\n",
+        encoding="utf-8",
+    )
+    cmd = _extract_test_command(tmp_path / "CLAUDE.md")
+    assert len(cmd) <= 200
+    assert cmd.endswith("...")
+
+
 # ---------------------------------------------------------------------------
 # build_handoff – graceful skipping of missing sections
 # ---------------------------------------------------------------------------
