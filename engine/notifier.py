@@ -1,7 +1,11 @@
 """Cross-platform notification helper for TRACE session health alerts.
 
-Uses plyer for native desktop notifications (macOS, Windows, Linux) and
-platform-specific sound playback.
+Desktop notifications via platform-native tools (no external dependencies):
+  macOS   – osascript (always available)
+  Windows – win10toast (optional; silent fallback when not installed)
+  Linux   – notify-send subprocess
+
+Sound playback is also platform-native (afplay / winsound / paplay).
 
 Never raises.  Errors are logged silently.
 """
@@ -48,23 +52,40 @@ def notify(status: str, tokens: int, project: str, config: dict) -> None:
     if status not in _TITLES:
         return
 
-    title    = _TITLES[status]
-    message  = _MESSAGES[status].format(tokens=tokens)
-    subtitle = f"Projekt: {project}"
+    title   = _TITLES[status]
+    message = _MESSAGES[status].format(tokens=tokens)
+    body    = f"Projekt: {project}\n{message}"
 
-    try:
-        from plyer import notification as plyer_notify
-        plyer_notify.notify(
-            title=title,
-            message=f"{subtitle}\n{message}",
-            app_name="TRACE",
-            timeout=8,
-        )
-    except Exception as exc:
-        _log.warning("Notification failed: %s", exc)
+    _send_notification(title, body)
 
     if cfg.get("sound", True):
         _play_sound(status, cfg)
+
+
+def _send_notification(title: str, message: str) -> None:
+    """Send a desktop notification using the platform-native mechanism."""
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            subprocess.Popen(
+                ["osascript", "-e", f'display notification "{message}" with title "{title}"'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        elif system == "Windows":
+            try:
+                from win10toast import ToastNotifier
+                ToastNotifier().show_toast(title, message, duration=8, threaded=True)
+            except ImportError:
+                pass  # win10toast is optional
+        elif system == "Linux":
+            subprocess.Popen(
+                ["notify-send", title, message],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    except Exception as exc:
+        _log.warning("Notification failed: %s", exc)
 
 
 def _play_sound(status: str, cfg: dict) -> None:

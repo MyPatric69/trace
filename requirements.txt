@@ -3,4 +3,4 @@ pyyaml
 gitpython
 fastapi
 uvicorn
-plyer>=2.1.0
+# Optional Windows notifications: pip install win10toast

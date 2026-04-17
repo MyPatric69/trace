@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 493/493 tests green ✓
+**Status:** All 4 phases complete – 500/500 tests green ✓
 
 ---
 
@@ -106,7 +106,7 @@ trace/
 │   ├── manifest_de.html
 │   └── manifest_en.html
 │
-└── tests/                 ← 493 tests, all green
+└── tests/                 ← 500 tests, all green
 
 ~/.trace/
 ├── trace.db               ← single central DB for all projects
@@ -120,7 +120,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**493/493 tests green ✓ (2026-04-17)**
+**500/500 tests green ✓ (2026-04-17)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -183,7 +183,7 @@ WS   /ws
 - `tests/test_handoff_builder.py` – 30 tests
 
 **macOS notifications (complete – 20 tests):**
-- `engine/notifier.py` – `notify(status, tokens, project, config)`: cross-platform notification via plyer + `_play_sound()` (Darwin: afplay, Windows: winsound, Linux: paplay); skips silently when `notifications.enabled=false`; never raises
+- `engine/notifier.py` – `notify()` → `_send_notification()` + `_play_sound()`; notifications: Darwin via osascript, Windows via win10toast (optional/graceful fallback), Linux via notify-send; sound: Darwin afplay, Windows winsound, Linux paplay; zero required dependencies
 - `engine/live_tracker.py` – detects health escalations (green→yellow, green/yellow→red) by comparing `prev_health` stored in the per-session file; fires `notify()` only on escalation; no duplicate notifications on same status
 - `trace_config.yaml` – `notifications` block: `enabled`, `sound`, `sound_warn` (Tink), `sound_critical` (Funk)
 - `dashboard/server.py` – `POST /api/settings` writes `notifications_enabled`/`notifications_sound` to `~/.trace/trace_config.yaml`; `GET /api/status` includes both fields
@@ -228,4 +228,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-17 – cross-platform notifications via plyer (engine/notifier.py: _play_sound per OS, requirements.txt)
+2026-04-17 – notifier refactored to platform-native (osascript/win10toast/notify-send); plyer removed from requirements
