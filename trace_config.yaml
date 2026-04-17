@@ -63,6 +63,11 @@ models:
     cache_creation_per_1k: 0.00075
     cache_read_per_1k: 0.000375
     context_window: 128000
+notifications:
+  enabled: true
+  sound: true
+  sound_warn: Tink
+  sound_critical: Funk
 mcp_servers:
 - name: trace
   estimated_tokens: 300

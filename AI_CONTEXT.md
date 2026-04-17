@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 463/463 tests green ✓
+**Status:** All 4 phases complete – 483/483 tests green ✓
 
 ---
 
@@ -75,6 +75,7 @@ trace/
 │   ├── transcript_parser.py ← Shared transcript token-counting logic
 │   ├── session_logger.py  ← SessionEnd hook – parses full transcript, logs to DB
 │   ├── handoff_builder.py ← build_handoff() – enriches compress() output with CLAUDE.md/backlog/git context
+│   ├── notifier.py        ← notify() – macOS notification + sound on health escalation
 │   ├── git_watcher.py
 │   ├── doc_synthesizer.py
 │   ├── context_compressor.py
@@ -105,7 +106,7 @@ trace/
 │   ├── manifest_de.html
 │   └── manifest_en.html
 │
-└── tests/                 ← 434 tests, all green
+└── tests/                 ← 483 tests, all green
 
 ~/.trace/
 ├── trace.db               ← single central DB for all projects
@@ -119,7 +120,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**463/463 tests green ✓ (2026-04-16)**
+**483/483 tests green ✓ (2026-04-17)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -169,6 +170,7 @@ GET  /api/drift/{project}
 GET  /api/sync/{project}
 GET  /api/live              ?project=
 POST /api/live/clear
+POST /api/settings
 GET  /api/tips              ?project_name=
 GET  /api/new_session/{project}  ?dry_run=
 WS   /ws
@@ -179,6 +181,13 @@ WS   /ws
 - Staleness warning prepended when AI_CONTEXT.md mtime > 2 days
 - `server/tools/session.py` – calls `build_handoff` after `compress()`, falls back silently on error
 - `tests/test_handoff_builder.py` – 30 tests
+
+**macOS notifications (complete – 20 tests):**
+- `engine/notifier.py` – `notify(status, tokens, project, config)`: sends macOS notification via osascript + optional sound via afplay; non-blocking subprocesses; skips silently on non-Darwin or when `notifications.enabled=false`
+- `engine/live_tracker.py` – detects health escalations (green→yellow, green/yellow→red) by comparing `prev_health` stored in the per-session file; fires `notify()` only on escalation; no duplicate notifications on same status
+- `trace_config.yaml` – `notifications` block: `enabled`, `sound`, `sound_warn` (Tink), `sound_critical` (Funk)
+- `dashboard/server.py` – `POST /api/settings` writes `notifications_enabled`/`notifications_sound` to `~/.trace/trace_config.yaml`; `GET /api/status` includes both fields
+- `dashboard/index.html` – Settings panel with Notifications + Sound toggles; Sound greyed out when Notifications off; persisted via `POST /api/settings` on toggle change
 
 **Out of scope:**
 - Multi-MCP proxy
@@ -219,4 +228,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-16 – multi-session live tracking: ~/.trace/live/{session_id}.json, get_all_active(), /api/live returns sessions array, dashboard multi-session compact view (463/463 tests green)
+2026-04-17 – macOS notifications feature (engine/notifier.py, live_tracker escalation detection, POST /api/settings, Settings panel)

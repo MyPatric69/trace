@@ -228,6 +228,7 @@ def api_status():
         db_str = "~/" + str(store.db_path.relative_to(Path.home()))
     except ValueError:
         db_str = str(store.db_path)
+    notif_cfg = store.config.get("notifications") or {}
     return {
         "trace_version": cfg.get("version", "0.1.0"),
         "db_path": db_str,
@@ -236,6 +237,8 @@ def api_status():
         "mcp_connected": True,
         "monthly_budget_usd": budgets.get("default_monthly_usd", 20.0),
         "alert_threshold_pct": budgets.get("alert_threshold_pct", 80),
+        "notifications_enabled": notif_cfg.get("enabled", True),
+        "notifications_sound": notif_cfg.get("sound", True),
     }
 
 
@@ -544,6 +547,28 @@ def api_live_clear():
         return {"cleared": True}
     except Exception:
         return {"cleared": False}
+
+
+# ---------------------------------------------------------------------------
+# /api/settings  (notification preferences)
+# ---------------------------------------------------------------------------
+
+class SettingsRequest(BaseModel):
+    notifications_enabled: bool | None = None
+    notifications_sound: bool | None = None
+
+
+@app.post("/api/settings")
+def api_settings_update(req: SettingsRequest):
+    """Persist notification settings to ~/.trace/trace_config.yaml."""
+    path, config = _load_central_config()
+    notif = config.setdefault("notifications", {})
+    if req.notifications_enabled is not None:
+        notif["enabled"] = req.notifications_enabled
+    if req.notifications_sound is not None:
+        notif["sound"] = req.notifications_sound
+    _save_and_sync_config(path, config)
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------

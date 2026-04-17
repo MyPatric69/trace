@@ -34,6 +34,11 @@ _LAST_HEALTH_PATH = TRACE_HOME / "last_health.json"
 _STALE_SECONDS = 600  # 10 minutes
 _SANITY_LIMIT = 200_000
 
+# Severity order for health colours – used to detect escalations
+_HEALTH_ORD: dict[str, int] = {"green": 0, "yellow": 1, "red": 2}
+# Maps internal colour names to the status strings used by notifier / last_health
+_HEALTH_STATUS: dict[str, str] = {"green": "ok", "yellow": "warn", "red": "reset"}
+
 TRACE_HOME.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     filename=str(_LOG_FILE),
@@ -295,10 +300,11 @@ class LiveTracker:
         # it re-counts cached context on every request and would inflate the total
         # to millions of tokens for a session that never exceeded 200K).
         health = "green"
+        health_store = None
         try:
-            store = self._store or _get_default_store()
-            if store is not None:
-                health_cfg = store.config.get("session_health", {})
+            health_store = self._store or _get_default_store()
+            if health_store is not None:
+                health_cfg = health_store.config.get("session_health", {})
                 warn_tokens = health_cfg.get("warn_tokens", 80_000)
                 critical_tokens = health_cfg.get("critical_tokens", 150_000)
                 total = input_tokens + cache_creation_tokens + output_tokens
@@ -308,6 +314,24 @@ class LiveTracker:
                     health = "yellow"
         except Exception:
             pass
+
+        # Notify on health escalation (green→yellow, green/yellow→red).
+        # De-duplicates by comparing to the previous health stored in the session file.
+        prev_health = (prev or {}).get("health", "green")
+        if (
+            _HEALTH_ORD.get(health, 0) > _HEALTH_ORD.get(prev_health, 0)
+            and health_store is not None
+        ):
+            try:
+                from engine.notifier import notify as _notify
+                _notify(
+                    _HEALTH_STATUS[health],
+                    input_tokens + cache_creation_tokens + output_tokens,
+                    self.project_name or "unknown",
+                    health_store.config,
+                )
+            except Exception as exc:
+                _log.error("LiveTracker.update: notify failed: %s", exc)
 
         data: dict = {
             "session_id":            session_id,
