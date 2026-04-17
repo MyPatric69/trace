@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -14,7 +15,7 @@ from engine.store import TraceStore
 
 
 # ---------------------------------------------------------------------------
-# Helpers / shared config
+# Shared config fixtures
 # ---------------------------------------------------------------------------
 
 _ENABLED_CONFIG = {
@@ -38,104 +39,220 @@ _SESSION_HEALTH_CFG = {"warn_tokens": 1_000, "critical_tokens": 2_000}
 
 
 # ---------------------------------------------------------------------------
-# engine/notifier.py unit tests
+# Helper: plyer mock
+# ---------------------------------------------------------------------------
+
+def _plyer_mock():
+    """Return a MagicMock that replaces plyer.notification."""
+    return MagicMock()
+
+
+# ---------------------------------------------------------------------------
+# engine/notifier.py – disabled / unknown status
 # ---------------------------------------------------------------------------
 
 class TestNotifyDisabled:
     def test_does_nothing_when_enabled_false(self):
         from engine.notifier import notify
-        with patch("subprocess.Popen") as mock_popen:
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("subprocess.Popen") as mock_popen:
             notify("warn", 90_000, "myproject", _DISABLED_CONFIG)
+        mock_plyer.notify.assert_not_called()
         mock_popen.assert_not_called()
 
     def test_does_nothing_when_notifications_block_missing(self):
+        """Empty config: enabled defaults True – must not raise regardless."""
         from engine.notifier import notify
-        with patch("subprocess.Popen") as mock_popen:
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("subprocess.Popen"):
             notify("warn", 90_000, "myproject", {})
-        # empty config → enabled defaults to True but on Darwin only; skip check:
-        # key point: must not raise
-        # (subprocess may or may not be called depending on OS – just ensure no exception)
+        # No assertion – just verifying no exception
 
     def test_unknown_status_does_nothing(self):
         from engine.notifier import notify
-        with patch("engine.notifier.platform") as mock_plat, \
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
              patch("subprocess.Popen") as mock_popen:
-            mock_plat.system.return_value = "Darwin"
             notify("ok", 90_000, "myproject", _ENABLED_CONFIG)
+        mock_plyer.notify.assert_not_called()
         mock_popen.assert_not_called()
 
 
-class TestNotifyPlatform:
-    def test_skips_on_linux(self):
+# ---------------------------------------------------------------------------
+# engine/notifier.py – notify() uses plyer on all platforms
+# ---------------------------------------------------------------------------
+
+class TestNotifyPlyer:
+    def _call_notify(self, status: str, system: str, config: dict = _ENABLED_CONFIG):
         from engine.notifier import notify
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("engine.notifier.platform") as mock_plat, \
+             patch("engine.notifier._play_sound"):
+            mock_plat.system.return_value = system
+            notify(status, 90_000, "myproject", config)
+        return mock_plyer
+
+    def test_uses_plyer_on_darwin(self):
+        mock_plyer = self._call_notify("warn", "Darwin")
+        mock_plyer.notify.assert_called_once()
+
+    def test_uses_plyer_on_linux(self):
+        mock_plyer = self._call_notify("warn", "Linux")
+        mock_plyer.notify.assert_called_once()
+
+    def test_uses_plyer_on_windows(self):
+        mock_plyer = self._call_notify("warn", "Windows")
+        mock_plyer.notify.assert_called_once()
+
+    def test_warn_message_contains_project(self):
+        from engine.notifier import notify
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("engine.notifier._play_sound"):
+            notify("warn", 90_000, "my-project", _ENABLED_CONFIG)
+        _, kwargs = mock_plyer.notify.call_args
+        assert "my-project" in kwargs.get("message", "")
+
+    def test_reset_message_contains_token_count(self):
+        from engine.notifier import notify
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("engine.notifier._play_sound"):
+            notify("reset", 160_000, "proj", _ENABLED_CONFIG)
+        _, kwargs = mock_plyer.notify.call_args
+        assert "160,000" in kwargs.get("message", "")
+
+    def test_warn_title_is_trace_warning(self):
+        from engine.notifier import notify
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("engine.notifier._play_sound"):
+            notify("warn", 90_000, "proj", _ENABLED_CONFIG)
+        _, kwargs = mock_plyer.notify.call_args
+        assert kwargs.get("title") == "TRACE Warning"
+
+    def test_reset_title_is_trace_kritisch(self):
+        from engine.notifier import notify
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("engine.notifier._play_sound"):
+            notify("reset", 160_000, "proj", _ENABLED_CONFIG)
+        _, kwargs = mock_plyer.notify.call_args
+        assert kwargs.get("title") == "TRACE Kritisch"
+
+    def test_never_raises_when_plyer_unavailable(self):
+        from engine.notifier import notify
+        with patch.dict(sys.modules, {"plyer": None}), \
+             patch("engine.notifier._play_sound"):
+            notify("warn", 90_000, "proj", _ENABLED_CONFIG)
+
+    def test_sound_skipped_when_sound_false(self):
+        from engine.notifier import notify
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("engine.notifier._play_sound") as mock_sound:
+            notify("warn", 90_000, "proj", _NO_SOUND_CONFIG)
+        mock_plyer.notify.assert_called_once()
+        mock_sound.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# engine/notifier._play_sound() – platform-specific sound
+# ---------------------------------------------------------------------------
+
+class TestPlaySound:
+    def test_calls_afplay_on_darwin(self):
+        from engine.notifier import _play_sound
+        with patch("engine.notifier.platform") as mock_plat, \
+             patch("subprocess.Popen") as mock_popen:
+            mock_plat.system.return_value = "Darwin"
+            _play_sound("warn", _ENABLED_CONFIG["notifications"])
+        assert mock_popen.call_count == 1
+        cmd = mock_popen.call_args[0][0]
+        assert cmd[0] == "afplay"
+
+    def test_warn_uses_tink_on_darwin(self):
+        from engine.notifier import _play_sound
+        with patch("engine.notifier.platform") as mock_plat, \
+             patch("subprocess.Popen") as mock_popen:
+            mock_plat.system.return_value = "Darwin"
+            _play_sound("warn", _ENABLED_CONFIG["notifications"])
+        cmd = mock_popen.call_args[0][0]
+        assert "Tink" in cmd[1]
+
+    def test_reset_uses_funk_on_darwin(self):
+        from engine.notifier import _play_sound
+        with patch("engine.notifier.platform") as mock_plat, \
+             patch("subprocess.Popen") as mock_popen:
+            mock_plat.system.return_value = "Darwin"
+            _play_sound("reset", _ENABLED_CONFIG["notifications"])
+        cmd = mock_popen.call_args[0][0]
+        assert "Funk" in cmd[1]
+
+    def test_calls_winsound_on_windows(self):
+        from engine.notifier import _play_sound
+        mock_winsound = MagicMock()
+        mock_winsound.SND_ALIAS = 0x00010000
+        mock_winsound.SND_ASYNC = 0x00000001
+        with patch("engine.notifier.platform") as mock_plat, \
+             patch.dict(sys.modules, {"winsound": mock_winsound}):
+            mock_plat.system.return_value = "Windows"
+            _play_sound("warn", _ENABLED_CONFIG["notifications"])
+        mock_winsound.PlaySound.assert_called_once()
+        args = mock_winsound.PlaySound.call_args[0]
+        assert args[0] == "SystemAsterisk"
+
+    def test_winsound_reset_uses_system_exclamation(self):
+        from engine.notifier import _play_sound
+        mock_winsound = MagicMock()
+        mock_winsound.SND_ALIAS = 0x00010000
+        mock_winsound.SND_ASYNC = 0x00000001
+        with patch("engine.notifier.platform") as mock_plat, \
+             patch.dict(sys.modules, {"winsound": mock_winsound}):
+            mock_plat.system.return_value = "Windows"
+            _play_sound("reset", _ENABLED_CONFIG["notifications"])
+        args = mock_winsound.PlaySound.call_args[0]
+        assert args[0] == "SystemExclamation"
+
+    def test_calls_paplay_on_linux(self):
+        from engine.notifier import _play_sound
         with patch("engine.notifier.platform") as mock_plat, \
              patch("subprocess.Popen") as mock_popen:
             mock_plat.system.return_value = "Linux"
-            notify("warn", 90_000, "myproject", _ENABLED_CONFIG)
+            _play_sound("warn", _ENABLED_CONFIG["notifications"])
+        assert mock_popen.call_count == 1
+        cmd = mock_popen.call_args[0][0]
+        assert cmd[0] == "paplay"
+
+    def test_linux_reset_uses_bell_sound(self):
+        from engine.notifier import _play_sound
+        with patch("engine.notifier.platform") as mock_plat, \
+             patch("subprocess.Popen") as mock_popen:
+            mock_plat.system.return_value = "Linux"
+            _play_sound("reset", _ENABLED_CONFIG["notifications"])
+        cmd = mock_popen.call_args[0][0]
+        assert "bell" in cmd[1]
+
+    def test_no_afplay_when_sound_false_via_notify(self):
+        """sound=False: notify() skips _play_sound entirely."""
+        from engine.notifier import notify
+        mock_plyer = _plyer_mock()
+        with patch.dict(sys.modules, {"plyer": MagicMock(notification=mock_plyer)}), \
+             patch("engine.notifier.platform") as mock_plat, \
+             patch("subprocess.Popen") as mock_popen:
+            mock_plat.system.return_value = "Darwin"
+            notify("warn", 90_000, "proj", _NO_SOUND_CONFIG)
         mock_popen.assert_not_called()
 
-    def test_skips_on_windows(self):
-        from engine.notifier import notify
-        with patch("engine.notifier.platform") as mock_plat, \
-             patch("subprocess.Popen") as mock_popen:
-            mock_plat.system.return_value = "Windows"
-            notify("reset", 200_000, "myproject", _ENABLED_CONFIG)
-        mock_popen.assert_not_called()
-
-    def test_fires_on_darwin(self):
-        from engine.notifier import notify
-        with patch("engine.notifier.platform") as mock_plat, \
-             patch("subprocess.Popen") as mock_popen:
-            mock_plat.system.return_value = "Darwin"
-            notify("warn", 90_000, "myproject", _ENABLED_CONFIG)
-        assert mock_popen.call_count >= 1
-
-    def test_warn_uses_tink_sound(self):
-        from engine.notifier import notify
-        with patch("engine.notifier.platform") as mock_plat, \
-             patch("subprocess.Popen") as mock_popen:
-            mock_plat.system.return_value = "Darwin"
-            notify("warn", 90_000, "myproject", _ENABLED_CONFIG)
-        calls = [str(c) for c in mock_popen.call_args_list]
-        assert any("Tink" in c for c in calls)
-
-    def test_reset_uses_funk_sound(self):
-        from engine.notifier import notify
-        with patch("engine.notifier.platform") as mock_plat, \
-             patch("subprocess.Popen") as mock_popen:
-            mock_plat.system.return_value = "Darwin"
-            notify("reset", 160_000, "myproject", _ENABLED_CONFIG)
-        calls = [str(c) for c in mock_popen.call_args_list]
-        assert any("Funk" in c for c in calls)
-
-    def test_no_sound_skips_afplay(self):
-        from engine.notifier import notify
-        with patch("engine.notifier.platform") as mock_plat, \
-             patch("subprocess.Popen") as mock_popen:
-            mock_plat.system.return_value = "Darwin"
-            notify("warn", 90_000, "myproject", _NO_SOUND_CONFIG)
-        calls = [str(c) for c in mock_popen.call_args_list]
-        assert not any("afplay" in c for c in calls)
-        assert any("osascript" in c for c in calls)
-
-    def test_warn_notification_contains_project(self):
-        from engine.notifier import notify
-        with patch("engine.notifier.platform") as mock_plat, \
-             patch("subprocess.Popen") as mock_popen:
-            mock_plat.system.return_value = "Darwin"
-            notify("warn", 90_000, "my-project", _ENABLED_CONFIG)
-        osascript_calls = [c for c in mock_popen.call_args_list if "osascript" in str(c)]
-        assert osascript_calls
-        script_arg = str(osascript_calls[0])
-        assert "my-project" in script_arg
-
-    def test_never_raises_on_subprocess_error(self):
-        from engine.notifier import notify
+    def test_never_raises_on_afplay_error(self):
+        from engine.notifier import _play_sound
         with patch("engine.notifier.platform") as mock_plat, \
              patch("subprocess.Popen", side_effect=OSError("no such file")):
             mock_plat.system.return_value = "Darwin"
-            # Must not raise
-            notify("warn", 90_000, "myproject", _ENABLED_CONFIG)
+            _play_sound("warn", _ENABLED_CONFIG["notifications"])
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +279,7 @@ def tmp_store(tmp_path):
 @pytest.fixture
 def patched_env(tmp_path, tmp_store, monkeypatch):
     """Redirect all live_tracker paths and inject a tmp store."""
-    live_dir  = tmp_path / "live"
+    live_dir    = tmp_path / "live"
     live_dir.mkdir()
     last_health = tmp_path / "last_health.json"
     legacy      = tmp_path / "live_session.json"
@@ -223,14 +340,12 @@ class TestLiveTrackerNotifications:
 
     def test_warn_to_reset_fires_notify(self, tmp_path, patched_env):
         """Escalating from warn→reset triggers another notification."""
-        # First call: land in warn zone
         transcript = _write_transcript(tmp_path, [
             _assistant_turn("r1", input_tokens=1_200),
         ])
         with patch("engine.notifier.notify"):
             LiveTracker(None).update(str(transcript), str(tmp_path))
 
-        # Second call: push past critical threshold
         transcript.write_text(
             json.dumps(_assistant_turn("r1", input_tokens=1_200)) + "\n" +
             json.dumps(_assistant_turn("r2", input_tokens=1_200)) + "\n"
@@ -259,14 +374,12 @@ class TestLiveTrackerNotifications:
         notify_calls: list[tuple] = []
         with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
             LiveTracker(None).update(str(transcript), str(tmp_path))
-        # Add another turn but stay in warn zone
         transcript.write_text(
             json.dumps(_assistant_turn("r1", input_tokens=1_200)) + "\n" +
             json.dumps(_assistant_turn("r2", input_tokens=200)) + "\n"
         )
         with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
             LiveTracker(None).update(str(transcript), str(tmp_path))
-        # Only the first call should have triggered a notify
         assert len(notify_calls) == 1
 
 

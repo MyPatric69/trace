@@ -1,10 +1,9 @@
-"""macOS notification helper for TRACE session health alerts.
+"""Cross-platform notification helper for TRACE session health alerts.
 
-Sends a native macOS notification (via osascript) and plays a sound
-(via afplay) when session health crosses a threshold.  Non-blocking –
-both subprocesses are spawned and immediately forgotten.
+Uses plyer for native desktop notifications (macOS, Windows, Linux) and
+platform-specific sound playback.
 
-Never raises.  Skips silently on non-macOS systems or when disabled.
+Never raises.  Errors are logged silently.
 """
 from __future__ import annotations
 
@@ -33,7 +32,7 @@ _SOUND_DEFAULTS = {
 
 
 def notify(status: str, tokens: int, project: str, config: dict) -> None:
-    """Fire a macOS notification for a health-state escalation.
+    """Fire a cross-platform notification for a health-state escalation.
 
     Parameters
     ----------
@@ -42,11 +41,8 @@ def notify(status: str, tokens: int, project: str, config: dict) -> None:
     project : registered project name
     config  : full trace config dict (reads ``notifications`` block)
     """
-    if platform.system() != "Darwin":
-        return
-
-    notif_cfg = config.get("notifications") or {}
-    if not notif_cfg.get("enabled", True):
+    cfg = config.get("notifications") or {}
+    if not cfg.get("enabled", True):
         return
 
     if status not in _TITLES:
@@ -57,28 +53,44 @@ def notify(status: str, tokens: int, project: str, config: dict) -> None:
     subtitle = f"Projekt: {project}"
 
     try:
-        script = (
-            f'display notification "{message}" '
-            f'with title "{title}" '
-            f'subtitle "{subtitle}"'
-        )
-        subprocess.Popen(
-            ["osascript", "-e", script],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+        from plyer import notification as plyer_notify
+        plyer_notify.notify(
+            title=title,
+            message=f"{subtitle}\n{message}",
+            app_name="TRACE",
+            timeout=8,
         )
     except Exception as exc:
-        _log.error("notifier: osascript failed: %s", exc)
+        _log.warning("Notification failed: %s", exc)
 
-    if notif_cfg.get("sound", True):
-        sound_key  = _SOUND_KEYS[status]
-        sound_name = notif_cfg.get(sound_key, _SOUND_DEFAULTS[status])
-        sound_path = f"/System/Library/Sounds/{sound_name}.aiff"
-        try:
+    if cfg.get("sound", True):
+        _play_sound(status, cfg)
+
+
+def _play_sound(status: str, cfg: dict) -> None:
+    """Play a status-appropriate sound using platform-native APIs."""
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            sound_name = cfg.get(_SOUND_KEYS[status], _SOUND_DEFAULTS[status])
             subprocess.Popen(
-                ["afplay", sound_path],
+                ["afplay", f"/System/Library/Sounds/{sound_name}.aiff"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        except Exception as exc:
-            _log.error("notifier: afplay failed: %s", exc)
+        elif system == "Windows":
+            import winsound
+            alias = "SystemAsterisk" if status == "warn" else "SystemExclamation"
+            winsound.PlaySound(alias, winsound.SND_ALIAS | winsound.SND_ASYNC)
+        elif system == "Linux":
+            sounds = {
+                "warn":  ["paplay", "/usr/share/sounds/freedesktop/stereo/message.oga"],
+                "reset": ["paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga"],
+            }
+            subprocess.Popen(
+                sounds.get(status, sounds["warn"]),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    except Exception as exc:
+        _log.warning("Sound failed: %s", exc)
