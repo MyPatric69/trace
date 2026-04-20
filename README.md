@@ -80,6 +80,21 @@ print('TRACE initialized at:', store.db_path)
 
 This creates `~/.trace/trace.db` and `~/.trace/trace_config.yaml` on first run.
 
+**Step 3.6 – Install Claude Code hooks (required for live tracking):**
+
+```bash
+bash hooks/setup_claude_hook.sh
+```
+
+This installs two hooks into `~/.claude/settings.json`:
+
+- **Stop hook** – updates live token counts after every turn
+- **SessionEnd hook** – logs the final session cost to the database
+
+Without this step, the live session panel and session cost tracking will not work.
+
+> **Note:** If `~/.claude/settings.json` does not exist yet, the script creates it automatically. If it already exists, the hooks are added without overwriting existing settings.
+
 **Step 4 – Add TRACE to your MCP config:**
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -322,6 +337,11 @@ Prices are read from `~/.trace/trace_config.yaml` at startup. Adding a new model
 ---
 
 ## Troubleshooting
+
+> **Live session not showing in dashboard?**
+> Make sure you have run `bash hooks/setup_claude_hook.sh`.
+> Check with: `cat ~/.claude/settings.json`
+> You should see both a `Stop` and a `SessionEnd` hook entry.
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 for common issues and solutions.
