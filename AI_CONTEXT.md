@@ -222,10 +222,10 @@ WS   /ws
 
 ## Next steps
 
-Review recent changes to: engine/__init__.py, engine/auto_register.py, engine/context_compressor.py, engine/doc_synthesizer.py, engine/git_watcher.py (+21 more)
+No open items – all phases and feature expansions complete. Tests green.
 
 ---
 
 ## Last updated
 
-2026-04-20 – Added Step 3.6 (setup_claude_hook.sh) and live-session troubleshooting note to README.md
+2026-04-20 – docs: added /resume warning + new_session() recommendation to README and TROUBLESHOOTING

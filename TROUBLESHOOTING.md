@@ -610,6 +610,60 @@ print('Removed. Now re-run add_project().')
 
 ---
 
+## Issue 17: Unexpectedly high token costs after /resume
+
+**Symptom:**
+A session starts with unusually high input token counts
+before any work has been done.
+
+**Cause:**
+This is a known behaviour of Claude Code's `/resume`
+command. Long sessions accumulate invisible "thinking
+block signatures" that are replayed as input tokens on
+every resume. A single resume of a long session can cost
+100k+ input tokens before you type anything.
+
+See: https://github.com/anthropics/claude-code/issues/42260
+
+**Fix:**
+Use TRACE `new_session()` instead to start a new thread
+with a compressed handoff prompt at much lower token cost:
+
+```bash
+# In Claude Code
+new_session project="my-project"
+```
+
+This generates a context-rich prompt from AI_CONTEXT.md,
+CLAUDE.md, and recent git history – giving the new thread
+full project context without replaying the full history.
+
+---
+
+## Issue 18: claude_desktop_config.json not found
+
+**Symptom:**
+Step 4 of the installation asks you to edit
+`~/Library/Application Support/Claude/claude_desktop_config.json`,
+but the file does not exist.
+
+**Cause:**
+This file only exists if Claude Desktop is installed.
+If you use Claude Code in the terminal only, Claude
+Desktop is not required and the file will not be present.
+
+**Fix:**
+Skip Step 4 entirely. Proceed with Step 3.6
+(`setup_claude_hook.sh`) – the hooks it installs are
+sufficient for all core TRACE features:
+live session tracking, cost logging, and session health.
+
+To use TRACE MCP tools from Claude Code (terminal),
+add TRACE to your project's `.claude/settings.json`
+or pass it via `claude --mcp-config` instead.
+
+---
+
 ## Still stuck?
 
 Check the project status:

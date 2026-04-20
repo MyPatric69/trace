@@ -112,6 +112,21 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 Restart Claude Code after saving.
 
+> **Using Claude Code without Claude Desktop?**
+>
+> If you only use Claude Code in the terminal (not the
+> Claude Desktop app), skip Step 4 entirely.
+> The `claude_desktop_config.json` is only needed for
+> Claude Desktop integration.
+>
+> For Claude Code (terminal), the hooks installed in
+> Step 3.6 are sufficient for full TRACE functionality:
+> live session tracking, cost logging, and session health.
+>
+> You can still use TRACE MCP tools directly from Claude
+> Code by adding TRACE to your project's
+> `.claude/settings.json` or via `claude --mcp-config`.
+
 **Step 5 – Register your first project:**
 
 ```python
@@ -274,6 +289,47 @@ export OPENAI_API_KEY=$(security find-generic-password \
 ```
 
 The dashboard shows an amber badge with a hint when running in estimate mode.
+
+---
+
+## Session management best practices
+
+### Why /resume can be expensive
+
+Claude Code's `/resume` command restores a previous session
+with its full conversation history. This sounds convenient,
+but has a significant hidden cost:
+
+- Every `/resume` replays all prior turns as input tokens –
+  including invisible "thinking block signatures" from
+  extended thinking turns
+- A single resume of a long session can cost 100k+ input
+  tokens before you type anything
+  ([source: Anthropic GitHub Issue #42260](https://github.com/anthropics/claude-code/issues/42260))
+- Anthropic's own documentation recommends against relying
+  on session resume for long sessions
+  ([source: Anthropic Docs – Work with sessions](https://platform.claude.com/docs/en/agent-sdk/sessions))
+
+### When /resume makes sense
+
+| Situation | Recommendation |
+|---|---|
+| Short break < 1h, < 20 turns | /resume is fine |
+| Long pause or overnight | Use TRACE new_session() |
+| New task or topic | New thread, no resume |
+| After /clear | Start fresh with new_session() |
+
+### The TRACE alternative
+
+TRACE's `new_session()` generates a compressed handoff
+prompt from AI_CONTEXT.md, CLAUDE.md, and recent git
+history. The new thread starts with full project context
+at a fraction of the token cost.
+
+```bash
+# In Claude Code – generate handoff prompt
+new_session project="my-project"
+```
 
 ---
 
