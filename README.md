@@ -16,6 +16,35 @@ TRACE is a local MCP server that tracks token costs and keeps `AI_CONTEXT.md` au
 
 ---
 
+## Why TRACE
+
+Claude Code has built-in commands for session visibility:
+`/cost` shows current session spend (API users only),
+`/context` shows context window usage. TRACE goes further:
+
+| Feature | `/cost` | `/context` | TRACE |
+|---|---|---|---|
+| Current session cost | ✅ API only | ❌ | ✅ |
+| Token usage (current) | ✅ | ✅ | ✅ |
+| Context window visual | ❌ | ✅ | ✅ |
+| Cache tokens (separate) | ✅ | ❌ | ✅ |
+| Historical sessions | ❌ | ❌ | ✅ |
+| Cost per project | ❌ | ❌ | ✅ |
+| Monthly budget & alerts | ❌ | ❌ | ✅ |
+| Session health indicator | ❌ | ❌ | ✅ |
+| macOS notifications | ❌ | ❌ | ✅ |
+| Handoff prompt | ❌ | ❌ | ✅ |
+| AI_CONTEXT.md auto-update | ❌ | ❌ | ✅ |
+| Multi-session tracking | ❌ | ❌ | ✅ |
+| Web dashboard | ❌ | ❌ | ✅ |
+
+> **Note:** `/cost` is only visible for API users.
+> Claude.ai subscription users (Pro/Max/Team) do not see
+> `/cost` by default. TRACE works for all users regardless
+> of plan.
+
+---
+
 ## Architecture
 
 ```

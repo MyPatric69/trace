@@ -228,4 +228,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-20 – docs: added /resume warning + new_session() recommendation to README and TROUBLESHOOTING
+2026-04-20 – docs: added Why TRACE comparison table to README
