@@ -228,4 +228,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-20 – docs: added Why TRACE comparison table to README
+2026-04-21 – Added VS Code integration (.vscode/tasks.json, settings.json, extensions.json) and README section

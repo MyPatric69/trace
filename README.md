@@ -321,6 +321,22 @@ The dashboard shows an amber badge with a hint when running in estimate mode.
 
 ---
 
+## VS Code integration
+
+Open the TRACE dashboard directly inside VS Code:
+
+1. Run the dashboard: `bash dashboard/start.sh`
+2. Open Simple Browser: `Cmd+Shift+P` → "Simple Browser: Show"
+   → enter `http://localhost:8080`
+
+Or run via Task: `Cmd+Shift+P` → "Tasks: Run Task"
+→ "TRACE Dashboard"
+
+The dashboard opens as a VS Code panel alongside your code.
+No external browser needed.
+
+---
+
 ## Session management best practices
 
 ### Why /resume can be expensive
