@@ -7,20 +7,48 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>(function(){var t=localStorage.getItem('trace_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}());</script>
   <style>
     :root {
-      --header-bg:  #2C2C2A;
-      --body-bg:    #F8F6F0;
-      --card-bg:    #FFFDF8;
-      --border:     #E5E1D8;
-      --teal:       #1D9E75;
-      --teal-dark:  #178862;
-      --amber:      #D97706;
-      --red:        #DC2626;
-      --text:       #1A1917;
-      --muted:      #6B6760;
-      --mono:       'IBM Plex Mono', 'Courier New', monospace;
-      --sans:       'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --header-bg:     #2C2C2A;
+      --body-bg:       #F8F6F0;
+      --card-bg:       #FFFDF8;
+      --border:        #E5E1D8;
+      --teal:          #1D9E75;
+      --teal-dark:     #178862;
+      --amber:         #D97706;
+      --red:           #DC2626;
+      --text:          #1A1917;
+      --muted:         #6B6760;
+      --toggle-off-bg: #cccccc;
+      --disabled-bg:   #C8C4BB;
+      --disabled-text: #F8F6F0;
+      --mono:          'IBM Plex Mono', 'Courier New', monospace;
+      --sans:          'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --body-bg:       #1a1a1a;
+        --card-bg:       #2a2a2a;
+        --border:        rgba(255,255,255,0.1);
+        --text:          #e8e8e8;
+        --muted:         #a0a0a0;
+        --toggle-off-bg: #555555;
+        --disabled-bg:   #3a3a3a;
+        --disabled-text: #888888;
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --body-bg:       #1a1a1a;
+      --card-bg:       #2a2a2a;
+      --border:        rgba(255,255,255,0.1);
+      --text:          #e8e8e8;
+      --muted:         #a0a0a0;
+      --toggle-off-bg: #555555;
+      --disabled-bg:   #3a3a3a;
+      --disabled-text: #888888;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -239,9 +267,9 @@
     }
     .handoff-link:hover { background: var(--teal-dark); }
     .handoff-link.disabled {
-      background: #C8C4BB;
+      background: var(--disabled-bg);
       pointer-events: none;
-      color: #F8F6F0;
+      color: var(--disabled-text);
     }
 
     /* ── Two-column ── */
@@ -651,7 +679,7 @@
       position: absolute;
       cursor: pointer;
       inset: 0;
-      background: #ccc;
+      background: var(--toggle-off-bg);
       border-radius: 22px;
       transition: background 0.2s;
     }
@@ -717,6 +745,27 @@
       margin-top: 0.3rem;
       min-height: 1rem;
     }
+
+    /* ── Theme toggle (fixed floating pill) ── */
+    .theme-toggle {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      padding: 0.4rem 0.8rem;
+      background: var(--card-bg);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 200;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .theme-toggle:hover { border-color: var(--teal); color: var(--teal); }
   </style>
 </head>
 <body>
@@ -1768,9 +1817,37 @@
     if (addInput) addInput.addEventListener('keydown', e => { if (e.key === 'Enter') addMcpServer(); });
   }
 
+  // ── Theme ─────────────────────────────────────────────────────────────────
+
+  const _themeOrder = ['auto', 'light', 'dark'];
+
+  function _applyTheme(mode) {
+    const html = document.documentElement;
+    if (mode === 'light' || mode === 'dark') {
+      html.setAttribute('data-theme', mode);
+    } else {
+      html.removeAttribute('data-theme');
+    }
+    const btn = $('theme-toggle');
+    if (btn) btn.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+  }
+
+  function initTheme() {
+    const stored = localStorage.getItem('trace_theme') || 'auto';
+    _applyTheme(stored);
+  }
+
+  function cycleTheme() {
+    const stored = localStorage.getItem('trace_theme') || 'auto';
+    const next   = _themeOrder[(_themeOrder.indexOf(stored) + 1) % _themeOrder.length];
+    localStorage.setItem('trace_theme', next);
+    _applyTheme(next);
+  }
+
   // ── Orchestration ─────────────────────────────────────────────────────────
 
   async function init() {
+    initTheme();
     await Promise.all([loadStatus(), loadProjects(), loadProvider()]);
     buildDayPicker();  // build day picker before first data load
     await Promise.all([loadAll(), loadLive()]);
@@ -1782,5 +1859,7 @@
 
   init();
 </script>
+
+<button class="theme-toggle" id="theme-toggle" onclick="cycleTheme()">Auto</button>
 </body>
 </html>

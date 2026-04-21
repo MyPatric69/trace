@@ -186,4 +186,56 @@ cat ~/.trace/last_health.json
 
 ---
 
-**Last updated:** 2026-04-13 (project filter persistence)
+## Test 8: Dark Mode Applies When System Is Dark
+
+**Goal:** Verify that auto mode follows `prefers-color-scheme: dark`.
+
+**Steps:**
+1. Open dashboard with no `trace_theme` in localStorage (or remove it)
+2. Set your OS/browser to dark mode
+3. **Expected:** Dashboard background becomes dark (`#1a1a1a`), text becomes light
+
+**Pass Criteria:**
+- `html` element has no `data-theme` attribute (auto mode)
+- CSS `@media (prefers-color-scheme: dark)` overrides apply
+- Theme toggle button reads "Auto"
+
+---
+
+## Test 9: Manual Override Persists After Page Refresh
+
+**Goal:** Verify that a manually selected theme survives browser refresh.
+
+**Steps:**
+1. Open dashboard — note current theme
+2. Click the **"Auto" / "○ Light" / "● Dark"** toggle button (fixed, bottom-right corner)
+3. Cycle to "● Dark" (button reads "● Dark")
+4. Refresh the page (F5 or Cmd+R)
+5. **Expected:** Dashboard still shows in dark mode, button reads "Dark"
+
+**Pass Criteria:**
+- `localStorage.getItem('trace_theme')` === `'dark'`
+- `html[data-theme]` === `'dark'`
+- No flash of light theme on load (FOUC prevention script in `<head>`)
+- Toggle button is visible in bottom-right corner regardless of viewport width
+
+---
+
+## Test 10: Auto Mode Follows System Preference
+
+**Goal:** Verify that switching back to "Auto" re-enables system detection.
+
+**Steps:**
+1. Set theme to "Light" via toggle (button reads "Light")
+2. Verify dark system preference is ignored
+3. Click toggle to "Dark", then again to "Auto"
+4. **Expected:** Theme now follows system preference again
+
+**Pass Criteria:**
+- Cycle order: Auto → Light → Dark → Auto
+- In Auto mode, `html` has no `data-theme` attribute
+- `localStorage.getItem('trace_theme')` === `'auto'`
+
+---
+
+**Last updated:** 2026-04-21 (theme toggle moved to fixed floating pill, bottom-right)
