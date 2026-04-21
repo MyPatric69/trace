@@ -228,4 +228,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-21 – Dark/light mode added to dashboard: CSS variables for all themeable colors (--body-bg, --card-bg, --border, --text, --muted, --toggle-off-bg, --disabled-bg/text); `@media (prefers-color-scheme: dark)` auto-detection; `[data-theme="dark"]` forced override; FOUC prevention inline script in `<head>`; fixed floating pill toggle button (bottom-right, `id="theme-toggle"`) cycles auto→light→dark→auto; preference persisted to `localStorage('trace_theme')`. Tests 8–10 in FRONTEND_TESTS.md cover dark mode behavior.
+2026-04-21 – Added second theme toggle in dashboard header (`id="theme-toggle-header"`, pill style matching existing badges, positioned after provider badge). Both header and fixed bottom-right toggles (`id="theme-toggle"`) are kept in sync by `_applyTheme()`. Dark mode: CSS vars + media query + forced `[data-theme]` override + FOUC prevention script.

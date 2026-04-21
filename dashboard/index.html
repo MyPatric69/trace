@@ -746,7 +746,24 @@
       min-height: 1rem;
     }
 
-    /* ── Theme toggle (fixed floating pill) ── */
+    /* ── Theme toggle ── */
+    .theme-toggle-header {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      line-height: 1;
+      padding: 3px 10px;
+      background: transparent;
+      color: rgba(255,255,255,0.45);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 99px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .theme-toggle-header:hover { color: rgba(255,255,255,0.85); border-color: rgba(255,255,255,0.45); }
+
+    /* fixed floating pill */
     .theme-toggle {
       position: fixed;
       bottom: 1.25rem;
@@ -786,6 +803,7 @@
     <div class="mcp-badge"><span class="dot"></span> MCP</div>
     <div class="ws-badge"><span class="dot ws-dot" id="ws-dot"></span> WS</div>
     <div class="provider-badge" id="provider-badge"></div>
+    <button class="theme-toggle-header" id="theme-toggle-header" onclick="cycleTheme()">Auto</button>
   </div>
 </header>
 
@@ -1828,8 +1846,11 @@
     } else {
       html.removeAttribute('data-theme');
     }
+    const label = mode.charAt(0).toUpperCase() + mode.slice(1);
     const btn = $('theme-toggle');
-    if (btn) btn.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    if (btn) btn.textContent = label;
+    const btnH = $('theme-toggle-header');
+    if (btnH) btnH.textContent = label;
   }
 
   function initTheme() {
