@@ -664,6 +664,25 @@ or pass it via `claude --mcp-config` instead.
 
 ---
 
+## Issue 17: Dashboard autostart not working after reboot
+
+The LaunchAgent must be registered once before the first reboot.
+If the dashboard does not start automatically after a login:
+
+**Fix:**
+```bash
+# Register the LaunchAgent (run once)
+bash hooks/setup_dashboard_autostart.sh
+
+# Verify it is registered
+launchctl list | grep trace
+
+# Check logs if still not starting
+cat ~/.trace/dashboard.log
+```
+
+---
+
 ## Still stuck?
 
 Check the project status:

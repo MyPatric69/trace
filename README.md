@@ -298,6 +298,15 @@ bash hooks/setup_dashboard_autostart.sh
 # To disable: bash hooks/remove_dashboard_autostart.sh
 ```
 
+> **Important:** Run this script once before rebooting.
+> The LaunchAgent is registered on first run and starts
+> automatically on every subsequent login.
+> If not running after reboot, run the script once:
+> ```bash
+> bash hooks/setup_dashboard_autostart.sh
+> ```
+> Verify: `launchctl list | grep trace`
+
 ### Token Calculator – API keys for exact counts
 
 The Token Calculator shows exact token counts when the relevant API key is available:

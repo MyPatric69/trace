@@ -230,4 +230,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-22 – Added macOS LaunchAgent autostart scripts (setup_dashboard_autostart.sh, remove_dashboard_autostart.sh); updated README Web dashboard section with Option A/B
+2026-04-22 – Docs: clarified dashboard autostart one-time setup in README.md and TROUBLESHOOTING.md (Issue 17)
