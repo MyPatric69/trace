@@ -281,12 +281,22 @@ See the [Token count accuracy](#token-count-accuracy) section for details.
 
 ## Web dashboard (optional)
 
+Shows live token usage, costs, drift status, and recommendations for all projects.
+
+### Option A – manual start (default)
+
 ```bash
 bash dashboard/start.sh
 # → http://localhost:8080
 ```
 
-Shows live token usage, costs, drift status, and recommendations for all projects.
+### Option B – autostart at login (macOS)
+
+```bash
+bash hooks/setup_dashboard_autostart.sh
+# Logs: ~/.trace/dashboard.log
+# To disable: bash hooks/remove_dashboard_autostart.sh
+```
 
 ### Token Calculator – API keys for exact counts
 

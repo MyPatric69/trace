@@ -94,7 +94,9 @@ trace/
 │   ├── post-commit              ← Git Hook template
 │   ├── install_hook.sh
 │   ├── setup_global_template.sh
-│   └── setup_claude_hook.sh    ← installs PostToolUse + Stop hooks in ~/.claude/settings.json
+│   ├── setup_claude_hook.sh    ← installs PostToolUse + Stop hooks in ~/.claude/settings.json
+│   ├── setup_dashboard_autostart.sh ← creates macOS LaunchAgent for dashboard autostart at login
+│   └── remove_dashboard_autostart.sh ← unloads and removes the LaunchAgent
 │
 ├── dashboard/
 │   ├── server.py          ← FastAPI app + WebSocket + 15+ REST endpoints
@@ -228,4 +230,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-21 – Added second theme toggle in dashboard header (`id="theme-toggle-header"`, pill style matching existing badges, positioned after provider badge). Both header and fixed bottom-right toggles (`id="theme-toggle"`) are kept in sync by `_applyTheme()`. Dark mode: CSS vars + media query + forced `[data-theme]` override + FOUC prevention script.
+2026-04-22 – Added macOS LaunchAgent autostart scripts (setup_dashboard_autostart.sh, remove_dashboard_autostart.sh); updated README Web dashboard section with Option A/B
