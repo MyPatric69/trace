@@ -951,9 +951,9 @@
           </div>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 4px;">
-          <button class="settings-preset-btn" onclick="applyHealthPreset(50000,100000)">Sparsam 50k/100k</button>
+          <button class="settings-preset-btn" onclick="applyHealthPreset(50000,100000)">Economy 50k/100k</button>
           <button class="settings-preset-btn settings-preset-btn--default" onclick="applyHealthPreset(80000,150000)">Standard 80k/150k</button>
-          <button class="settings-preset-btn" onclick="applyHealthPreset(120000,200000)">Intensiv 120k/200k</button>
+          <button class="settings-preset-btn" onclick="applyHealthPreset(120000,200000)">Intensive 120k/200k</button>
         </div>
         <button class="pop-save-btn" onclick="saveAllSettings()">Save</button>
         <div class="pop-msg" id="settings-save-msg"></div>
@@ -1188,11 +1188,11 @@
   // ── Day Picker ────────────────────────────────────────────────────────────
 
   function formatDayLabel(d, index) {
-    const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayName = days[d.getDay()];
     const dateStr = d.getDate().toString().padStart(2, '0') + '.' + (d.getMonth() + 1).toString().padStart(2, '0') + '.';
-    if (index === 0) return 'Heute';
-    if (index === 1) return 'Gestern';
+    if (index === 0) return 'Today';
+    if (index === 1) return 'Yesterday';
     return dayName + ' ' + dateStr;
   }
 
@@ -1298,7 +1298,7 @@
       if (msg) { msg.textContent = text; msg.style.color = 'var(--red)'; }
     };
 
-    if (isNaN(warn) || isNaN(crit)) { showErr('Bitte eine gültige Zahl eingeben'); return; }
+    if (isNaN(warn) || isNaN(crit)) { showErr('Please enter a valid number'); return; }
     if (warn <= 0) { showErr('Warning must be > 0'); return; }
     if (warn >= crit) { showErr('Warning must be < Critical'); return; }
 
@@ -1319,7 +1319,7 @@
         throw new Error(d.detail || 'Save failed.');
       }
       if (msg) {
-        msg.textContent = 'Gespeichert';
+        msg.textContent = 'Saved';
         msg.style.color = 'var(--teal)';
         setTimeout(() => { if (msg) msg.textContent = ''; }, 2000);
       }
@@ -1479,13 +1479,13 @@
           fill.style.width = barPct + '%';
 
           let fillClass   = 'health-fill';
-          let statusLabel = 'Session beendet';
+          let statusLabel = 'Session ended';
           if (lastHealth.status === 'reset') {
             fillClass  += ' red';
-            statusLabel = 'Session beendet (war rot)';
+            statusLabel = 'Session ended (was red)';
           } else if (lastHealth.status === 'warn') {
             fillClass  += ' amber';
-            statusLabel = 'Session beendet (war gelb)';
+            statusLabel = 'Session ended (was yellow)';
           }
           // ok: no extra class → teal/green (default health-fill color)
           fill.className = fillClass;
@@ -1809,10 +1809,10 @@
 
       // Summary row
       if (d.summary.length === 0) {
-        summaryEl.innerHTML = '<span style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);">Keine Daten</span>';
+        summaryEl.innerHTML = '<span style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);">No data</span>';
       } else {
         summaryEl.innerHTML =
-          '<span style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);margin-right:4px;">Aktive Provider:</span>'
+          '<span style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);margin-right:4px;">Active Provider:</span>'
           + d.summary.map(_providerBadge).join('');
       }
 
@@ -1822,7 +1822,7 @@
         : d.projects;
 
       if (!projects.length) {
-        listEl.innerHTML = '<div class="empty">Keine Projekte registriert.</div>';
+        listEl.innerHTML = '<div class="empty">No projects registered.</div>';
         return;
       }
 
@@ -1834,9 +1834,9 @@
           : '<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);">\u2013</span>';
         const subtitle = p.models.length
           ? p.models.join(' \u00b7 ')
-          : 'Keine Sessions (letzte 30 Tage)';
+          : 'No sessions (last 30 days)';
         const sessionsBadge = p.sessions_today > 0
-          ? `<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);margin-right:0.375rem;">${p.sessions_today} heute</span>`
+          ? `<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);margin-right:0.375rem;">${p.sessions_today} today</span>`
           : '';
         return `
           <div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0;border-bottom:${borderStyle};">

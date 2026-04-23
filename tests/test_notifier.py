@@ -85,6 +85,97 @@ class TestNotifyDisabled:
 
 
 # ---------------------------------------------------------------------------
+# engine/notifier.notify() – unknown / empty project suppression
+# ---------------------------------------------------------------------------
+
+class TestNotifyUnknownProject:
+    def test_returns_early_for_unknown_lowercase(self):
+        from engine.notifier import notify
+        with patch("engine.notifier._send_notification") as mock_send, \
+             patch("engine.notifier._play_sound") as mock_sound:
+            notify("warn", 90_000, "unknown", _ENABLED_CONFIG)
+        mock_send.assert_not_called()
+        mock_sound.assert_not_called()
+
+    def test_returns_early_for_unknown_titlecase(self):
+        from engine.notifier import notify
+        with patch("engine.notifier._send_notification") as mock_send, \
+             patch("engine.notifier._play_sound") as mock_sound:
+            notify("warn", 90_000, "Unknown", _ENABLED_CONFIG)
+        mock_send.assert_not_called()
+        mock_sound.assert_not_called()
+
+    def test_returns_early_for_empty_string(self):
+        from engine.notifier import notify
+        with patch("engine.notifier._send_notification") as mock_send, \
+             patch("engine.notifier._play_sound") as mock_sound:
+            notify("warn", 90_000, "", _ENABLED_CONFIG)
+        mock_send.assert_not_called()
+        mock_sound.assert_not_called()
+
+    def test_returns_early_for_none_project(self):
+        from engine.notifier import notify
+        with patch("engine.notifier._send_notification") as mock_send, \
+             patch("engine.notifier._play_sound") as mock_sound:
+            notify("warn", 90_000, None, _ENABLED_CONFIG)
+        mock_send.assert_not_called()
+        mock_sound.assert_not_called()
+
+    def test_fires_for_real_project(self):
+        from engine.notifier import notify
+        with patch("engine.notifier._send_notification") as mock_send, \
+             patch("engine.notifier._play_sound"):
+            notify("warn", 90_000, "my-project", _ENABLED_CONFIG)
+        mock_send.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# engine/notifier.notify() – English message text
+# ---------------------------------------------------------------------------
+
+class TestNotifyEnglishText:
+    def test_warn_body_contains_project_label_english(self):
+        from engine.notifier import notify
+        captured: list[tuple] = []
+        with patch("engine.notifier._send_notification",
+                   side_effect=lambda t, m: captured.append((t, m))), \
+             patch("engine.notifier._play_sound"):
+            notify("warn", 90_000, "my-project", _ENABLED_CONFIG)
+        _, body = captured[0]
+        assert body.startswith("Project:")
+
+    def test_warn_message_is_english(self):
+        from engine.notifier import notify
+        captured: list[tuple] = []
+        with patch("engine.notifier._send_notification",
+                   side_effect=lambda t, m: captured.append((t, m))), \
+             patch("engine.notifier._play_sound"):
+            notify("warn", 90_000, "proj", _ENABLED_CONFIG)
+        _, body = captured[0]
+        assert "prepare new thread" in body
+
+    def test_reset_message_is_english(self):
+        from engine.notifier import notify
+        captured: list[tuple] = []
+        with patch("engine.notifier._send_notification",
+                   side_effect=lambda t, m: captured.append((t, m))), \
+             patch("engine.notifier._play_sound"):
+            notify("reset", 160_000, "proj", _ENABLED_CONFIG)
+        _, body = captured[0]
+        assert "Thread reset recommended" in body
+
+    def test_body_contains_token_count_english_format(self):
+        from engine.notifier import notify
+        captured: list[tuple] = []
+        with patch("engine.notifier._send_notification",
+                   side_effect=lambda t, m: captured.append((t, m))), \
+             patch("engine.notifier._play_sound"):
+            notify("warn", 90_000, "proj", _ENABLED_CONFIG)
+        _, body = captured[0]
+        assert "90,000" in body
+
+
+# ---------------------------------------------------------------------------
 # engine/notifier._send_notification() – platform-native dispatch
 # ---------------------------------------------------------------------------
 
@@ -155,10 +246,10 @@ class TestNotifySend:
         with patch("engine.notifier.platform") as mock_plat, \
              patch.dict(sys.modules, {"win10toast": mock_w10}):
             mock_plat.system.return_value = "Windows"
-            _send_notification("TRACE Kritisch", "message body")
+            _send_notification("TRACE Critical", "message body")
 
         args, _ = mock_toaster.show_toast.call_args
-        assert args[0] == "TRACE Kritisch"
+        assert args[0] == "TRACE Critical"
 
     def test_silent_when_win10toast_not_installed(self):
         """ImportError on win10toast must be swallowed silently."""
@@ -229,7 +320,7 @@ class TestNotifySend:
              patch("engine.notifier._play_sound"):
             notify("reset", 160_000, "proj", _ENABLED_CONFIG)
         title, _ = captured[0]
-        assert title == "TRACE Kritisch"
+        assert title == "TRACE Critical"
 
     def test_notify_body_contains_token_count(self):
         from engine.notifier import notify

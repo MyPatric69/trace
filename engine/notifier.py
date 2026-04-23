@@ -19,11 +19,11 @@ _log = logging.getLogger(__name__)
 
 _TITLES = {
     "warn":  "TRACE Warning",
-    "reset": "TRACE Kritisch",
+    "reset": "TRACE Critical",
 }
 _MESSAGES = {
-    "warn":  "Session bei {tokens:,} Tokens \u2013 neuen Thread vorbereiten",
-    "reset": "Thread-Wechsel empfohlen ({tokens:,} Tokens)",
+    "warn":  "Session at {tokens:,} tokens \u2013 prepare new thread",
+    "reset": "Thread reset recommended ({tokens:,} tokens)",
 }
 _SOUND_KEYS = {
     "warn":  "sound_warn",
@@ -45,6 +45,9 @@ def notify(status: str, tokens: int, project: str, config: dict) -> None:
     project : registered project name
     config  : full trace config dict (reads ``notifications`` block)
     """
+    if not project or project.lower() == "unknown":
+        return
+
     cfg = config.get("notifications") or {}
     if not cfg.get("enabled", True):
         return
@@ -54,7 +57,7 @@ def notify(status: str, tokens: int, project: str, config: dict) -> None:
 
     title   = _TITLES[status]
     message = _MESSAGES[status].format(tokens=tokens)
-    body    = f"Projekt: {project}\n{message}"
+    body    = f"Project: {project}\n{message}"
 
     _send_notification(title, body)
 
