@@ -233,4 +233,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-23 – docs: README.md updated with Settings popover section and configurable health thresholds documentation
+2026-04-23 – fix: removed duplicate floating #theme-toggle button; only #theme-toggle-header remains

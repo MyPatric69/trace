@@ -811,26 +811,7 @@
     }
     .theme-toggle-header:hover { color: rgba(255,255,255,0.85); border-color: rgba(255,255,255,0.45); }
 
-    /* fixed floating pill */
-    .theme-toggle {
-      position: fixed;
-      bottom: 1.25rem;
-      right: 1.25rem;
-      font-family: var(--mono);
-      font-size: 0.6875rem;
-      padding: 0.4rem 0.8rem;
-      background: var(--card-bg);
-      color: var(--muted);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      cursor: pointer;
-      letter-spacing: 0.04em;
-      white-space: nowrap;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      z-index: 200;
-      transition: background 0.15s, border-color 0.15s, color 0.15s;
-    }
-    .theme-toggle:hover { border-color: var(--teal); color: var(--teal); }
+
 
     /* ── Settings popover ── */
     .settings-wrapper { position: relative; }
@@ -2074,8 +2055,6 @@
       html.removeAttribute('data-theme');
     }
     const label = mode.charAt(0).toUpperCase() + mode.slice(1);
-    const btn = $('theme-toggle');
-    if (btn) btn.textContent = label;
     const btnH = $('theme-toggle-header');
     if (btnH) btnH.textContent = label;
   }
@@ -2108,6 +2087,5 @@
   init();
 </script>
 
-<button class="theme-toggle" id="theme-toggle" onclick="cycleTheme()">Auto</button>
 </body>
 </html>
