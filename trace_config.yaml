@@ -12,7 +12,7 @@ budgets:
   alert_threshold_pct: 80
 session_health:
   warn_tokens: 80000
-  critical_tokens: 150000
+  critical_tokens: 350000
   claude_autocompact_approx: 180000
 models:
   claude-sonnet-4-6:

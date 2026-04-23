@@ -233,4 +233,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-23 – fix: threshold inputs changed to type=text (no spinner arrows); isNaN guard added
+2026-04-23 – docs: README.md updated with Settings popover section and configurable health thresholds documentation

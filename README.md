@@ -307,21 +307,43 @@ bash hooks/setup_dashboard_autostart.sh
 > ```
 > Verify: `launchctl list | grep trace`
 
+### Settings
+
+Click the ⚙ Settings button in the dashboard header to configure:
+
+**Notifications**
+- Enable/disable macOS notifications when health thresholds are crossed
+- Enable/disable sound (Tink at warning, Funk at critical)
+
+**Session health thresholds**
+
+Adjust when the session health indicator turns yellow or red.
+Three presets are available – or enter custom values:
+
+| Preset | Warning at | Critical at | For |
+|---|---|---|---|
+| Sparsam | 50,000 tokens | 100,000 tokens | Cost-conscious workflows |
+| Standard | 80,000 tokens | 150,000 tokens | Default – recommended |
+| Intensiv | 120,000 tokens | 200,000 tokens | Large projects / long sessions |
+
+Settings are saved immediately to ~/.trace/trace_config.yaml.
+
+> **Note:** The session health bar is only visible when a specific
+> project is selected. Select your project from the dropdown in the
+> header to see the health indicator for that project's active session.
+
 ### Session health thresholds
 
-**Session health thresholds** can be adjusted in the dashboard
-Settings panel or directly in `~/.trace/trace_config.yaml`:
+**Session health thresholds** are configured via the ⚙ Settings
+popover in the dashboard header (see [Settings](#settings) above).
+For power users, values can also be edited directly in
+`~/.trace/trace_config.yaml`:
 
 ```yaml
 session_health:
   warn_tokens: 80000     # yellow warning
   critical_tokens: 150000  # red critical
 ```
-
-Recommended values:
-- Sparsam:  warn 50k  / critical 100k
-- Standard: warn 80k  / critical 150k  (default)
-- Intensiv: warn 120k / critical 200k
 
 ### Token Calculator – API keys for exact counts
 
