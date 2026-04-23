@@ -238,4 +238,36 @@ cat ~/.trace/last_health.json
 
 ---
 
-**Last updated:** 2026-04-21 (theme toggle moved to fixed floating pill, bottom-right)
+---
+
+## Test 11: Session Health Bar Visible in VS Code Simple Browser
+
+**Goal:** Verify that the session health progress bar renders with correct dimensions inside VS Code Simple Browser (iframe).
+
+**Background:** VS Code Simple Browser embeds the dashboard in an iframe. In this context flex-child widths can collapse to 0 and `height:100%` fills can resolve to 0 when the parent height is computed lazily, making the bar invisible.
+
+**Fix applied (2026-04-23):**
+- `.health-row` changed from `display:flex` to `display:block` with `min-height:2.5rem`
+- `.health-bar-wrap` changed from `flex:1; position:relative` to `display:block; width:100%`
+- `.health-bar` now has explicit `display:block; width:100%`
+- `.health-fill` now uses explicit `height:8px` instead of `height:100%`
+
+**Steps:**
+1. Start dashboard: `bash dashboard/start.sh`
+2. In VS Code: `Cmd+Shift+P` → "Simple Browser: Show" → `http://localhost:8080`
+3. Select a project that has an active or recent session
+4. **Expected:** Session health bar is visible as a coloured horizontal bar
+5. Resize the VS Code panel to different widths
+6. **Expected:** Bar scales correctly to panel width at all sizes
+
+**Pass Criteria:**
+- Health bar has visible height (≥ 8 px)
+- Fill colour matches session state (green / amber / red)
+- Bar width reflects token usage percentage
+- Threshold labels ("warn at Xk", "reset at Xk") are visible below the bar
+- Token count label appears below the bar
+- No invisible / collapsed bar at any panel width
+
+---
+
+**Last updated:** 2026-04-23 (health bar iframe fix — block layout, explicit heights)

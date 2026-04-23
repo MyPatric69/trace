@@ -156,7 +156,8 @@ trace/
 - **Persistence** – project filter in localStorage; health state in `~/.trace/last_health.json`
 - **Auto-refresh** – 120s interval (was 30s); WebSocket used for live data push
 - **Editable session health thresholds** – `POST /api/settings` accepts `warn_tokens` / `critical_tokens`; validates `warn > 0` and `warn < critical` (400 on failure); writes to `session_health` block in `~/.trace/trace_config.yaml`; `GET /api/status` now returns both threshold values; Settings popover has number inputs, preset buttons (Sparsam 50k/100k · Standard 80k/150k · Intensiv 120k/200k), Save button with inline error/confirmation, and live health bar refresh after save
-- **Settings popover** – Settings moved from bottom panel into a compact header popover (gear icon + "Settings" pill button in `.header-right`); popover is 300px wide, right-aligned below button, `z-index 500`; contains notification toggles (auto-save on change), health threshold inputs + presets + Save button (posts all values, shows "Gespeichert" for 2s); closes on outside click; old bottom Settings panel removed
+- **Settings popover** – Settings moved from bottom panel into a compact header popover
+- **Health bar iframe fix** – `.health-row` changed to `display:block; min-height:2.5rem` (was flex); `.health-bar-wrap` to `display:block; width:100%` (removed flex:1 and position:relative); `.health-bar` gains explicit `display:block; width:100%`; `.health-fill` uses `height:8px` instead of `height:100%` to avoid percentage-height collapse in VS Code Simple Browser iframe; token label now sits below the bar in block flow; test documented in `tests/FRONTEND_TESTS.md` (Test 11) (gear icon + "Settings" pill button in `.header-right`); popover is 300px wide, right-aligned below button, `z-index 500`; contains notification toggles (auto-save on change), health threshold inputs + presets + Save button (posts all values, shows "Gespeichert" for 2s); closes on outside click; old bottom Settings panel removed
 
 **Dashboard REST endpoints (current):**
 ```
@@ -232,4 +233,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-23 – Auto-synced 1 commit(s) to 744204d
+2026-04-23 – fix: threshold inputs changed to type=text (no spinner arrows); isNaN guard added

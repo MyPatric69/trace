@@ -213,16 +213,22 @@
       letter-spacing: 0.09em;
       margin-bottom: 0.75rem;
     }
+    /* health-row is block so the bar always has full container width
+       in iframe contexts where flex-child width can collapse to 0 */
     .health-row {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
+      display: block;
+      min-height: 2.5rem;
     }
+    /* no position:relative / flex:1 — just a full-width block */
     .health-bar-wrap {
-      flex: 1;
-      position: relative;
+      display: block;
+      width: 100%;
     }
+    /* explicit display:block + width:100% so the bar fills its
+       container even inside a sandboxed iframe */
     .health-bar {
+      display: block;
+      width: 100%;
       height: 8px;
       background: var(--border);
       border-radius: 4px;
@@ -240,19 +246,25 @@
       color: var(--muted);
       white-space: nowrap;
     }
+    /* explicit height:8px instead of height:100% — avoids percentage-
+       height resolution to 0 when the parent height is computed lazily */
     .health-fill {
-      height: 100%;
+      display: block;
+      height: 8px;
       border-radius: 4px;
       transition: width 0.5s ease, background-color 0.3s;
       background: var(--teal);
     }
     .health-fill.amber { background: var(--amber); }
     .health-fill.red   { background: var(--red); }
+    /* token label now sits below the bar in block flow */
     .health-tokens {
+      display: block;
       font-family: var(--mono);
       font-size: 0.75rem;
       color: var(--muted);
       white-space: nowrap;
+      margin-top: 0.4rem;
     }
     .handoff-link {
       display: inline-block;
@@ -946,14 +958,14 @@
         <div class="pop-row">
           <span class="pop-label">Warning at</span>
           <div style="display:flex;align-items:center;gap:4px;">
-            <input type="number" id="health-warn-tokens" class="threshold-input" min="1" step="1000" placeholder="80000">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-warn-tokens" class="threshold-input" placeholder="80000">
             <span class="pop-unit">tokens</span>
           </div>
         </div>
         <div class="pop-row">
           <span class="pop-label">Critical at</span>
           <div style="display:flex;align-items:center;gap:4px;">
-            <input type="number" id="health-critical-tokens" class="threshold-input" min="1" step="1000" placeholder="150000">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-critical-tokens" class="threshold-input" placeholder="150000">
             <span class="pop-unit">tokens</span>
           </div>
         </div>
@@ -1305,8 +1317,9 @@
       if (msg) { msg.textContent = text; msg.style.color = 'var(--red)'; }
     };
 
-    if (!warn || warn <= 0) { showErr('Warning must be > 0'); return; }
-    if (!crit || warn >= crit) { showErr('Warning must be < Critical'); return; }
+    if (isNaN(warn) || isNaN(crit)) { showErr('Bitte eine gültige Zahl eingeben'); return; }
+    if (warn <= 0) { showErr('Warning must be > 0'); return; }
+    if (warn >= crit) { showErr('Warning must be < Critical'); return; }
 
     if (msg) msg.textContent = '';
     try {
