@@ -155,6 +155,7 @@ trace/
 - **MCP server panel** – add/remove MCP servers via UI; reads from both Claude config locations
 - **Persistence** – project filter in localStorage; health state in `~/.trace/last_health.json`
 - **Auto-refresh** – 120s interval (was 30s); WebSocket used for live data push
+- **Editable session health thresholds** – `POST /api/settings` accepts `warn_tokens` / `critical_tokens`; validates `warn > 0` and `warn < critical` (400 on failure); writes to `session_health` block in `~/.trace/trace_config.yaml`; `GET /api/status` now returns both threshold values; Settings panel has number inputs, preset buttons (Sparsam 50k/100k · Standard 80k/150k · Intensiv 120k/200k), Save button with inline error/confirmation, and live health bar refresh after save
 
 **Dashboard REST endpoints (current):**
 ```
@@ -230,4 +231,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-22 – Docs: clarified dashboard autostart one-time setup in README.md and TROUBLESHOOTING.md (Issue 17)
+2026-04-23 – feat: editable session health thresholds in dashboard Settings panel

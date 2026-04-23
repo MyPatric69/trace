@@ -229,6 +229,7 @@ def api_status():
     except ValueError:
         db_str = str(store.db_path)
     notif_cfg = store.config.get("notifications") or {}
+    health_cfg = store.config.get("session_health", {})
     return {
         "trace_version": cfg.get("version", "0.1.0"),
         "db_path": db_str,
@@ -239,6 +240,8 @@ def api_status():
         "alert_threshold_pct": budgets.get("alert_threshold_pct", 80),
         "notifications_enabled": notif_cfg.get("enabled", True),
         "notifications_sound": notif_cfg.get("sound", True),
+        "warn_tokens": health_cfg.get("warn_tokens", 80_000),
+        "critical_tokens": health_cfg.get("critical_tokens", 150_000),
     }
 
 
@@ -556,17 +559,31 @@ def api_live_clear():
 class SettingsRequest(BaseModel):
     notifications_enabled: bool | None = None
     notifications_sound: bool | None = None
+    warn_tokens: int | None = None
+    critical_tokens: int | None = None
 
 
 @app.post("/api/settings")
 def api_settings_update(req: SettingsRequest):
-    """Persist notification settings to ~/.trace/trace_config.yaml."""
+    """Persist notification settings and health thresholds to ~/.trace/trace_config.yaml."""
     path, config = _load_central_config()
     notif = config.setdefault("notifications", {})
     if req.notifications_enabled is not None:
         notif["enabled"] = req.notifications_enabled
     if req.notifications_sound is not None:
         notif["sound"] = req.notifications_sound
+    if req.warn_tokens is not None or req.critical_tokens is not None:
+        health = config.setdefault("session_health", {})
+        eff_warn = req.warn_tokens if req.warn_tokens is not None else health.get("warn_tokens", 80_000)
+        eff_crit = req.critical_tokens if req.critical_tokens is not None else health.get("critical_tokens", 150_000)
+        if eff_warn <= 0:
+            raise HTTPException(status_code=400, detail="warn_tokens must be > 0")
+        if eff_warn >= eff_crit:
+            raise HTTPException(status_code=400, detail="warn_tokens must be < critical_tokens")
+        if req.warn_tokens is not None:
+            health["warn_tokens"] = req.warn_tokens
+        if req.critical_tokens is not None:
+            health["critical_tokens"] = req.critical_tokens
     _save_and_sync_config(path, config)
     return {"status": "ok"}
 

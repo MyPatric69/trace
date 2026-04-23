@@ -667,6 +667,42 @@
       font-size: 0.875rem;
       color: var(--text);
     }
+    .threshold-input {
+      font-family: var(--mono);
+      font-size: 0.8125rem;
+      background: var(--body-bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.2rem 0.5rem;
+      color: var(--text);
+      width: 96px;
+      text-align: right;
+    }
+    .threshold-input:focus { outline: none; border-color: var(--teal); }
+    .settings-preset-btn {
+      font-family: var(--mono);
+      font-size: 0.6563rem;
+      padding: 0.25rem 0.6rem;
+      background: var(--body-bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .settings-preset-btn:hover { border-color: var(--teal); color: var(--teal); }
+    .settings-save-btn {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 0.25rem 0.875rem;
+      background: var(--teal);
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .settings-save-btn:hover { background: var(--teal-dark); }
     .toggle-switch {
       position: relative;
       display: inline-block;
@@ -929,6 +965,34 @@
         <span class="toggle-slider"></span>
       </label>
     </div>
+
+    <!-- Health thresholds sub-section -->
+    <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+      <div class="card-title" style="margin-bottom:0.75rem;">Session health thresholds</div>
+      <div class="settings-row">
+        <span class="settings-label">Warning at</span>
+        <div style="display:flex;align-items:center;gap:0.375rem;">
+          <input type="number" id="health-warn-tokens" class="threshold-input" min="1" step="1000" placeholder="80000">
+          <span style="font-size:0.75rem;color:var(--muted);font-family:var(--mono);">tokens</span>
+        </div>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Critical at</span>
+        <div style="display:flex;align-items:center;gap:0.375rem;">
+          <input type="number" id="health-critical-tokens" class="threshold-input" min="1" step="1000" placeholder="150000">
+          <span style="font-size:0.75rem;color:var(--muted);font-family:var(--mono);">tokens</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0 0.25rem;">
+        <button class="settings-save-btn" onclick="saveHealthThresholds()">Save</button>
+        <span id="health-threshold-msg" style="font-family:var(--mono);font-size:0.75rem;"></span>
+      </div>
+      <div style="display:flex;gap:0.4rem;flex-wrap:wrap;padding:0.25rem 0 0.125rem;">
+        <button class="settings-preset-btn" onclick="applyHealthPreset(50000,100000)">Sparsam 50k/100k</button>
+        <button class="settings-preset-btn" onclick="applyHealthPreset(80000,150000)">Standard 80k/150k</button>
+        <button class="settings-preset-btn" onclick="applyHealthPreset(120000,200000)">Intensiv 120k/200k</button>
+      </div>
+    </div>
   </div>
 
   <!-- 7 · Token Calculator -->
@@ -1095,6 +1159,11 @@
     if (notifEnabled) notifEnabled.checked = data.notifications_enabled !== false;
     if (notifSound)   notifSound.checked   = data.notifications_sound   !== false;
     updateSoundRowState();
+
+    const warnInput = $('health-warn-tokens');
+    const critInput = $('health-critical-tokens');
+    if (warnInput && data.warn_tokens != null)     warnInput.value = data.warn_tokens;
+    if (critInput && data.critical_tokens != null) critInput.value = data.critical_tokens;
   }
 
   function updateSoundRowState() {
@@ -1118,6 +1187,50 @@
       });
     } catch (e) {
       // non-critical – silent on error
+    }
+  }
+
+  function applyHealthPreset(warn, crit) {
+    const warnInput = $('health-warn-tokens');
+    const critInput = $('health-critical-tokens');
+    if (warnInput) warnInput.value = warn;
+    if (critInput) critInput.value = crit;
+  }
+
+  async function saveHealthThresholds() {
+    const warnInput = $('health-warn-tokens');
+    const critInput = $('health-critical-tokens');
+    const msg       = $('health-threshold-msg');
+
+    const warn = parseInt((warnInput || {}).value, 10);
+    const crit = parseInt((critInput || {}).value, 10);
+
+    const showErr = text => {
+      if (msg) { msg.textContent = text; msg.style.color = 'var(--red)'; }
+    };
+
+    if (!warn || warn <= 0) { showErr('Warning must be > 0'); return; }
+    if (!crit || warn >= crit) { showErr('Warning must be < Critical'); return; }
+
+    if (msg) msg.textContent = '';
+    try {
+      const res = await fetch('/api/settings', {
+        method:  'POST',
+        headers: { 'content-type': 'application/json' },
+        body:    JSON.stringify({ warn_tokens: warn, critical_tokens: crit }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || 'Save failed.');
+      }
+      if (msg) {
+        msg.textContent  = 'Saved';
+        msg.style.color  = 'var(--teal)';
+        setTimeout(() => { if (msg) msg.textContent = ''; }, 2000);
+      }
+      loadMetrics();  // refresh health bar with new thresholds
+    } catch (e) {
+      showErr(e.message || 'Save failed');
     }
   }
 

@@ -662,3 +662,82 @@ def test_api_live_project_filter_last_health(client, monkeypatch):
     data = client.get("/api/live?project=beta").json()
     assert data["active"] is False
     assert data["last_health"] is None
+
+
+# ---------------------------------------------------------------------------
+# GET /api/status – health threshold fields
+# ---------------------------------------------------------------------------
+
+def test_api_status_returns_threshold_fields(client):
+    data = client.get("/api/status").json()
+    assert "warn_tokens" in data
+    assert "critical_tokens" in data
+    assert data["warn_tokens"] == 80_000
+    assert data["critical_tokens"] == 150_000
+
+
+# ---------------------------------------------------------------------------
+# POST /api/settings – health thresholds
+# ---------------------------------------------------------------------------
+
+def _patch_config(monkeypatch, tmp_path, config):
+    """Write config to tmp_path and monkeypatch load/save helpers."""
+    cfg_path = tmp_path / "trace_config.yaml"
+    cfg_path.write_text(yaml.dump(config))
+    saved = {}
+
+    monkeypatch.setattr(
+        dashboard_module, "_load_central_config",
+        lambda: (cfg_path, yaml.safe_load(cfg_path.read_text())),
+    )
+    monkeypatch.setattr(
+        dashboard_module, "_save_and_sync_config",
+        lambda path, cfg: saved.update({"config": cfg}),
+    )
+    return saved
+
+
+def test_api_settings_saves_warn_critical_tokens(client, tmp_path, monkeypatch):
+    config = {
+        "notifications": {"enabled": True, "sound": True},
+        "session_health": {"warn_tokens": 80_000, "critical_tokens": 150_000},
+    }
+    saved = _patch_config(monkeypatch, tmp_path, config)
+
+    res = client.post("/api/settings", json={"warn_tokens": 60_000, "critical_tokens": 120_000})
+    assert res.status_code == 200
+    assert saved["config"]["session_health"]["warn_tokens"] == 60_000
+    assert saved["config"]["session_health"]["critical_tokens"] == 120_000
+
+
+def test_api_settings_validation_warn_equal_critical_returns_400(client, tmp_path, monkeypatch):
+    config = {
+        "notifications": {"enabled": True, "sound": True},
+        "session_health": {"warn_tokens": 80_000, "critical_tokens": 150_000},
+    }
+    _patch_config(monkeypatch, tmp_path, config)
+
+    res = client.post("/api/settings", json={"warn_tokens": 100_000, "critical_tokens": 100_000})
+    assert res.status_code == 400
+
+
+def test_api_settings_validation_warn_greater_than_critical_returns_400(client, tmp_path, monkeypatch):
+    config = {
+        "notifications": {"enabled": True, "sound": True},
+        "session_health": {"warn_tokens": 80_000, "critical_tokens": 150_000},
+    }
+    _patch_config(monkeypatch, tmp_path, config)
+
+    res = client.post("/api/settings", json={"warn_tokens": 200_000, "critical_tokens": 100_000})
+    assert res.status_code == 400
+
+
+@pytest.mark.parametrize("warn,critical", [
+    (50_000, 100_000),   # Sparsam
+    (80_000, 150_000),   # Standard
+    (120_000, 200_000),  # Intensiv
+])
+def test_api_settings_preset_values_valid(warn, critical):
+    """All dashboard presets must satisfy warn > 0 and warn < critical."""
+    assert warn > 0
+    assert warn < critical

@@ -307,6 +307,22 @@ bash hooks/setup_dashboard_autostart.sh
 > ```
 > Verify: `launchctl list | grep trace`
 
+### Session health thresholds
+
+**Session health thresholds** can be adjusted in the dashboard
+Settings panel or directly in `~/.trace/trace_config.yaml`:
+
+```yaml
+session_health:
+  warn_tokens: 80000     # yellow warning
+  critical_tokens: 150000  # red critical
+```
+
+Recommended values:
+- Sparsam:  warn 50k  / critical 100k
+- Standard: warn 80k  / critical 150k  (default)
+- Intensiv: warn 120k / critical 200k
+
 ### Token Calculator – API keys for exact counts
 
 The Token Calculator shows exact token counts when the relevant API key is available:
