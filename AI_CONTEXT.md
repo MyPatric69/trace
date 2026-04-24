@@ -233,4 +233,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-23 – Auto-synced 6 commit(s) to b295656
+2026-04-24 – Fix activity section: fmtModel no longer truncates model name (shows full string); "Fav. Model" label confirmed present. 551/551 tests green.

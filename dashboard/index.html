@@ -1834,7 +1834,7 @@
       const d = await api('/api/activity' + params);
       const s = d.stats;
 
-      const fmtModel = m => m ? m.replace(/^claude-/, '').replace(/^gpt-/, 'gpt-').split('-').slice(0, 2).join('-') : '–';
+      const fmtModel = m => m || '–';
 
       $('activity-stats').innerHTML = `
         <div class="act-stat-row">
