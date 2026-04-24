@@ -241,4 +241,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-24 – Auto-synced 1 commit(s) to 4e2402e
+2026-04-24 – Auto-synced 1 commit(s) to 94d3bd0
