@@ -201,6 +201,7 @@ WS   /ws
 - **Monthly budget in Settings** – `POST /api/settings` accepts `monthly_budget_usd` (float, > 0); `GET /api/status` returns `monthly_budget_usd` alongside `warn_tokens`/`critical_tokens`; Settings popover Monthly Budget field saves immediately to `~/.trace/trace_config.yaml`; default $20.00
 - **Provider & Model Usage merged** – previously separate "AI Provider" and "Model Usage" panels consolidated into a single "Provider & Model Usage" section; provider badges and model cost bars rendered together
 - **Smart recommendations** – cost tips fire when avg. cost/session exceeds $2.00 or when monthly budget utilization exceeds 100%
+- **Dynamic heatmap width** – heatmap starts at the Monday of the first data entry and ends at today; grows organically week-by-week up to a 52-week cap; empty state shows a single transparent placeholder column with "No activity yet" label
 
 **Out of scope:**
 - Multi-MCP proxy
@@ -241,4 +242,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-24 – Auto-synced 1 commit(s) to 94d3bd0
+2026-04-24 – Dynamic heatmap width: starts at first data entry, grows to 52-week cap, empty state placeholder

@@ -270,4 +270,49 @@ cat ~/.trace/last_health.json
 
 ---
 
-**Last updated:** 2026-04-23 (health bar iframe fix — block layout, explicit heights)
+## Test 12: Heatmap renders only weeks from first data entry to today
+
+**Goal:** Verify that the heatmap starts at the first week that contains data,
+not at a fixed 52-week-back offset, so new installs don't show a large empty area.
+
+**Steps:**
+1. Start the dashboard: `bash dashboard/start.sh`
+2. Open the Activity section with a project that has only a few weeks of history
+3. **Expected:** The leftmost column of the heatmap aligns to the Monday of the
+   week containing the first recorded session
+4. **Expected:** The rightmost column is this week (ending at today)
+5. Open the Activity section with a project that has >52 weeks of history
+6. **Expected:** Exactly 52 weeks are shown (hard cap)
+
+**Pass Criteria:**
+- No blank column columns to the left of the first data entry
+- Grid grows organically: 1 week on first day of use, 52 weeks after a year
+- Tooltip on hover shows correct date, session count, and cost
+- Day-of-week labels (M T W T F S S) remain aligned on the left
+
+---
+
+## Test 13: Empty heatmap shows "No activity yet" placeholder
+
+**Goal:** Verify that the activity heatmap shows a meaningful empty state
+when no sessions have been recorded yet (fresh install or new project).
+
+**Steps:**
+1. Register a new project with no sessions
+2. Select it in the project dropdown
+3. Open the Activity section
+
+**Expected:**
+- A single column of 7 transparent cells is shown (placeholder week)
+- The text "No activity yet" appears below the grid
+- No JavaScript error in the browser console
+
+**Pass Criteria:**
+- Placeholder week visible (7 transparent cells in one column)
+- "No activity yet" label visible below the heatmap
+- Day-of-week labels remain aligned on the left
+- No console errors
+
+---
+
+**Last updated:** 2026-04-24 (dynamic heatmap width — grows from first data entry)

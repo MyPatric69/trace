@@ -1908,15 +1908,35 @@
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayIso = today.toISOString().slice(0, 10);
 
-      // Align start to Monday 52 weeks back
+      const dayLabels = ['M','T','W','T','F','S','S'].map(
+        l => `<div class="hm-day-lbl">${l}</div>`
+      ).join('');
+
+      if (d.heatmap.length === 0) {
+        const emptyCells = Array(7).fill('<div class="hm-cell" style="background:rgba(29,158,117,0)"></div>').join('');
+        $('activity-heatmap').innerHTML =
+          `<div style="display:flex;align-items:flex-start;gap:0">
+             <div class="hm-day-labels">${dayLabels}</div>
+             <div class="hm-grid">${emptyCells}</div>
+           </div>
+           <div style="font-size:0.75rem;color:var(--muted);margin-top:0.5rem;padding-left:20px">No activity yet</div>`;
+        return;
+      }
+
+      // Align earliest data date to its Monday; cap at 52 weeks back from this week's Monday
+      const allDates = d.heatmap.map(e => e.date).sort();
+      const earliest = new Date(allDates[0]);
+      earliest.setHours(0, 0, 0, 0);
+      const startDate = new Date(earliest);
+      startDate.setDate(earliest.getDate() - (earliest.getDay() === 0 ? 6 : earliest.getDay() - 1));
+
       const dow = today.getDay();
-      const daysToMon = dow === 0 ? 6 : dow - 1;
-      const weekMon = new Date(today);
-      weekMon.setDate(today.getDate() - daysToMon);
-      const startDate = new Date(weekMon);
-      startDate.setDate(weekMon.getDate() - 51 * 7);
+      const thisWeekMon = new Date(today);
+      thisWeekMon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+      const maxStart = new Date(thisWeekMon);
+      maxStart.setDate(thisWeekMon.getDate() - 51 * 7);
+      if (startDate < maxStart) startDate.setTime(maxStart.getTime());
 
       const days = [];
       const cur = new Date(startDate);
@@ -1935,10 +1955,6 @@
           : iso;
         return `<div class="hm-cell" style="background:${bg}" title="${tip}"></div>`;
       }).join('');
-
-      const dayLabels = ['M','T','W','T','F','S','S'].map(
-        l => `<div class="hm-day-lbl">${l}</div>`
-      ).join('');
 
       $('activity-heatmap').innerHTML =
         `<div style="display:flex;align-items:flex-start;gap:0">
