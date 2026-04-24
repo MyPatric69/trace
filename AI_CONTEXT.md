@@ -233,4 +233,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-24 – Fix activity section: fmtModel no longer truncates model name (shows full string); "Fav. Model" label confirmed present. 551/551 tests green.
+2026-04-24 – Dashboard consolidation: Activity pill Fav. Model→Avg. Cost/Session; AI Provider + Model Usage merged into "Provider & Model Usage" section (below Activity); Monthly Budget input in Settings popover (GET /api/status + POST /api/settings, validates >0); heatmap min opacity 0.15, inactive days transparent; "Consider shorter sessions" threshold $0.50→$2.00; budget tip fires only when >100%; 554/554 tests green.

@@ -1045,6 +1045,16 @@
           <button class="settings-preset-btn settings-preset-btn--default" onclick="applyHealthPreset(80000,150000)">Standard 80k/150k</button>
           <button class="settings-preset-btn" onclick="applyHealthPreset(120000,200000)">Intensive 120k/200k</button>
         </div>
+        <div class="pop-divider"></div>
+        <!-- Monthly budget -->
+        <div class="pop-section-label" style="font-size:0.6563rem;">Monthly budget</div>
+        <div class="pop-row">
+          <span class="pop-label">Budget</span>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span class="pop-unit">$</span>
+            <input type="text" inputmode="decimal" id="monthly-budget-usd" class="threshold-input" placeholder="20.00" style="width:4rem;">
+          </div>
+        </div>
         <button class="pop-save-btn" onclick="saveAllSettings()">Save</button>
         <div class="pop-msg" id="settings-save-msg"></div>
       </div>
@@ -1131,27 +1141,20 @@
     </div>
   </div>
 
-  <!-- 5 · Model usage -->
-  <div class="models-card">
-    <div class="card-title">Model Usage · Last 7 Days</div>
-    <div id="models-list"><div class="empty">Loading…</div></div>
-  </div>
-
-  <!-- 6 · Activity -->
+  <!-- 5 · Activity -->
   <div class="panel" id="activity-card">
     <div class="card-title">Activity</div>
     <div id="activity-stats"><div class="empty">Loading…</div></div>
     <div id="activity-heatmap"></div>
   </div>
 
-  <!-- 8 · AI Providers -->
-  <div class="panel" id="providers-card">
-    <div class="card-title">AI Provider</div>
-    <div id="provider-summary-row" style="margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;"></div>
-    <div id="provider-project-list"></div>
+  <!-- 6 · Provider & Model Usage -->
+  <div class="panel" id="provider-models-card">
+    <div class="card-title">Provider &amp; Model Usage</div>
+    <div id="provider-models-list"><div class="empty">Loading…</div></div>
   </div>
 
-  <!-- 9 · MCP Servers -->
+  <!-- 7 · MCP Servers -->
   <div class="panel">
     <div class="card-title">MCP Servers</div>
     <div class="mcp-summary" id="mcp-summary">Loading…</div>
@@ -1337,10 +1340,12 @@
     if (notifSound)   notifSound.checked   = data.notifications_sound   !== false;
     updateSoundRowState();
 
-    const warnInput = $('health-warn-tokens');
-    const critInput = $('health-critical-tokens');
-    if (warnInput && data.warn_tokens != null)     warnInput.value = data.warn_tokens;
-    if (critInput && data.critical_tokens != null) critInput.value = data.critical_tokens;
+    const warnInput   = $('health-warn-tokens');
+    const critInput   = $('health-critical-tokens');
+    const budgetInput = $('monthly-budget-usd');
+    if (warnInput && data.warn_tokens != null)         warnInput.value   = data.warn_tokens;
+    if (critInput && data.critical_tokens != null)     critInput.value   = data.critical_tokens;
+    if (budgetInput && data.monthly_budget_usd != null) budgetInput.value = data.monthly_budget_usd;
   }
 
   function updateSoundRowState() {
@@ -1384,12 +1389,14 @@
   }
 
   async function saveAllSettings() {
-    const warnInput = $('health-warn-tokens');
-    const critInput = $('health-critical-tokens');
-    const msg       = $('settings-save-msg');
+    const warnInput   = $('health-warn-tokens');
+    const critInput   = $('health-critical-tokens');
+    const budgetInput = $('monthly-budget-usd');
+    const msg         = $('settings-save-msg');
 
-    const warn = parseInt((warnInput || {}).value, 10);
-    const crit = parseInt((critInput || {}).value, 10);
+    const warn   = parseInt((warnInput   || {}).value, 10);
+    const crit   = parseInt((critInput   || {}).value, 10);
+    const budget = parseFloat((budgetInput || {}).value);
 
     const showErr = text => {
       if (msg) { msg.textContent = text; msg.style.color = 'var(--red)'; }
@@ -1398,29 +1405,33 @@
     if (isNaN(warn) || isNaN(crit)) { showErr('Please enter a valid number'); return; }
     if (warn <= 0) { showErr('Warning must be > 0'); return; }
     if (warn >= crit) { showErr('Warning must be < Critical'); return; }
+    if (!isNaN(budget) && budget <= 0) { showErr('Budget must be > 0'); return; }
 
     if (msg) msg.textContent = '';
     try {
+      const payload = {
+        notifications_enabled: !!($('notif-enabled') && $('notif-enabled').checked),
+        notifications_sound:   !!($('notif-sound')   && $('notif-sound').checked),
+        warn_tokens:     warn,
+        critical_tokens: crit,
+      };
+      if (!isNaN(budget)) payload.monthly_budget_usd = budget;
       const res = await fetch('/api/settings', {
         method:  'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          notifications_enabled: !!($('notif-enabled') && $('notif-enabled').checked),
-          notifications_sound:   !!($('notif-sound')   && $('notif-sound').checked),
-          warn_tokens:     warn,
-          critical_tokens: crit,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.detail || 'Save failed.');
       }
+      if (!isNaN(budget)) cfg.monthly_budget_usd = budget;
       if (msg) {
         msg.textContent = 'Saved';
         msg.style.color = 'var(--teal)';
         setTimeout(() => { if (msg) msg.textContent = ''; }, 2000);
       }
-      loadMetrics();  // refresh health bar with new thresholds
+      loadMetrics();  // refresh health bar + budget card with new values
     } catch (e) {
       showErr(e.message || 'Save failed');
     }
@@ -1789,7 +1800,7 @@
     const data = await api('/api/tips' + params);
 
     if (!data.tips || !data.tips.length) {
-      $('tips-list').innerHTML = '<div class="empty">No recommendations — looking good!</div>';
+      $('tips-list').innerHTML = '<div class="empty">Looking good – no issues detected</div>';
       return;
     }
 
@@ -1802,30 +1813,72 @@
     `).join('');
   }
 
-  // ── Model chart ───────────────────────────────────────────────────────────
+  // ── Provider & Model Usage (merged) ─────────────────────────────────────
 
-  async function loadModels() {
-    const params = selectedProject
-      ? '?period=week&project=' + encodeURIComponent(selectedProject)
-      : '?period=week';
-    const data = await api('/api/models' + params);
+  async function loadProviderModels() {
+    const el = $('provider-models-list');
+    if (!el) return;
+    try {
+      const proj       = selectedProject;
+      const projParam  = proj ? '&project=' + encodeURIComponent(proj) : '';
+      const [provData, modData] = await Promise.all([
+        api('/api/providers'),
+        api('/api/models?period=week' + projParam),
+      ]);
 
-    if (!data.models.length) {
-      $('models-list').innerHTML = '<div class="empty">No sessions in the last 7 days.</div>';
-      return;
+      // Project rows (provider badge + name + model + session count)
+      const projects = proj
+        ? provData.projects.filter(p => p.name === proj)
+        : provData.projects;
+
+      let html = '';
+
+      if (projects.length) {
+        html += projects.map((p, i) => {
+          const isLast      = i === projects.length - 1 && !modData.models.length;
+          const borderStyle = isLast ? 'none' : '1px solid var(--border)';
+          const badges      = p.providers.length
+            ? p.providers.map(_providerBadge).join('')
+            : '<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);">–</span>';
+          const modelStr    = p.models.length ? p.models.join(' · ') : 'No sessions (last 30 days)';
+          const sessLabel   = p.sessions_today > 0
+            ? `<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);margin-left:0.5rem;">${p.sessions_today} today</span>`
+            : '';
+          return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0;border-bottom:${borderStyle};">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:500;font-size:0.8125rem;">${p.name}</div>
+              <div style="font-size:0.6875rem;color:var(--muted);font-family:var(--mono);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${modelStr}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+              ${sessLabel}${badges}
+            </div>
+          </div>`;
+        }).join('');
+      } else {
+        html += '<div class="empty">No projects registered.</div>';
+      }
+
+      // Model cost bars
+      if (modData.models.length) {
+        const maxCost = Math.max(...modData.models.map(m => m.total_cost), 0.0001);
+        html += `<div style="margin-top:0.75rem;">` + modData.models.map(m => {
+          const pct = (m.total_cost / maxCost * 100).toFixed(1);
+          return `<div class="model-row">
+            <div class="model-name">${m.model}</div>
+            <div class="model-bar-track">
+              <div class="model-bar-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="model-cost">${usd(m.total_cost)}</div>
+          </div>`;
+        }).join('') + `</div>`;
+      } else if (projects.length) {
+        html += '<div class="empty" style="margin-top:0.5rem;">No model usage in the last 7 days.</div>';
+      }
+
+      el.innerHTML = html;
+    } catch (e) {
+      // non-critical
     }
-
-    const maxCost = Math.max(...data.models.map(m => m.total_cost), 0.0001);
-    $('models-list').innerHTML = data.models.map(m => {
-      const pct = (m.total_cost / maxCost * 100).toFixed(1);
-      return `<div class="model-row">
-        <div class="model-name">${m.model}</div>
-        <div class="model-bar-track">
-          <div class="model-bar-fill" style="width:${pct}%"></div>
-        </div>
-        <div class="model-cost">${usd(m.total_cost)}</div>
-      </div>`;
-    }).join('');
   }
 
   async function loadActivity() {
@@ -1834,7 +1887,9 @@
       const d = await api('/api/activity' + params);
       const s = d.stats;
 
-      const fmtModel = m => m || '–';
+      const avgCostPerSession = s.total_sessions > 0
+        ? '$' + (s.total_cost_usd / s.total_sessions).toFixed(2)
+        : '–';
 
       $('activity-stats').innerHTML = `
         <div class="act-stat-row">
@@ -1842,7 +1897,7 @@
           <div class="act-stat"><div class="act-stat-val">${s.active_days}</div><div class="act-stat-lbl">Active Days</div></div>
           <div class="act-stat"><div class="act-stat-val">${s.current_streak}</div><div class="act-stat-lbl">Current Streak</div></div>
           <div class="act-stat"><div class="act-stat-val">${s.longest_streak}</div><div class="act-stat-lbl">Longest Streak</div></div>
-          <div class="act-stat"><div class="act-stat-val" title="${s.favorite_model || ''}">${fmtModel(s.favorite_model)}</div><div class="act-stat-lbl">Fav. Model</div></div>
+          <div class="act-stat"><div class="act-stat-val">${avgCostPerSession}</div><div class="act-stat-lbl">Avg. Cost/Session</div></div>
           <div class="act-stat"><div class="act-stat-val">${usd(s.total_cost_usd)}</div><div class="act-stat-lbl">Total Cost</div></div>
         </div>`;
 
@@ -1873,8 +1928,8 @@
 
       const cells = days.map(({ iso, data }) => {
         const cost = data ? data.cost_usd : 0;
-        const intensity = cost > 0 ? Math.max(0.18, Math.min(cost / maxCost, 1)) : 0;
-        const bg = intensity > 0 ? `rgba(29,158,117,${intensity.toFixed(2)})` : 'var(--border)';
+        const intensity = cost > 0 ? Math.max(0.15, Math.min(cost / maxCost, 1)) : 0;
+        const bg = intensity > 0 ? `rgba(29,158,117,${intensity.toFixed(2)})` : 'rgba(29,158,117,0)';
         const tip = data
           ? `${iso}: ${data.sessions} session(s) · ${usd(data.cost_usd)}`
           : iso;
@@ -1899,7 +1954,7 @@
 
   async function loadAll() {
     try {
-      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels(), loadMcp(), loadProviders(), loadActivity()]);
+      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadProviderModels(), loadMcp(), loadActivity()]);
     } catch (e) {
       console.error('Refresh error:', e);
     }
@@ -1977,60 +2032,6 @@
     };
     const [bg, fg] = cfg[name] || cfg.other;
     return `<span style="display:inline-flex;align-items:center;gap:4px;background:${bg};color:${fg};border-radius:20px;padding:2px 8px 2px 6px;font-family:var(--mono);font-size:0.6563rem;font-weight:600;letter-spacing:0.04em;white-space:nowrap;"><span style="width:7px;height:7px;border-radius:50%;background:${fg};flex-shrink:0;display:inline-block;"></span>${name}</span>`;
-  }
-
-  async function loadProviders() {
-    try {
-      const d        = await api('/api/providers');
-      const summaryEl = $('provider-summary-row');
-      const listEl    = $('provider-project-list');
-      if (!summaryEl || !listEl) return;
-
-      // Summary row
-      if (d.summary.length === 0) {
-        summaryEl.innerHTML = '<span style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);">No data</span>';
-      } else {
-        summaryEl.innerHTML =
-          '<span style="font-family:var(--mono);font-size:0.75rem;color:var(--muted);margin-right:4px;">Active Provider:</span>'
-          + d.summary.map(_providerBadge).join('');
-      }
-
-      // Project rows – filter to selected project if one is active
-      const projects = selectedProject
-        ? d.projects.filter(p => p.name === selectedProject)
-        : d.projects;
-
-      if (!projects.length) {
-        listEl.innerHTML = '<div class="empty">No projects registered.</div>';
-        return;
-      }
-
-      listEl.innerHTML = projects.map((p, i) => {
-        const isLast      = i === projects.length - 1;
-        const borderStyle = isLast ? 'none' : '1px solid var(--border)';
-        const badges      = p.providers.length
-          ? p.providers.map(_providerBadge).join('')
-          : '<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);">\u2013</span>';
-        const subtitle = p.models.length
-          ? p.models.join(' \u00b7 ')
-          : 'No sessions (last 30 days)';
-        const sessionsBadge = p.sessions_today > 0
-          ? `<span style="font-family:var(--mono);font-size:0.6563rem;color:var(--muted);margin-right:0.375rem;">${p.sessions_today} today</span>`
-          : '';
-        return `
-          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0;border-bottom:${borderStyle};">
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:500;font-size:0.8125rem;">${p.name}</div>
-              <div style="font-size:0.6875rem;color:var(--muted);font-family:var(--mono);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
-              ${sessionsBadge}${badges}
-            </div>
-          </div>`;
-      }).join('');
-    } catch (e) {
-      // non-critical – leave panel empty on error
-    }
   }
 
   // ── MCP Servers panel ────────────────────────────────────────────────────

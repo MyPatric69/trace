@@ -561,6 +561,7 @@ class SettingsRequest(BaseModel):
     notifications_sound: bool | None = None
     warn_tokens: int | None = None
     critical_tokens: int | None = None
+    monthly_budget_usd: float | None = None
 
 
 @app.post("/api/settings")
@@ -584,6 +585,11 @@ def api_settings_update(req: SettingsRequest):
             health["warn_tokens"] = req.warn_tokens
         if req.critical_tokens is not None:
             health["critical_tokens"] = req.critical_tokens
+    if req.monthly_budget_usd is not None:
+        if req.monthly_budget_usd <= 0:
+            raise HTTPException(status_code=400, detail="monthly_budget_usd must be > 0")
+        budgets = config.setdefault("budgets", {})
+        budgets["default_monthly_usd"] = req.monthly_budget_usd
     _save_and_sync_config(path, config)
     return {"status": "ok"}
 

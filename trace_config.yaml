@@ -8,11 +8,11 @@ api_integration:
   monthly_budget_usd: 20.0
 projects: []
 budgets:
-  default_monthly_usd: 20.0
+  default_monthly_usd: 125.0
   alert_threshold_pct: 80
-session_health:
-  warn_tokens: 80000
-  critical_tokens: 150000
+session:
+  warn_at_tokens: 60000
+  recommend_reset_at: 100000
   claude_autocompact_approx: 180000
 models:
   claude-sonnet-4-6:
@@ -63,21 +63,14 @@ models:
     cache_creation_per_1k: 0.00075
     cache_read_per_1k: 0.000375
     context_window: 128000
-context_windows:
-  claude-: 200000
-  gpt-4o: 128000
-  gpt-4-: 8192
-  gpt-5.4-mini: 128000
-  gpt-5.4: 1050000
-  gpt-5: 400000
-  gemini-: 1000000
-notifications:
-  enabled: true
-  sound: true
-  sound_warn: Tink
-  sound_critical: Funk
 mcp_servers:
 - name: trace
   estimated_tokens: 300
 - name: github
   estimated_tokens: 300
+notifications:
+  enabled: true
+  sound: true
+session_health:
+  warn_tokens: 80000
+  critical_tokens: 150000

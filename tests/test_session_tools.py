@@ -261,8 +261,8 @@ def test_get_tips_no_sessions_tip_for_empty_project(sess_env):
 
 def test_get_tips_detects_expensive_avg_cost(sess_env):
     store = sess_env["store"]
-    # claude-sonnet-4-5: $0.015/1k output → 35k output tokens = $0.525 avg cost
-    store.add_session("testproject", "claude-sonnet-4-5", 0, 35000)
+    # claude-sonnet-4-5: $0.015/1k output → 140k output tokens ≈ $2.10 avg cost (> $2.00 threshold)
+    store.add_session("testproject", "claude-sonnet-4-5", 0, 140000)
     result = session_module.get_tips("testproject")
     expensive_tip = any("avg cost" in t for t in result["tips"])
     assert expensive_tip

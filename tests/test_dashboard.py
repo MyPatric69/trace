@@ -743,6 +743,37 @@ def test_api_settings_preset_values_valid(warn, critical):
     assert warn < critical
 
 
+def test_api_status_returns_monthly_budget_usd(client):
+    data = client.get("/api/status").json()
+    assert "monthly_budget_usd" in data
+    assert data["monthly_budget_usd"] == 20.0
+
+
+def test_api_settings_saves_monthly_budget_usd(client, tmp_path, monkeypatch):
+    config = {
+        "notifications": {"enabled": True, "sound": True},
+        "session_health": {"warn_tokens": 80_000, "critical_tokens": 150_000},
+        "budgets": {"default_monthly_usd": 20.0},
+    }
+    saved = _patch_config(monkeypatch, tmp_path, config)
+
+    res = client.post("/api/settings", json={"monthly_budget_usd": 50.0})
+    assert res.status_code == 200
+    assert saved["config"]["budgets"]["default_monthly_usd"] == 50.0
+
+
+def test_api_settings_rejects_monthly_budget_usd_zero_or_negative(client, tmp_path, monkeypatch):
+    config = {
+        "notifications": {"enabled": True, "sound": True},
+        "session_health": {"warn_tokens": 80_000, "critical_tokens": 150_000},
+        "budgets": {"default_monthly_usd": 20.0},
+    }
+    _patch_config(monkeypatch, tmp_path, config)
+
+    assert client.post("/api/settings", json={"monthly_budget_usd": 0.0}).status_code == 400
+    assert client.post("/api/settings", json={"monthly_budget_usd": -5.0}).status_code == 400
+
+
 # ---------------------------------------------------------------------------
 # GET /api/activity
 # ---------------------------------------------------------------------------

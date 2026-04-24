@@ -127,7 +127,7 @@ def get_tips(project_name: str | None = None) -> dict:
     # Tip: high average session cost
     if session_count > 0:
         avg_cost = total_cost_7d / session_count
-        if avg_cost > 0.50:
+        if avg_cost > 2.0:
             tips.append(
                 f"Consider shorter sessions – avg cost is ${avg_cost:.2f} per session"
             )
@@ -154,7 +154,7 @@ def get_tips(project_name: str | None = None) -> dict:
     monthly_cost = monthly_summary["total_cost_usd"]
     if monthly_budget > 0:
         pct = (monthly_cost / monthly_budget) * 100
-        if pct >= alert_pct:
+        if pct > 100:
             tips.append(f"Monthly budget at {pct:.0f}% – review usage")
 
     most_expensive = (
