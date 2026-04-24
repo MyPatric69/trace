@@ -283,6 +283,26 @@ See the [Token count accuracy](#token-count-accuracy) section for details.
 
 Shows live token usage, costs, drift status, and recommendations for all projects.
 
+**Dashboard sections (top to bottom):**
+
+| # | Section | What it shows |
+|---|---|---|
+| 1 | Metrics cards | Input / cache / output tokens, session cost, monthly budget % |
+| 2 | Live Session | Real-time token counts and cost for the active session |
+| 3 | Session Health | Health bar + threshold markers; handoff link |
+| 4 | Context Drift + Recommendations | Drift status per project; smart cost tips |
+| 5 | Activity | Sessions, streaks, avg. cost/session, 52-week heatmap |
+| 6 | Provider & Model Usage | Provider badges per project + model cost bars (last 7 days) |
+| 7 | MCP Servers | Registered MCP servers and token-overhead estimate |
+| 8 | Token Calculator | Estimate cost before sending a prompt |
+
+**Activity metrics explained:**
+- **Sessions** – number of Claude Code sessions started
+- **Turns** – individual prompts within a session
+- **Streak** – consecutive days with at least one session
+- **Avg. Cost/Session** – total cost divided by session count
+- The 52-week heatmap uses relative colour scaling: the most expensive day is full-intensity teal; days with no activity are transparent
+
 ### Option A – manual start (default)
 
 ```bash
@@ -322,9 +342,15 @@ Three presets are available – or enter custom values:
 
 | Preset | Warning at | Critical at | For |
 |---|---|---|---|
-| Sparsam | 50,000 tokens | 100,000 tokens | Cost-conscious workflows |
+| Economy | 50,000 tokens | 100,000 tokens | Cost-conscious workflows |
 | Standard | 80,000 tokens | 150,000 tokens | Default – recommended |
-| Intensiv | 120,000 tokens | 200,000 tokens | Large projects / long sessions |
+| Intensive | 120,000 tokens | 200,000 tokens | Large projects / long sessions |
+
+**Monthly Budget**
+
+Set your monthly spending target in USD. The Monthly Budget card in the metrics row shows current month spend as a percentage of this target. Turns amber at 80%, red at 100%.
+
+Default: $20.00. Saved immediately to `~/.trace/trace_config.yaml`.
 
 Settings are saved immediately to ~/.trace/trace_config.yaml.
 

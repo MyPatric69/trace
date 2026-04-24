@@ -683,6 +683,35 @@ cat ~/.trace/dashboard.log
 
 ---
 
+## Issue 19: Monthly Budget shows wrong percentage
+
+**Symptom:**
+The Monthly Budget card in the dashboard shows an unexpected
+percentage that doesn't match your actual spending.
+
+**Cause:**
+The budget target stored in `~/.trace/trace_config.yaml` may
+differ from what you expect, or was never set.
+
+**Fix:**
+Open the ⚙ Settings popover in the dashboard header and update
+the **Monthly Budget** field to your desired USD target.
+Changes are saved immediately to `~/.trace/trace_config.yaml`.
+
+Alternatively, edit the config directly:
+```yaml
+# ~/.trace/trace_config.yaml
+api_integration:
+  monthly_budget_usd: 20.0   # your target in USD
+```
+
+Then copy to the runtime config if you edited the project file:
+```bash
+cp trace_config.yaml ~/.trace/trace_config.yaml
+```
+
+---
+
 ## Still stuck?
 
 Check the project status:

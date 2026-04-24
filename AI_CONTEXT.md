@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 500/500 tests green ✓
+**Status:** All 4 phases complete – 554/554 tests green ✓
 
 ---
 
@@ -108,7 +108,7 @@ trace/
 │   ├── manifest_de.html
 │   └── manifest_en.html
 │
-└── tests/                 ← 500 tests, all green
+└── tests/                 ← 554 tests, all green
 
 ~/.trace/
 ├── trace.db               ← single central DB for all projects
@@ -122,7 +122,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**500/500 tests green ✓ (2026-04-17)**
+**554/554 tests green ✓ (2026-04-24)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -174,8 +174,9 @@ GET  /api/provider          ?period=
 GET  /api/drift/{project}
 GET  /api/sync/{project}
 GET  /api/live              ?project=
+GET  /api/activity         – activity stats and 52-week heatmap
 POST /api/live/clear
-POST /api/settings
+POST /api/settings         – accepts warn_tokens, critical_tokens, monthly_budget_usd (float, > 0)
 GET  /api/tips              ?project_name=
 GET  /api/new_session/{project}  ?dry_run=
 WS   /ws
@@ -193,6 +194,13 @@ WS   /ws
 - `trace_config.yaml` – `notifications` block: `enabled`, `sound`, `sound_warn` (Tink), `sound_critical` (Funk)
 - `dashboard/server.py` – `POST /api/settings` writes `notifications_enabled`/`notifications_sound` to `~/.trace/trace_config.yaml`; `GET /api/status` includes both fields
 - `dashboard/index.html` – Settings panel with Notifications + Sound toggles; Sound greyed out when Notifications off; persisted via `POST /api/settings` on toggle change
+
+**Dashboard consolidation and recent expansions (complete):**
+- **Context window utilization** – `peak_context_tokens` column in `sessions` table; `engine/live_tracker.py` records peak during session; `/api/live` response includes `peak_context_tokens`; dashboard health panel shows utilization bar
+- **Activity section** – `/api/activity` endpoint returns session counts, turn totals, current/longest streak, avg. cost/session, and 52-week heatmap data; `get_activity_stats()` + `get_heatmap_data()` added to `TraceStore`; heatmap uses relative colour scaling (most expensive day = full-intensity teal, no activity = transparent)
+- **Monthly budget in Settings** – `POST /api/settings` accepts `monthly_budget_usd` (float, > 0); `GET /api/status` returns `monthly_budget_usd` alongside `warn_tokens`/`critical_tokens`; Settings popover Monthly Budget field saves immediately to `~/.trace/trace_config.yaml`; default $20.00
+- **Provider & Model Usage merged** – previously separate "AI Provider" and "Model Usage" panels consolidated into a single "Provider & Model Usage" section; provider badges and model cost bars rendered together
+- **Smart recommendations** – cost tips fire when avg. cost/session exceeds $2.00 or when monthly budget utilization exceeds 100%
 
 **Out of scope:**
 - Multi-MCP proxy
@@ -233,4 +241,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-24 – Dashboard consolidation: Activity pill Fav. Model→Avg. Cost/Session; AI Provider + Model Usage merged into "Provider & Model Usage" section (below Activity); Monthly Budget input in Settings popover (GET /api/status + POST /api/settings, validates >0); heatmap min opacity 0.15, inactive days transparent; "Consider shorter sessions" threshold $0.50→$2.00; budget tip fires only when >100%; 554/554 tests green.
+2026-04-24 – Dashboard consolidation: activity stats, 52-week heatmap, context window utilization, monthly budget in Settings, Provider & Model Usage merged, smart recommendations

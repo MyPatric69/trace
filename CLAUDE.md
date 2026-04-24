@@ -34,8 +34,9 @@ trace_config.yaml           Single source of truth: db path, model prices, budge
 ## Current Phase
 
 **v0.3.0 released – v0.4.0 planning.**
-464 tests green. Dashboard stable with day picker, provider badges,
-persistent health indicator, enriched handoff prompt.
+554 tests green. Dashboard stable with day picker, provider badges,
+persistent health indicator, enriched handoff prompt, activity stats,
+52-week heatmap, context window utilization, monthly budget tracking.
 Focus: Prometheus /metrics endpoint → Grafana integration.
 Publish to Dev.to and Hacker News pending.
 
@@ -55,3 +56,49 @@ pytest tests/ -v          # run full test suite
 bash dashboard/start.sh   # start dashboard → http://localhost:8080
 python server/main.py     # start MCP server directly
 ```
+
+## Dashboard Sections
+
+Order (top to bottom):
+
+1. Metrics cards – input / cache / output tokens, session cost, monthly budget %
+2. Live Session – real-time token counts for the active session
+3. Session Health – health bar + threshold markers; handoff link
+4. Context Drift + Recommendations – drift status per project; smart cost tips
+5. Activity – sessions, streaks, avg. cost/session, 52-week heatmap
+6. Provider & Model Usage – provider badges + model cost bars, merged section
+7. MCP Servers – registered servers + token-overhead estimate
+8. Token Calculator – estimate cost before sending a prompt
+
+## API Endpoints
+
+```
+GET  /api/status               – health, warn_tokens, critical_tokens, monthly_budget_usd
+GET  /api/projects
+GET  /api/costs                ?period=
+GET  /api/costs/{project}      ?period=
+GET  /api/tokens               ?project= &period=
+GET  /api/stats/{date}         ?project=
+GET  /api/today                ?project=
+GET  /api/models               ?period= &project=
+GET  /api/providers
+GET  /api/provider             ?period=
+GET  /api/drift/{project}
+GET  /api/sync/{project}
+GET  /api/live                 ?project=
+GET  /api/activity             – activity stats and 52-week heatmap
+POST /api/live/clear
+POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd (float, > 0)
+GET  /api/tips                 ?project_name=
+GET  /api/new_session/{project}  ?dry_run=
+WS   /ws
+```
+
+## DB Schema
+
+`sessions` table key columns:
+- `peak_context_tokens` – highest context window usage recorded in the session
+
+`TraceStore` methods of note:
+- `get_activity_stats(project_id=None)` – returns session counts, streak data
+- `get_heatmap_data(project_id=None)` – returns 52-week activity for heatmap
