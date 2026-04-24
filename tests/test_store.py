@@ -385,3 +385,173 @@ def test_get_cost_summary_exact_date_single_day(tmp_store: TraceStore):
     summary = tmp_store.get_cost_summary("alpha", since_date="2026-04-13", until_date="2026-04-13")
     assert summary["session_count"] == 1
     assert summary["total_cost_usd"] == pytest.approx(0.0525)
+
+
+# ---------------------------------------------------------------------------
+# peak_context_tokens in add_session / upsert_live_session
+# ---------------------------------------------------------------------------
+
+def test_add_session_stores_peak_context_tokens(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    tmp_store.add_session(
+        "alpha", "claude-sonnet-4-5", 1000, 500, peak_context_tokens=45000
+    )
+    session = tmp_store.get_sessions("alpha")[0]
+    assert session["peak_context_tokens"] == 45000
+
+
+def test_add_session_peak_context_defaults_to_zero(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    session = tmp_store.get_sessions("alpha")[0]
+    assert session["peak_context_tokens"] == 0
+
+
+def test_upsert_live_session_stores_peak_context_tokens(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    tmp_store.upsert_live_session(
+        "sid-1", "alpha", "claude-sonnet-4-5", 1000, 500,
+        peak_context_tokens=30000,
+    )
+    session = tmp_store.get_sessions("alpha")[0]
+    assert session["peak_context_tokens"] == 30000
+
+
+def test_upsert_live_session_updates_peak_context_tokens(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    tmp_store.upsert_live_session(
+        "sid-1", "alpha", "claude-sonnet-4-5", 1000, 500,
+        peak_context_tokens=10000,
+    )
+    tmp_store.upsert_live_session(
+        "sid-1", "alpha", "claude-sonnet-4-5", 2000, 800,
+        peak_context_tokens=20000,
+    )
+    sessions = tmp_store.get_sessions("alpha")
+    assert len(sessions) == 1
+    assert sessions[0]["peak_context_tokens"] == 20000
+
+
+# ---------------------------------------------------------------------------
+# get_activity_stats
+# ---------------------------------------------------------------------------
+
+def _insert_sessions(tmp_store: TraceStore, project_name: str, dates: list[str],
+                     model: str = "claude-sonnet-4-5") -> None:
+    import sqlite3
+    project = tmp_store.get_project(project_name)
+    pid = project["id"]
+    with sqlite3.connect(tmp_store.db_path) as conn:
+        for d in dates:
+            conn.execute(
+                """INSERT INTO sessions
+                   (project_id, date, model, input_tokens, output_tokens, cost_usd)
+                   VALUES (?, ?, ?, 1000, 500, 0.0105)""",
+                (pid, d, model),
+            )
+
+
+def test_get_activity_stats_empty(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    stats = tmp_store.get_activity_stats("alpha")
+    assert stats["total_sessions"] == 0
+    assert stats["active_days"] == 0
+    assert stats["current_streak"] == 0
+    assert stats["longest_streak"] == 0
+
+
+def test_get_activity_stats_unknown_project(tmp_store: TraceStore):
+    stats = tmp_store.get_activity_stats("ghost")
+    assert stats["total_sessions"] == 0
+
+
+def test_get_activity_stats_counts_sessions_and_days(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    _insert_sessions(tmp_store, "alpha", ["2026-04-20", "2026-04-20", "2026-04-21"])
+    stats = tmp_store.get_activity_stats("alpha")
+    assert stats["total_sessions"] == 3
+    assert stats["active_days"] == 2
+
+
+def test_get_activity_stats_longest_streak(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    # 3 consecutive days, gap, 2 more
+    _insert_sessions(tmp_store, "alpha", [
+        "2026-04-10", "2026-04-11", "2026-04-12",
+        "2026-04-15", "2026-04-16",
+    ])
+    stats = tmp_store.get_activity_stats("alpha")
+    assert stats["longest_streak"] == 3
+
+
+def test_get_activity_stats_favorite_model(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    _insert_sessions(tmp_store, "alpha", ["2026-04-10", "2026-04-11"], model="claude-sonnet-4-5")
+    _insert_sessions(tmp_store, "alpha", ["2026-04-12"], model="gpt-4o")
+    stats = tmp_store.get_activity_stats("alpha")
+    assert stats["favorite_model"] == "claude-sonnet-4-5"
+
+
+def test_get_activity_stats_all_projects(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    tmp_store.add_project("beta",  "/projects/beta")
+    _insert_sessions(tmp_store, "alpha", ["2026-04-10"])
+    _insert_sessions(tmp_store, "beta",  ["2026-04-11"])
+    stats = tmp_store.get_activity_stats()  # no project filter
+    assert stats["total_sessions"] == 2
+    assert stats["active_days"] == 2
+
+
+# ---------------------------------------------------------------------------
+# get_heatmap_data
+# ---------------------------------------------------------------------------
+
+def test_get_heatmap_data_empty(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    data = tmp_store.get_heatmap_data("alpha")
+    assert data == []
+
+
+def test_get_heatmap_data_unknown_project(tmp_store: TraceStore):
+    data = tmp_store.get_heatmap_data("ghost")
+    assert data == []
+
+
+def test_get_heatmap_data_returns_active_days_only(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    _insert_sessions(tmp_store, "alpha", ["2026-04-10", "2026-04-12"])
+    data = tmp_store.get_heatmap_data("alpha", weeks=200)
+    dates = [e["date"] for e in data]
+    assert "2026-04-10" in dates
+    assert "2026-04-12" in dates
+    assert len(data) == 2  # gap day (Apr 11) not returned
+
+
+def test_get_heatmap_data_aggregates_per_day(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    _insert_sessions(tmp_store, "alpha", ["2026-04-10", "2026-04-10", "2026-04-10"])
+    data = tmp_store.get_heatmap_data("alpha", weeks=200)
+    assert len(data) == 1
+    assert data[0]["sessions"] == 3
+    assert data[0]["cost_usd"] == pytest.approx(0.0315)
+
+
+def test_get_heatmap_data_sorted_ascending(tmp_store: TraceStore):
+    tmp_store.add_project("alpha", "/projects/alpha")
+    _insert_sessions(tmp_store, "alpha", ["2026-04-12", "2026-04-10", "2026-04-11"])
+    data = tmp_store.get_heatmap_data("alpha", weeks=200)
+    dates = [e["date"] for e in data]
+    assert dates == sorted(dates)
+
+
+def test_get_heatmap_data_weeks_filter(tmp_store: TraceStore):
+    from datetime import date, timedelta
+    tmp_store.add_project("alpha", "/projects/alpha")
+    today = date.today()
+    recent = today.isoformat()
+    old = (today - timedelta(weeks=60)).isoformat()
+    _insert_sessions(tmp_store, "alpha", [recent, old])
+    data = tmp_store.get_heatmap_data("alpha", weeks=52)
+    dates = [e["date"] for e in data]
+    assert recent in dates
+    assert old not in dates

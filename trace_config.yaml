@@ -63,6 +63,14 @@ models:
     cache_creation_per_1k: 0.00075
     cache_read_per_1k: 0.000375
     context_window: 128000
+context_windows:
+  claude-: 200000
+  gpt-4o: 128000
+  gpt-4-: 8192
+  gpt-5.4-mini: 128000
+  gpt-5.4: 1050000
+  gpt-5: 400000
+  gemini-: 1000000
 notifications:
   enabled: true
   sound: true

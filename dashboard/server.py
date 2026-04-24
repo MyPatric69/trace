@@ -589,6 +589,18 @@ def api_settings_update(req: SettingsRequest):
 
 
 # ---------------------------------------------------------------------------
+# /api/activity  (streaks, active days, heatmap)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/activity")
+def api_activity(project: str | None = None):
+    store = _store()
+    stats   = store.get_activity_stats(project_name=project)
+    heatmap = store.get_heatmap_data(project_name=project)
+    return {"stats": stats, "heatmap": heatmap}
+
+
+# ---------------------------------------------------------------------------
 # /api/tips
 # ---------------------------------------------------------------------------
 

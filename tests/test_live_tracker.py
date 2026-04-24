@@ -639,3 +639,82 @@ def test_get_last_health_returns_data_when_status_ok(tmp_path, patched_tracker, 
     assert health is not None
     assert health["status"] == "ok"
     assert health["tokens"] == 500
+
+
+# ---------------------------------------------------------------------------
+# peak_context_tokens tracking
+# ---------------------------------------------------------------------------
+
+def test_update_includes_peak_context_tokens(tmp_path, patched_tracker):
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=5000, output_tokens=200),
+        _assistant_turn("r2", input_tokens=8000, output_tokens=300),
+        _assistant_turn("r3", input_tokens=6000, output_tokens=150),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["peak_context_tokens"] == 8000
+
+
+def test_update_peak_context_carried_forward_across_calls(tmp_path, patched_tracker):
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=10000, output_tokens=200),
+    ])
+    tracker = LiveTracker(None)
+    r1 = tracker.update(str(transcript), str(tmp_path))
+    assert r1["peak_context_tokens"] == 10000
+
+    # Append a smaller turn – peak should still be 10000
+    with open(transcript, "a") as f:
+        f.write(json.dumps(_assistant_turn("r2", input_tokens=4000, output_tokens=100)) + "\n")
+
+    r2 = tracker.update(str(transcript), str(tmp_path))
+    assert r2["peak_context_tokens"] == 10000
+
+
+def test_update_peak_context_updates_when_larger(tmp_path, patched_tracker):
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=5000, output_tokens=100),
+    ])
+    tracker = LiveTracker(None)
+    r1 = tracker.update(str(transcript), str(tmp_path))
+    assert r1["peak_context_tokens"] == 5000
+
+    with open(transcript, "a") as f:
+        f.write(json.dumps(_assistant_turn("r2", input_tokens=15000, output_tokens=200)) + "\n")
+
+    r2 = tracker.update(str(transcript), str(tmp_path))
+    assert r2["peak_context_tokens"] == 15000
+
+
+# ---------------------------------------------------------------------------
+# context_window_pct
+# ---------------------------------------------------------------------------
+
+def test_update_includes_context_window_fields(tmp_path, patched_tracker):
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=50000, output_tokens=500),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert "context_window_pct" in result
+    assert "context_window_size" in result
+
+
+def test_update_context_window_pct_correct(tmp_path, tmp_store, patched_tracker, monkeypatch):
+    # Inject context_windows config: claude- → 200000
+    tmp_store.config["context_windows"] = {"claude-": 200_000}
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=40000, output_tokens=1000),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["context_window_size"] == 200_000
+    assert result["context_window_pct"] == pytest.approx(20.0)
+
+
+def test_update_context_window_pct_zero_when_no_tokens(tmp_path, patched_tracker):
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", output_tokens=50),  # input_tokens=0
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["context_window_pct"] == 0.0

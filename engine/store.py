@@ -128,10 +128,11 @@ class TraceStore:
             row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
         }
         for col, definition in [
-            ("cache_creation_tokens", "INTEGER NOT NULL DEFAULT 0"),
-            ("cache_read_tokens",     "INTEGER NOT NULL DEFAULT 0"),
-            ("session_id",            "TEXT"),
-            ("turns",                 "INTEGER NOT NULL DEFAULT 0"),
+            ("cache_creation_tokens",  "INTEGER NOT NULL DEFAULT 0"),
+            ("cache_read_tokens",      "INTEGER NOT NULL DEFAULT 0"),
+            ("session_id",             "TEXT"),
+            ("turns",                  "INTEGER NOT NULL DEFAULT 0"),
+            ("peak_context_tokens",    "INTEGER NOT NULL DEFAULT 0"),
         ]:
             if col not in existing:
                 conn.execute(
@@ -207,6 +208,7 @@ class TraceStore:
         cache_creation_tokens: int = 0,
         cache_read_tokens: int = 0,
         turns: int = 0,
+        peak_context_tokens: int = 0,
     ) -> int:
         """Inserts a session row and returns the new session_id."""
         project = self.get_project(project_name)
@@ -223,12 +225,12 @@ class TraceStore:
                 """INSERT INTO sessions
                    (project_id, date, model,
                     input_tokens, cache_creation_tokens, cache_read_tokens,
-                    output_tokens, turns, cost_usd, notes)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    output_tokens, turns, cost_usd, notes, peak_context_tokens)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     project["id"], today, model,
                     input_tokens, cache_creation_tokens, cache_read_tokens,
-                    output_tokens, turns, cost_usd, notes,
+                    output_tokens, turns, cost_usd, notes, peak_context_tokens,
                 ),
             )
             return cursor.lastrowid
@@ -244,6 +246,7 @@ class TraceStore:
         cache_read_tokens: int = 0,
         notes: str = "",
         turns: int = 0,
+        peak_context_tokens: int = 0,
     ) -> int:
         """Insert or update a live session record keyed on *session_id*.
 
@@ -271,12 +274,12 @@ class TraceStore:
                     """UPDATE sessions SET
                            model = ?, input_tokens = ?, cache_creation_tokens = ?,
                            cache_read_tokens = ?, output_tokens = ?, turns = ?,
-                           cost_usd = ?, notes = ?
+                           cost_usd = ?, notes = ?, peak_context_tokens = ?
                        WHERE session_id = ?""",
                     (
                         model, input_tokens, cache_creation_tokens,
                         cache_read_tokens, output_tokens, turns,
-                        cost_usd, notes, session_id,
+                        cost_usd, notes, peak_context_tokens, session_id,
                     ),
                 )
                 return existing["id"]
@@ -285,12 +288,14 @@ class TraceStore:
                     """INSERT INTO sessions
                            (project_id, date, model,
                             input_tokens, cache_creation_tokens, cache_read_tokens,
-                            output_tokens, turns, cost_usd, notes, session_id)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            output_tokens, turns, cost_usd, notes, session_id,
+                            peak_context_tokens)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         project["id"], today, model,
                         input_tokens, cache_creation_tokens, cache_read_tokens,
                         output_tokens, turns, cost_usd, notes, session_id,
+                        peak_context_tokens,
                     ),
                 )
                 return cursor.lastrowid
@@ -466,6 +471,146 @@ class TraceStore:
                 "session_count": count,
                 "avg_cost_per_session": avg,
             }
+
+
+    def get_activity_stats(self, project_name: str | None = None) -> dict:
+        """Return activity statistics: streaks, active days, total sessions, favorite model."""
+        from datetime import timedelta
+
+        with self._connect() as conn:
+            conditions: list[str] = []
+            params: list = []
+
+            if project_name is not None:
+                project = self.get_project(project_name)
+                if project is None:
+                    return {
+                        "total_sessions": 0, "active_days": 0,
+                        "current_streak": 0, "longest_streak": 0,
+                        "most_active_day": None, "favorite_model": None,
+                        "total_cost_usd": 0.0, "total_tokens": 0,
+                    }
+                conditions.append("project_id = ?")
+                params.append(project["id"])
+
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+            rows = conn.execute(
+                f"""SELECT date, model, COUNT(*) as cnt,
+                           SUM(cost_usd) as day_cost,
+                           SUM(input_tokens + cache_creation_tokens + output_tokens) as day_tokens
+                    FROM sessions {where}
+                    GROUP BY date, model
+                    ORDER BY date""",
+                params,
+            ).fetchall()
+
+        if not rows:
+            return {
+                "total_sessions": 0, "active_days": 0,
+                "current_streak": 0, "longest_streak": 0,
+                "most_active_day": None, "favorite_model": None,
+                "total_cost_usd": 0.0, "total_tokens": 0,
+            }
+
+        # Aggregate per day
+        day_counts: dict[str, int]   = {}
+        day_costs:  dict[str, float] = {}
+        day_tokens: dict[str, int]   = {}
+        model_counts: dict[str, int] = {}
+        for row in rows:
+            d   = row["date"]
+            cnt = row["cnt"]
+            day_counts[d]  = day_counts.get(d, 0)  + cnt
+            day_costs[d]   = day_costs.get(d, 0.0) + (row["day_cost"] or 0.0)
+            day_tokens[d]  = day_tokens.get(d, 0)  + (row["day_tokens"] or 0)
+            model_counts[row["model"]] = model_counts.get(row["model"], 0) + cnt
+
+        active_dates = sorted(day_counts)
+        active_date_set = set(active_dates)
+        today = date.today()
+
+        # Current streak – count backwards from today
+        current_streak = 0
+        check = today
+        while check.isoformat() in active_date_set:
+            current_streak += 1
+            check -= timedelta(days=1)
+
+        # Longest streak
+        longest_streak = 0
+        streak = 1
+        date_objs = [date.fromisoformat(d) for d in active_dates]
+        for i in range(1, len(date_objs)):
+            if (date_objs[i] - date_objs[i - 1]).days == 1:
+                streak += 1
+            else:
+                longest_streak = max(longest_streak, streak)
+                streak = 1
+        longest_streak = max(longest_streak, streak)
+
+        most_active_day = max(day_counts, key=lambda d: day_counts[d]) if day_counts else None
+        favorite_model  = max(model_counts, key=lambda m: model_counts[m]) if model_counts else None
+        total_sessions  = sum(day_counts.values())
+        total_cost      = sum(day_costs.values())
+        total_tokens    = sum(day_tokens.values())
+
+        return {
+            "total_sessions":  total_sessions,
+            "active_days":     len(active_dates),
+            "current_streak":  current_streak,
+            "longest_streak":  longest_streak,
+            "most_active_day": most_active_day,
+            "favorite_model":  favorite_model,
+            "total_cost_usd":  round(total_cost, 6),
+            "total_tokens":    total_tokens,
+        }
+
+    def get_heatmap_data(
+        self, project_name: str | None = None, weeks: int = 52
+    ) -> list[dict]:
+        """Return per-day aggregates for the last *weeks* weeks, sorted ascending.
+
+        Only days with at least one session are returned; the frontend fills gaps.
+        Each entry: {date, sessions, cost_usd, tokens}.
+        """
+        from datetime import timedelta
+
+        since = (date.today() - timedelta(weeks=weeks)).isoformat()
+
+        with self._connect() as conn:
+            conditions = ["date >= ?"]
+            params: list = [since]
+
+            if project_name is not None:
+                project = self.get_project(project_name)
+                if project is None:
+                    return []
+                conditions.append("project_id = ?")
+                params.append(project["id"])
+
+            where = "WHERE " + " AND ".join(conditions)
+
+            rows = conn.execute(
+                f"""SELECT date,
+                           COUNT(*) AS sessions,
+                           SUM(cost_usd) AS cost_usd,
+                           SUM(input_tokens + cache_creation_tokens + output_tokens) AS tokens
+                    FROM sessions {where}
+                    GROUP BY date
+                    ORDER BY date ASC""",
+                params,
+            ).fetchall()
+
+        return [
+            {
+                "date":     row["date"],
+                "sessions": row["sessions"],
+                "cost_usd": round(row["cost_usd"] or 0.0, 6),
+                "tokens":   row["tokens"] or 0,
+            }
+            for row in rows
+        ]
 
 
 if __name__ == "__main__":

@@ -891,6 +891,96 @@
       margin-top: 0.375rem;
     }
     .settings-preset-btn--default { border-color: var(--teal); color: var(--teal); }
+
+    /* ── Context Window Bar (live session panel) ── */
+    .ctx-bar-wrap {
+      margin-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      padding-top: 0.6rem;
+    }
+    .ctx-bar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-family: var(--mono);
+      font-size: 0.5625rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 0.3rem;
+    }
+    .ctx-bar {
+      display: block;
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .ctx-fill {
+      display: block;
+      height: 4px;
+      border-radius: 2px;
+      transition: width 0.5s ease, background-color 0.3s;
+      background: var(--teal);
+    }
+    .ctx-fill.amber { background: var(--amber); }
+    .ctx-fill.red   { background: var(--red); }
+
+    /* ── Activity Section ── */
+    .act-stat-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .act-stat { text-align: center; min-width: 3.5rem; }
+    .act-stat-val {
+      font-family: var(--mono);
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--fg);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 10rem;
+    }
+    .act-stat-lbl {
+      font-family: var(--mono);
+      font-size: 0.5625rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-top: 0.15rem;
+    }
+    .hm-grid {
+      display: grid;
+      grid-template-rows: repeat(7, 11px);
+      grid-auto-flow: column;
+      grid-auto-columns: 11px;
+      gap: 2px;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+    .hm-cell {
+      width: 11px;
+      height: 11px;
+      border-radius: 2px;
+    }
+    .hm-day-labels {
+      display: grid;
+      grid-template-rows: repeat(7, 11px);
+      gap: 2px;
+      float: left;
+      margin-right: 4px;
+    }
+    .hm-day-lbl {
+      font-family: var(--mono);
+      font-size: 0.5rem;
+      color: var(--muted);
+      line-height: 11px;
+    }
   </style>
 </head>
 <body>
@@ -1047,14 +1137,21 @@
     <div id="models-list"><div class="empty">Loading…</div></div>
   </div>
 
-  <!-- 6 · AI Providers -->
+  <!-- 6 · Activity -->
+  <div class="panel" id="activity-card">
+    <div class="card-title">Activity</div>
+    <div id="activity-stats"><div class="empty">Loading…</div></div>
+    <div id="activity-heatmap"></div>
+  </div>
+
+  <!-- 8 · AI Providers -->
   <div class="panel" id="providers-card">
     <div class="card-title">AI Provider</div>
     <div id="provider-summary-row" style="margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;"></div>
     <div id="provider-project-list"></div>
   </div>
 
-  <!-- 7 · MCP Servers -->
+  <!-- 9 · MCP Servers -->
   <div class="panel">
     <div class="card-title">MCP Servers</div>
     <div class="mcp-summary" id="mcp-summary">Loading…</div>
@@ -1564,6 +1661,20 @@
                         : s.health === 'warn'  ? 'Warning'
                         :                        'OK';
 
+        const ctxPct  = s.context_window_pct || 0;
+        const ctxCls  = ctxPct >= 85 ? 'red' : ctxPct >= 60 ? 'amber' : '';
+        const peakK   = s.peak_context_tokens  ? Math.round(s.peak_context_tokens  / 1000) : 0;
+        const windowK = s.context_window_size  ? Math.round(s.context_window_size  / 1000) : 200;
+        const ctxBar  = peakK > 0
+          ? `<div class="ctx-bar-wrap">
+               <div class="ctx-bar-header">
+                 <span>Context Window</span>
+                 <span>${peakK}k / ${windowK}k (${ctxPct}%)</span>
+               </div>
+               <div class="ctx-bar"><div class="ctx-fill ${ctxCls}" style="width:${Math.min(ctxPct,100)}%"></div></div>
+             </div>`
+          : '';
+
         body.innerHTML = `
           <div class="live-metrics">
             <div class="live-metric">
@@ -1583,7 +1694,8 @@
               <div class="live-metric-value">${s.turns}</div>
             </div>
             <div class="live-health ${healthCls}">${healthLbl}</div>
-          </div>`;
+          </div>
+          ${ctxBar}`;
       } else {
         // Multiple sessions – compact list view
         project.textContent = d.sessions.length + ' active sessions';
@@ -1716,11 +1828,78 @@
     }).join('');
   }
 
+  async function loadActivity() {
+    try {
+      const params = selectedProject ? '?project=' + encodeURIComponent(selectedProject) : '';
+      const d = await api('/api/activity' + params);
+      const s = d.stats;
+
+      const fmtModel = m => m ? m.replace(/^claude-/, '').replace(/^gpt-/, 'gpt-').split('-').slice(0, 2).join('-') : '–';
+
+      $('activity-stats').innerHTML = `
+        <div class="act-stat-row">
+          <div class="act-stat"><div class="act-stat-val">${s.total_sessions}</div><div class="act-stat-lbl">Sessions</div></div>
+          <div class="act-stat"><div class="act-stat-val">${s.active_days}</div><div class="act-stat-lbl">Active Days</div></div>
+          <div class="act-stat"><div class="act-stat-val">${s.current_streak}</div><div class="act-stat-lbl">Current Streak</div></div>
+          <div class="act-stat"><div class="act-stat-val">${s.longest_streak}</div><div class="act-stat-lbl">Longest Streak</div></div>
+          <div class="act-stat"><div class="act-stat-val" title="${s.favorite_model || ''}">${fmtModel(s.favorite_model)}</div><div class="act-stat-lbl">Fav. Model</div></div>
+          <div class="act-stat"><div class="act-stat-val">${usd(s.total_cost_usd)}</div><div class="act-stat-lbl">Total Cost</div></div>
+        </div>`;
+
+      // Build heatmap
+      const dataMap = {};
+      d.heatmap.forEach(e => { dataMap[e.date] = e; });
+      const maxCost = Math.max(...d.heatmap.map(e => e.cost_usd), 0.001);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayIso = today.toISOString().slice(0, 10);
+
+      // Align start to Monday 52 weeks back
+      const dow = today.getDay();
+      const daysToMon = dow === 0 ? 6 : dow - 1;
+      const weekMon = new Date(today);
+      weekMon.setDate(today.getDate() - daysToMon);
+      const startDate = new Date(weekMon);
+      startDate.setDate(weekMon.getDate() - 51 * 7);
+
+      const days = [];
+      const cur = new Date(startDate);
+      while (cur <= today) {
+        const iso = cur.toISOString().slice(0, 10);
+        days.push({ iso, data: dataMap[iso] || null });
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      const cells = days.map(({ iso, data }) => {
+        const cost = data ? data.cost_usd : 0;
+        const intensity = cost > 0 ? Math.max(0.18, Math.min(cost / maxCost, 1)) : 0;
+        const bg = intensity > 0 ? `rgba(29,158,117,${intensity.toFixed(2)})` : 'var(--border)';
+        const tip = data
+          ? `${iso}: ${data.sessions} session(s) · ${usd(data.cost_usd)}`
+          : iso;
+        return `<div class="hm-cell" style="background:${bg}" title="${tip}"></div>`;
+      }).join('');
+
+      const dayLabels = ['M','T','W','T','F','S','S'].map(
+        l => `<div class="hm-day-lbl">${l}</div>`
+      ).join('');
+
+      $('activity-heatmap').innerHTML =
+        `<div style="display:flex;align-items:flex-start;gap:0">
+           <div class="hm-day-labels">${dayLabels}</div>
+           <div class="hm-grid">${cells}</div>
+         </div>`;
+    } catch (e) {
+      // silent – activity panel is non-critical
+    }
+  }
+
   // ── Orchestration ─────────────────────────────────────────────────────────
 
   async function loadAll() {
     try {
-      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels(), loadMcp(), loadProviders()]);
+      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadModels(), loadMcp(), loadProviders(), loadActivity()]);
     } catch (e) {
       console.error('Refresh error:', e);
     }

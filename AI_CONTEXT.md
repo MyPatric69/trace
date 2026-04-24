@@ -233,4 +233,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-23 – fix: notifier English text (TRACE Critical, English messages/subtitle); suppress notifications for unknown/empty projects; 9 new tests (516 total)
+2026-04-23 – Auto-synced 6 commit(s) to b295656

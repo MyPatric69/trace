@@ -99,6 +99,7 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
     acc_cache_read:     int = int(prev.get("cache_read_tokens", 0))            if prev else 0
     acc_output:         int = int(prev["output_tokens"])                       if prev else 0
     acc_turns:          int = int(prev.get("turns", 0))                        if prev else 0
+    acc_peak_context:   int = int(prev.get("peak_context_tokens", 0))          if prev else 0
     prev_model:         str = prev.get("model", "unknown")                     if prev else "unknown"
     start_offset:       int = int(prev.get("last_byte_offset", 0))             if prev else 0
 
@@ -107,6 +108,7 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
         "cache_creation_tokens": acc_cache_creation,
         "cache_read_tokens":     acc_cache_read,
         "output_tokens":         acc_output,
+        "peak_context_tokens":   acc_peak_context,
         "model":                 prev_model,
         "turns":                 acc_turns,
         "last_byte_offset":      start_offset,
@@ -121,6 +123,7 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
     if start_offset > file_size:
         start_offset = 0
         acc_input = acc_cache_creation = acc_cache_read = acc_output = acc_turns = 0
+        acc_peak_context = 0
         prev_model = "unknown"
 
     # Nothing new to read
@@ -132,6 +135,7 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
     new_cache_read     = 0
     new_output         = 0
     new_turns          = 0
+    new_peak_context   = 0
     model_counts: Counter = Counter()
 
     try:
@@ -182,10 +186,13 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
             # same totals; summing from it would double-count every token.
             usage = msg.get("usage") or {}
             if isinstance(usage, dict):
-                new_input          += int(usage.get("input_tokens")                or 0)
+                turn_input          = int(usage.get("input_tokens")                or 0)
+                new_input          += turn_input
                 new_cache_creation += int(usage.get("cache_creation_input_tokens") or 0)
                 new_cache_read     += int(usage.get("cache_read_input_tokens")     or 0)
                 new_output         += int(usage.get("output_tokens")               or 0)
+                if turn_input > new_peak_context:
+                    new_peak_context = turn_input
 
     except Exception as exc:
         _log.error("_incremental_parse failed for %s: %s", transcript_path, exc)
@@ -196,6 +203,7 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
     total_cache_read     = acc_cache_read     + new_cache_read
     total_output         = acc_output         + new_output
     total_turns          = acc_turns          + new_turns
+    peak_context_tokens  = max(acc_peak_context, new_peak_context)
     model = model_counts.most_common(1)[0][0] if model_counts else prev_model
 
     effective_input = total_input + total_cache_creation
@@ -212,6 +220,7 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
         "cache_creation_tokens": total_cache_creation,
         "cache_read_tokens":     total_cache_read,
         "output_tokens":         total_output,
+        "peak_context_tokens":   peak_context_tokens,
         "model":                 model,
         "turns":                 total_turns,
         "last_byte_offset":      new_offset,
@@ -278,6 +287,7 @@ class LiveTracker:
         cache_creation_tokens = usage.get("cache_creation_tokens", 0)
         cache_read_tokens     = usage.get("cache_read_tokens", 0)
         output_tokens         = usage["output_tokens"]
+        peak_context_tokens   = usage.get("peak_context_tokens", 0)
         model                 = usage["model"]
         turns                 = usage["turns"]
         last_byte_offset      = usage["last_byte_offset"]
@@ -315,6 +325,23 @@ class LiveTracker:
         except Exception:
             pass
 
+        # Context window utilization % – peak single-turn input_tokens / model context window
+        context_window_size = 200_000
+        context_window_pct  = 0.0
+        try:
+            cw_store = health_store or self._store or _get_default_store()
+            if cw_store is not None and peak_context_tokens > 0:
+                cw_cfg = cw_store.config.get("context_windows") or {}
+                for prefix, size in cw_cfg.items():
+                    if model.startswith(prefix):
+                        context_window_size = int(size)
+                        break
+                context_window_pct = round(
+                    peak_context_tokens / context_window_size * 100, 1
+                )
+        except Exception:
+            pass
+
         # Notify on health escalation (green→yellow, green/yellow→red).
         # De-duplicates by comparing to the previous health stored in the session file.
         prev_health = (prev or {}).get("health", "green")
@@ -341,6 +368,9 @@ class LiveTracker:
             "cache_creation_tokens": cache_creation_tokens,
             "cache_read_tokens":     cache_read_tokens,
             "output_tokens":         output_tokens,
+            "peak_context_tokens":   peak_context_tokens,
+            "context_window_size":   context_window_size,
+            "context_window_pct":    context_window_pct,
             "cost_usd":              cost_usd,
             "model":                 model,
             "turns":                 turns,

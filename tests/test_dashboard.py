@@ -741,3 +741,61 @@ def test_api_settings_preset_values_valid(warn, critical):
     """All dashboard presets must satisfy warn > 0 and warn < critical."""
     assert warn > 0
     assert warn < critical
+
+
+# ---------------------------------------------------------------------------
+# GET /api/activity
+# ---------------------------------------------------------------------------
+
+def test_api_activity_returns_structure(client):
+    res = client.get("/api/activity")
+    assert res.status_code == 200
+    body = res.json()
+    assert "stats" in body
+    assert "heatmap" in body
+
+
+def test_api_activity_stats_keys(client, tmp_store):
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    res = client.get("/api/activity")
+    stats = res.json()["stats"]
+    for key in ("total_sessions", "active_days", "current_streak",
+                "longest_streak", "most_active_day", "favorite_model",
+                "total_cost_usd", "total_tokens"):
+        assert key in stats, f"Missing key: {key}"
+
+
+def test_api_activity_heatmap_entry_keys(client, tmp_store):
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    res = client.get("/api/activity")
+    body = res.json()
+    assert len(body["heatmap"]) >= 1
+    entry = body["heatmap"][0]
+    for key in ("date", "sessions", "cost_usd", "tokens"):
+        assert key in entry, f"Missing heatmap key: {key}"
+
+
+def test_api_activity_project_filter(client, tmp_store):
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    tmp_store.add_session("beta",  "gpt-4o", 2000, 1000)
+
+    res_alpha = client.get("/api/activity?project=alpha")
+    res_beta  = client.get("/api/activity?project=beta")
+
+    assert res_alpha.json()["stats"]["total_sessions"] == 1
+    assert res_beta.json()["stats"]["total_sessions"]  == 1
+
+
+def test_api_activity_empty_when_no_sessions(client):
+    res = client.get("/api/activity?project=alpha")
+    body = res.json()
+    assert body["stats"]["total_sessions"] == 0
+    assert body["heatmap"] == []
+
+
+def test_api_activity_total_cost_matches_sessions(client, tmp_store):
+    # alpha: 2 sessions × $0.0105 each = $0.021
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    tmp_store.add_session("alpha", "claude-sonnet-4-5", 1000, 500)
+    res = client.get("/api/activity?project=alpha")
+    assert res.json()["stats"]["total_cost_usd"] == pytest.approx(0.021)

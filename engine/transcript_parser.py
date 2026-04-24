@@ -42,13 +42,14 @@ def parse_transcript(transcript_path: str) -> dict:
     if not path.exists():
         return {
             "input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0,
-            "output_tokens": 0, "model": "unknown", "turns": 0,
+            "output_tokens": 0, "peak_context_tokens": 0, "model": "unknown", "turns": 0,
         }
 
     input_tokens          = 0
     cache_creation_tokens = 0
     cache_read_tokens     = 0
     output_tokens         = 0
+    peak_context_tokens   = 0
     model_counts: Counter = Counter()
     turns = 0
     seen_request_ids: set = set()
@@ -91,16 +92,19 @@ def parse_transcript(transcript_path: str) -> dict:
                 # same totals; summing from it would double-count every token.
                 usage = msg.get("usage") or {}
                 if isinstance(usage, dict):
-                    input_tokens          += int(usage.get("input_tokens")                  or 0)
+                    turn_input             = int(usage.get("input_tokens")                  or 0)
+                    input_tokens          += turn_input
                     cache_creation_tokens += int(usage.get("cache_creation_input_tokens")   or 0)
                     cache_read_tokens     += int(usage.get("cache_read_input_tokens")       or 0)
                     output_tokens         += int(usage.get("output_tokens")                 or 0)
+                    if turn_input > peak_context_tokens:
+                        peak_context_tokens = turn_input
 
     except Exception as exc:
         _log.error("parse_transcript failed for %s: %s", transcript_path, exc)
         return {
             "input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0,
-            "output_tokens": 0, "model": "unknown", "turns": 0,
+            "output_tokens": 0, "peak_context_tokens": 0, "model": "unknown", "turns": 0,
         }
 
     model = model_counts.most_common(1)[0][0] if model_counts else "unknown"
@@ -122,6 +126,7 @@ def parse_transcript(transcript_path: str) -> dict:
         "cache_creation_tokens": cache_creation_tokens,
         "cache_read_tokens":     cache_read_tokens,
         "output_tokens":         output_tokens,
+        "peak_context_tokens":   peak_context_tokens,
         "model":                 model,
         "turns":                 turns,
     }

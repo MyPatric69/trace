@@ -107,6 +107,7 @@ def run() -> None:
     cache_creation_tokens = usage["cache_creation_tokens"]
     cache_read_tokens     = usage["cache_read_tokens"]
     output_tokens         = usage["output_tokens"]
+    peak_context_tokens   = usage.get("peak_context_tokens", 0)
     model                 = usage["model"]
     turns                 = usage["turns"]
 
@@ -143,6 +144,7 @@ def run() -> None:
             cache_creation_tokens=cache_creation_tokens,
             cache_read_tokens=cache_read_tokens,
             turns=turns,
+            peak_context_tokens=peak_context_tokens,
         )
         _log.info(
             "Logged session %s for project '%s': "
