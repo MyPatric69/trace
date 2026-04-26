@@ -102,3 +102,35 @@ WS   /ws
 `TraceStore` methods of note:
 - `get_activity_stats(project_id=None)` – returns session counts, streak data
 - `get_heatmap_data(project_id=None)` – returns 52-week activity for heatmap
+
+## ThreadBridge — Inter-Session Communication
+
+This project uses ThreadBridge for async messaging between Claude Code sessions.
+
+### Session Start
+At the start of every session, read pending messages:
+read_messages(topic="collab/trace/insights")
+read_messages(topic="collab/trace/decisions")
+read_messages(topic="collab/trace/tasks")
+
+### Session End
+Before ending a session, write a changelog entry:
+
+from threadbridge import CollabPayload
+from threadbridge.store import MessageStore
+from threadbridge.config import DB_PATH
+
+store = MessageStore(DB_PATH)
+p = CollabPayload(
+    type="changelog",
+    from_session="trace",
+    content="## Session <datum>\n- <was wurde gemacht>",
+    confidence="high"
+)
+store.send(topic="collab/trace/changelog", payload=p.to_json(), sender="trace")
+
+### Topic Schema
+- collab/trace/tasks      — offene Aufgaben
+- collab/trace/insights   — Erkenntnisse
+- collab/trace/decisions  — Entscheidungen
+- collab/trace/changelog  — Session-Protokoll
