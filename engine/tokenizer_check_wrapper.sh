@@ -3,11 +3,14 @@
 # macOS Keychain before calling the script, since LaunchAgents don't inherit
 # shell environment variables.
 
-export PATH="/Users/patric/.pyenv/shims:/Users/patric/.pyenv/bin:$PATH"
-eval "$(pyenv init -)" 2>/dev/null || true
+export PATH="/Users/patric/.pyenv/shims:/Users/patric/.pyenv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PYENV_ROOT="/Users/patric/.pyenv"
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PYTHON=$(pyenv which python3 2>/dev/null || which python3)
+PYTHON="/Users/patric/.pyenv/versions/3.12.9/bin/python3"
+if [ ! -f "$PYTHON" ]; then
+  PYTHON=$(which python3)
+fi
 
 # 1. Try the dedicated ANTHROPIC_API_KEY keychain entry
 KEY=$(security find-generic-password -s "ANTHROPIC_API_KEY" -w 2>/dev/null)
