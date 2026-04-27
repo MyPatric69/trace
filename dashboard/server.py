@@ -230,6 +230,7 @@ def api_status():
         db_str = str(store.db_path)
     notif_cfg = store.config.get("notifications") or {}
     health_cfg = store.config.get("session_health", {})
+    comparison_cfg = store.config.get("comparison", {})
     return {
         "trace_version": cfg.get("version", "0.1.0"),
         "db_path": db_str,
@@ -242,6 +243,7 @@ def api_status():
         "notifications_sound": notif_cfg.get("sound", True),
         "warn_tokens": health_cfg.get("warn_tokens", 80_000),
         "critical_tokens": health_cfg.get("critical_tokens", 150_000),
+        "baseline_model": comparison_cfg.get("baseline_model", "claude-sonnet-4-6"),
     }
 
 
@@ -562,6 +564,7 @@ class SettingsRequest(BaseModel):
     warn_tokens: int | None = None
     critical_tokens: int | None = None
     monthly_budget_usd: float | None = None
+    baseline_model: str | None = None
 
 
 @app.post("/api/settings")
@@ -590,6 +593,12 @@ def api_settings_update(req: SettingsRequest):
             raise HTTPException(status_code=400, detail="monthly_budget_usd must be > 0")
         budgets = config.setdefault("budgets", {})
         budgets["default_monthly_usd"] = req.monthly_budget_usd
+    if req.baseline_model is not None:
+        models_cfg = config.get("models", {})
+        if req.baseline_model not in models_cfg:
+            raise HTTPException(status_code=400, detail=f"Unknown model: {req.baseline_model}")
+        comparison = config.setdefault("comparison", {})
+        comparison["baseline_model"] = req.baseline_model
     _save_and_sync_config(path, config)
     return {"status": "ok"}
 
@@ -604,6 +613,58 @@ def api_activity(project: str | None = None):
     stats   = store.get_activity_stats(project_name=project)
     heatmap = store.get_heatmap_data(project_name=project)
     return {"stats": stats, "heatmap": heatmap}
+
+
+# ---------------------------------------------------------------------------
+# /api/efficiency  (cost efficiency vs. baseline model)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/efficiency")
+def api_efficiency(project: str | None = None, period: str = "week"):
+    store = _store()
+    since = _since(period)
+    sessions = store.get_sessions(project_name=project, since_date=since, limit=1000)
+
+    models_cfg = store.config.get("models", {})
+    comparison_cfg = store.config.get("comparison", {})
+    baseline_model = comparison_cfg.get("baseline_model", "claude-sonnet-4-6")
+
+    baseline_prices = models_cfg.get(baseline_model, {})
+    baseline_input = baseline_prices.get("input_per_1k", 0.003)
+    baseline_cc    = baseline_prices.get("cache_creation_per_1k", 0.00375)
+    baseline_cr    = baseline_prices.get("cache_read_per_1k", 0.0003)
+    baseline_output = baseline_prices.get("output_per_1k", 0.015)
+
+    actual_cost = 0.0
+    baseline_cost = 0.0
+    model_counts: dict[str, int] = {}
+
+    for s in sessions:
+        actual_cost += s.get("cost_usd", 0.0) or 0.0
+        input_t  = s.get("input_tokens", 0) or 0
+        cc_t     = s.get("cache_creation_tokens", 0) or 0
+        cr_t     = s.get("cache_read_tokens", 0) or 0
+        output_t = s.get("output_tokens", 0) or 0
+        baseline_cost += (
+            input_t  * baseline_input  / 1000
+            + cc_t   * baseline_cc     / 1000
+            + cr_t   * baseline_cr     / 1000
+            + output_t * baseline_output / 1000
+        )
+        m = s.get("model") or "unknown"
+        model_counts[m] = model_counts.get(m, 0) + 1
+
+    actual_model = max(model_counts, key=lambda k: model_counts[k]) if model_counts else "unknown"
+    savings = round(baseline_cost - actual_cost, 6)
+
+    return {
+        "actual_cost":    round(actual_cost, 6),
+        "baseline_cost":  round(baseline_cost, 6),
+        "savings":        savings,
+        "actual_model":   actual_model,
+        "baseline_model": baseline_model,
+        "period":         period,
+    }
 
 
 # ---------------------------------------------------------------------------

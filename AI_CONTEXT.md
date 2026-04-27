@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 554/554 tests green ✓
+**Status:** All 4 phases complete – 562/562 tests green ✓
 
 ---
 
@@ -122,7 +122,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**554/554 tests green ✓ (2026-04-24)**
+**562/562 tests green ✓ (2026-04-27)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -161,23 +161,24 @@ trace/
 
 **Dashboard REST endpoints (current):**
 ```
-GET  /api/status
+GET  /api/status               – includes baseline_model
 GET  /api/projects
-GET  /api/costs             ?period=
-GET  /api/costs/{project}   ?period=
-GET  /api/tokens            ?project= &period=
-GET  /api/stats/{date}      ?project=
-GET  /api/today             ?project=
-GET  /api/models            ?period= &project=
+GET  /api/costs                ?period=
+GET  /api/costs/{project}      ?period=
+GET  /api/tokens               ?project= &period=
+GET  /api/stats/{date}         ?project=
+GET  /api/today                ?project=
+GET  /api/models               ?period= &project=
 GET  /api/providers
-GET  /api/provider          ?period=
+GET  /api/provider             ?period=
 GET  /api/drift/{project}
 GET  /api/sync/{project}
-GET  /api/live              ?project=
-GET  /api/activity         – activity stats and 52-week heatmap
+GET  /api/live                 ?project=
+GET  /api/activity             – activity stats and 52-week heatmap
+GET  /api/efficiency           ?project= &period= – cost vs. baseline model
 POST /api/live/clear
-POST /api/settings         – accepts warn_tokens, critical_tokens, monthly_budget_usd (float, > 0)
-GET  /api/tips              ?project_name=
+POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd, baseline_model
+GET  /api/tips                 ?project_name=
 GET  /api/new_session/{project}  ?dry_run=
 WS   /ws
 ```
@@ -202,6 +203,14 @@ WS   /ws
 - **Provider & Model Usage merged** – previously separate "AI Provider" and "Model Usage" panels consolidated into a single "Provider & Model Usage" section; provider badges and model cost bars rendered together
 - **Smart recommendations** – cost tips fire when avg. cost/session exceeds $2.00 or when monthly budget utilization exceeds 100%
 - **Dynamic heatmap width** – heatmap starts at the Monday of the first data entry and ends at today; grows organically week-by-week up to a 52-week cap; empty state shows a single transparent placeholder column with "No activity yet" label
+
+**Cost Efficiency section (complete – 8 tests):**
+- `trace_config.yaml` – `comparison.baseline_model` field (default: `claude-sonnet-4-6`)
+- `GET /api/efficiency` – computes actual vs. baseline cost per period; returns `actual_cost`, `baseline_cost`, `savings`, `actual_model`, `baseline_model`, `period`; accepts `?project=` and `?period=` (default: week)
+- `GET /api/status` – now returns `baseline_model` from `comparison` config block
+- `POST /api/settings` – accepts optional `baseline_model`; validates against `models` block; saves to `comparison.baseline_model`
+- Dashboard "Cost Efficiency" panel (section 6) – two bar rows (actual in red, baseline in teal), savings row in amber/teal, "You're already on the most cost-efficient model" when already cheaper; savings recommendation shown if savings > $5/week
+- Settings popover – "Baseline model" dropdown populated from `/api/tokenize/models`; saved with all other settings
 
 **Out of scope:**
 - Multi-MCP proxy
@@ -242,4 +251,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-24 – Dynamic heatmap width: starts at first data entry, grows to 52-week cap, empty state placeholder
+2026-04-27 – Cost Efficiency feature: /api/efficiency endpoint, baseline_model config, dashboard section, 8 new tests (562 total)

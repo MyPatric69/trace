@@ -393,6 +393,65 @@
       flex-shrink: 0;
     }
 
+    /* ── Cost Efficiency section ── */
+    .eff-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.375rem 0;
+    }
+    .eff-badge {
+      font-family: var(--mono);
+      font-size: 0.6563rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .eff-badge--actual   { background: var(--teal);  color: #fff; }
+    .eff-badge--baseline { background: var(--border); color: var(--muted); }
+    .eff-bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .eff-bar-fill--actual   { height: 100%; border-radius: 4px; background: #DC2626; }
+    .eff-bar-fill--baseline { height: 100%; border-radius: 4px; background: var(--teal); }
+    .eff-cost {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      width: 56px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .eff-divider { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; }
+    .eff-savings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8125rem;
+    }
+    .eff-subheading {
+      font-size: 0.6875rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .eff-select {
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      padding: 2px 4px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--card-bg);
+      color: var(--text);
+    }
+
     .empty { color: var(--muted); font-size: 0.8125rem; padding: 0.5rem 0; }
 
     /* ── Live Session Panel ── */
@@ -1055,6 +1114,13 @@
             <input type="text" inputmode="decimal" id="monthly-budget-usd" class="threshold-input" placeholder="20.00" style="width:4rem;">
           </div>
         </div>
+        <div class="pop-divider"></div>
+        <!-- Baseline model -->
+        <div class="pop-section-label" style="font-size:0.6563rem;">Model comparison</div>
+        <div class="pop-row">
+          <span class="pop-label">Baseline model</span>
+          <select id="baseline-model-select" class="eff-select"></select>
+        </div>
         <button class="pop-save-btn" onclick="saveAllSettings()">Save</button>
         <div class="pop-msg" id="settings-save-msg"></div>
       </div>
@@ -1148,13 +1214,19 @@
     <div id="activity-heatmap"></div>
   </div>
 
-  <!-- 6 · Provider & Model Usage -->
+  <!-- 6 · Cost Efficiency -->
+  <div class="panel" id="efficiency-card">
+    <div class="card-title">Cost Efficiency</div>
+    <div id="efficiency-content"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- 7 · Provider & Model Usage -->
   <div class="panel" id="provider-models-card">
     <div class="card-title">Provider &amp; Model Usage</div>
     <div id="provider-models-list"><div class="empty">Loading…</div></div>
   </div>
 
-  <!-- 7 · MCP Servers -->
+  <!-- 8 · MCP Servers -->
   <div class="panel">
     <div class="card-title">MCP Servers</div>
     <div class="mcp-summary" id="mcp-summary">Loading…</div>
@@ -1325,9 +1397,18 @@
   // ── Status (config + alltime cost) ────────────────────────────────────────
 
   async function loadStatus() {
-    const s = await api('/api/status');
+    const [s, models] = await Promise.all([
+      api('/api/status'),
+      api('/api/tokenize/models').catch(() => []),
+    ]);
     cfg.monthly_budget_usd  = s.monthly_budget_usd;
     cfg.alert_threshold_pct = s.alert_threshold_pct;
+    const sel = $('baseline-model-select');
+    if (sel && models.length) {
+      sel.innerHTML = models.map(m =>
+        `<option value="${m.id}"${m.id === s.baseline_model ? ' selected' : ''}>${m.id}</option>`
+      ).join('');
+    }
     loadSettings(s);
   }
 
@@ -1389,10 +1470,11 @@
   }
 
   async function saveAllSettings() {
-    const warnInput   = $('health-warn-tokens');
-    const critInput   = $('health-critical-tokens');
-    const budgetInput = $('monthly-budget-usd');
-    const msg         = $('settings-save-msg');
+    const warnInput    = $('health-warn-tokens');
+    const critInput    = $('health-critical-tokens');
+    const budgetInput  = $('monthly-budget-usd');
+    const baselineSel  = $('baseline-model-select');
+    const msg          = $('settings-save-msg');
 
     const warn   = parseInt((warnInput   || {}).value, 10);
     const crit   = parseInt((critInput   || {}).value, 10);
@@ -1416,6 +1498,7 @@
         critical_tokens: crit,
       };
       if (!isNaN(budget)) payload.monthly_budget_usd = budget;
+      if (baselineSel && baselineSel.value) payload.baseline_model = baselineSel.value;
       const res = await fetch('/api/settings', {
         method:  'POST',
         headers: { 'content-type': 'application/json' },
@@ -1431,7 +1514,8 @@
         msg.style.color = 'var(--teal)';
         setTimeout(() => { if (msg) msg.textContent = ''; }, 2000);
       }
-      loadMetrics();  // refresh health bar + budget card with new values
+      loadMetrics();     // refresh health bar + budget card with new values
+      loadEfficiency();  // refresh efficiency section with new baseline
     } catch (e) {
       showErr(e.message || 'Save failed');
     }
@@ -1966,11 +2050,66 @@
     }
   }
 
+  // ── Cost Efficiency ────────────────────────────────────────────────────────
+
+  async function loadEfficiency() {
+    const el = $('efficiency-content');
+    if (!el) return;
+    try {
+      const params = selectedProject ? '?project=' + encodeURIComponent(selectedProject) : '';
+      const d = await api('/api/efficiency' + params);
+
+      const actual   = d.actual_cost;
+      const baseline = d.baseline_cost;
+      const savings  = d.savings;
+      const maxCost  = Math.max(actual, baseline, 0.000001);
+      const actualPct   = (actual   / maxCost * 100).toFixed(1);
+      const baselinePct = (baseline / maxCost * 100).toFixed(1);
+
+      const isAlreadyCheaper = actual <= baseline;
+
+      let html = `<div class="eff-subheading">Model comparison · last 7 days</div>`;
+
+      html += `
+        <div class="eff-row">
+          <span class="eff-badge eff-badge--actual" title="${d.actual_model}">${d.actual_model}</span>
+          <div class="eff-bar-track"><div class="eff-bar-fill--actual" style="width:${actualPct}%"></div></div>
+          <span class="eff-cost" style="color:var(--red)">${usd(actual)}</span>
+        </div>
+        <div class="eff-row">
+          <span class="eff-badge eff-badge--baseline" title="${d.baseline_model}">${d.baseline_model}</span>
+          <div class="eff-bar-track"><div class="eff-bar-fill--baseline" style="width:${baselinePct}%"></div></div>
+          <span class="eff-cost" style="color:var(--teal)">${usd(baseline)}</span>
+        </div>
+        <hr class="eff-divider">`;
+
+      if (isAlreadyCheaper) {
+        html += `<div class="eff-savings-row"><span style="color:var(--teal);font-size:0.8125rem;">You're already on the most cost-efficient model</span></div>`;
+      } else {
+        const savingsColor = savings > 5 ? 'var(--amber)' : 'var(--teal)';
+        html += `<div class="eff-savings-row">
+          <span style="color:var(--muted);font-size:0.8125rem;">Potential savings by switching to ${d.baseline_model}</span>
+          <span style="color:${savingsColor};font-family:var(--mono);font-size:0.8125rem;font-weight:600;">${usd(savings)} / week</span>
+        </div>`;
+        if (savings > 5) {
+          html += `<div class="tip-row" style="margin-top:0.5rem;">
+            <span class="tip-icon">💡</span>
+            <span>Switching to ${d.baseline_model} could save ~${usd(savings)}/week based on your usage</span>
+          </div>`;
+        }
+      }
+
+      el.innerHTML = html;
+    } catch (e) {
+      // non-critical
+    }
+  }
+
   // ── Orchestration ─────────────────────────────────────────────────────────
 
   async function loadAll() {
     try {
-      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadProviderModels(), loadMcp(), loadActivity()]);
+      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadProviderModels(), loadMcp(), loadActivity(), loadEfficiency()]);
     } catch (e) {
       console.error('Refresh error:', e);
     }

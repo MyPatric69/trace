@@ -74,3 +74,5 @@ notifications:
 session_health:
   warn_tokens: 80000
   critical_tokens: 150000
+comparison:
+  baseline_model: claude-sonnet-4-6
