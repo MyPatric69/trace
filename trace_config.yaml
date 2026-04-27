@@ -20,11 +20,26 @@ models:
     output_per_1k: 0.015
     cache_creation_per_1k: 0.00375
     cache_read_per_1k: 0.0003
+  claude-sonnet-4-7:
+    input_per_1k: 0.003
+    output_per_1k: 0.015
+    cache_creation_per_1k: 0.00375
+    cache_read_per_1k: 0.0003
   claude-sonnet-4-5:
     input_per_1k: 0.003
     output_per_1k: 0.015
     cache_creation_per_1k: 0.00375
     cache_read_per_1k: 0.0003
+  claude-opus-4-7:
+    input_per_1k: 0.005
+    output_per_1k: 0.025
+    cache_creation_per_1k: 0.00625
+    cache_read_per_1k: 0.0005
+  claude-opus-4-6:
+    input_per_1k: 0.005
+    output_per_1k: 0.025
+    cache_creation_per_1k: 0.00625
+    cache_read_per_1k: 0.0005
   claude-opus-4-5:
     input_per_1k: 0.015
     output_per_1k: 0.075
@@ -35,34 +50,6 @@ models:
     output_per_1k: 0.004
     cache_creation_per_1k: 0.001
     cache_read_per_1k: 8.0e-05
-  gpt-4o:
-    input_per_1k: 0.0025
-    output_per_1k: 0.01
-    cache_creation_per_1k: 0.0025
-    cache_read_per_1k: 0.00125
-  gpt-4o-mini:
-    input_per_1k: 0.00015
-    output_per_1k: 0.0006
-    cache_creation_per_1k: 0.00015
-    cache_read_per_1k: 7.5e-05
-  gpt-5:
-    input_per_1k: 0.000625
-    output_per_1k: 0.005
-    cache_creation_per_1k: 0.000625
-    cache_read_per_1k: 0.0003125
-    context_window: 400000
-  gpt-5.4:
-    input_per_1k: 0.0025
-    output_per_1k: 0.015
-    cache_creation_per_1k: 0.0025
-    cache_read_per_1k: 0.00125
-    context_window: 1050000
-  gpt-5.4-mini:
-    input_per_1k: 0.00075
-    output_per_1k: 0.0045
-    cache_creation_per_1k: 0.00075
-    cache_read_per_1k: 0.000375
-    context_window: 128000
 mcp_servers:
 - name: trace
   estimated_tokens: 300
@@ -75,4 +62,4 @@ session_health:
   warn_tokens: 80000
   critical_tokens: 150000
 comparison:
-  baseline_model: claude-sonnet-4-6
+  baseline_model: claude-opus-4-7

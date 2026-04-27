@@ -159,13 +159,13 @@ def test_tokenize_gpt_api_failure_falls_back_to_approximation(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_tokenize_cost_calculated_from_config(monkeypatch):
-    # gpt-4o: input_per_1k = 0.0025 in trace_config.yaml
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    text = "one two three four five six seven eight"   # 8 words → int(8 * 1.3) = 10
-    res = client.post("/api/tokenize", json={"text": text, "model": "gpt-4o"})
+    # claude-sonnet-4-6: input_per_1k = 0.003 in trace_config.yaml
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    text = "one two three four five six seven eight"   # char approx: int(len / 3.5)
+    res = client.post("/api/tokenize", json={"text": text, "model": "claude-sonnet-4-6"})
     data = res.json()
-    assert data["cost_per_1k_input"] == pytest.approx(0.0025)
-    expected = (data["input_tokens"] / 1000) * 0.0025
+    assert data["cost_per_1k_input"] == pytest.approx(0.003)
+    expected = (data["input_tokens"] / 1000) * 0.003
     assert data["cost_estimate_usd"] == pytest.approx(expected, abs=1e-9)
 
 
