@@ -251,4 +251,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-27 – Fix tokenizer_check_wrapper.sh: hardcoded pyenv Python path, removed pyenv init call; 569 tests green
+2026-04-27 – Fix ~/.trace/trace_config.yaml: moved claude-opus-4-6/4-7, claude-sonnet-4-7 from comparison block to models block; 569 tests green
