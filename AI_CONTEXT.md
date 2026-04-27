@@ -251,4 +251,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-27 – Cost Efficiency fixes: same-model hides bars, all cost values rounded to toFixed(2)
+2026-04-27 – Added claude-opus-4-6, claude-opus-4-7, claude-sonnet-4-7 to trace_config.yaml models block

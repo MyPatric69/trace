@@ -35,6 +35,21 @@ models:
     output_per_1k: 0.004
     cache_creation_per_1k: 0.001
     cache_read_per_1k: 8.0e-05
+  claude-opus-4-6:
+    input_per_1k: 0.005
+    output_per_1k: 0.025
+    cache_creation_per_1k: 0.00625
+    cache_read_per_1k: 0.0005
+  claude-opus-4-7:
+    input_per_1k: 0.005
+    output_per_1k: 0.025
+    cache_creation_per_1k: 0.00625
+    cache_read_per_1k: 0.0005
+  claude-sonnet-4-7:
+    input_per_1k: 0.003
+    output_per_1k: 0.015
+    cache_creation_per_1k: 0.00375
+    cache_read_per_1k: 0.0003
   gpt-4o:
     input_per_1k: 0.0025
     output_per_1k: 0.01
