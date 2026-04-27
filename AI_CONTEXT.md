@@ -251,4 +251,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-27 – Added tokenizer_check_wrapper.sh (reads ANTHROPIC_API_KEY from macOS Keychain); LaunchAgent plist now calls wrapper; 569 tests green
+2026-04-27 – Fix tokenizer_check_wrapper.sh: pyenv PATH + dynamic python detection; KEY export already correct; 569 tests green
