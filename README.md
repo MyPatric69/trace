@@ -486,6 +486,9 @@ expensive in practice. The tokenizer ratio check quantifies this difference
 daily so the Cost Efficiency panel reflects real-world token counts, not
 just nominal rate cards.
 
+> **Note:** TRACE tracks Claude Code sessions only. GPT models have been
+> removed from the config – the tokenizer check is Claude-only.
+
 **How it works:**
 1. Reads the active model (from live sessions or recent DB) and the
    configured `comparison.baseline_model` from `~/.trace/trace_config.yaml`
@@ -498,13 +501,39 @@ If ratio > 1.05, the dashboard shows an amber notice in the Cost Efficiency
 section: _"Tokenizer: {model} uses {ratio}x more tokens than {baseline} for
 the same text – effective cost is higher than the rate card suggests"_.
 
+The baseline model dropdown in Settings is sorted alphabetically.
+
+**Example output** (`~/.trace/tokenizer_ratio.json`) when active model is
+`claude-sonnet-4-6` and baseline is `claude-opus-4-7`:
+
+```json
+{
+  "current_model": "claude-sonnet-4-6",
+  "baseline_model": "claude-opus-4-7",
+  "current_tokens": 390,
+  "baseline_tokens": 500,
+  "ratio": 0.78,
+  "checked_at": "2026-04-27T07:00:00+00:00",
+  "reference_text_hash": "a3f2..."
+}
+```
+
+A ratio of 0.78 means sonnet-4-6 uses 22% fewer tokens than opus-4-7 for
+the same text – no amber warning is shown (ratio ≤ 1.05).
+
 **Setup (macOS LaunchAgent – runs once daily at 07:00):**
 
 ```bash
 bash hooks/setup_tokenizer_check.sh
-# Requires ANTHROPIC_API_KEY in environment
+# API key read from macOS Keychain automatically
 # Output: ~/.trace/tokenizer_ratio.json
 # Log:    ~/.trace/tokenizer_check.log
+```
+
+Store your API key in Keychain once:
+
+```bash
+security add-generic-password -s ANTHROPIC_API_KEY -a anthropic -w sk-ant-...
 ```
 
 **Remove:**
@@ -513,23 +542,29 @@ bash hooks/setup_tokenizer_check.sh
 bash hooks/remove_tokenizer_check.sh
 ```
 
-> **Note:** Requires `ANTHROPIC_API_KEY` to be set in the LaunchAgent
-> environment (or system environment). Without it the script exits cleanly
-> without writing a ratio file; the dashboard silently shows no ratio row.
+> **Note:** The wrapper script (`engine/tokenizer_check_wrapper.sh`) reads
+> `ANTHROPIC_API_KEY` from macOS Keychain, so the key never needs to be set
+> as a shell environment variable. Without a stored key the script exits
+> cleanly without writing a ratio file; the dashboard silently shows no
+> ratio row.
 
 ---
 
 ## Supported models
 
-Prices are read from `~/.trace/trace_config.yaml` at startup. Adding a new model requires only a new entry in the `models:` block – no code changes.
+Prices are read from `~/.trace/trace_config.yaml` at startup. Adding a new
+model requires only a new entry in the `models:` block – no code changes.
+GPT models have been removed; TRACE tracks Claude Code sessions only.
 
-| Model | Input per 1k tokens | Output per 1k tokens |
-|---|---|---|
-| claude-sonnet-4-5 | $0.003 | $0.015 |
-| claude-opus-4-5 | $0.015 | $0.075 |
-| claude-haiku-4-5 | $0.0008 | $0.004 |
-| gpt-4o | $0.005 | $0.015 |
-| gpt-4o-mini | $0.00015 | $0.0006 |
+| Model | Input per 1k tokens | Output per 1k tokens | Notes |
+|---|---|---|---|
+| claude-sonnet-4-6 | $0.003 | $0.015 | default / recommended |
+| claude-sonnet-4-7 | $0.003 | $0.015 | |
+| claude-sonnet-4-5 | $0.003 | $0.015 | |
+| claude-opus-4-7 | $0.005 | $0.025 | highest capability |
+| claude-opus-4-6 | $0.005 | $0.025 | |
+| claude-opus-4-5 | $0.015 | $0.075 | |
+| claude-haiku-4-5 | $0.0008 | $0.004 | lowest cost |
 
 ---
 

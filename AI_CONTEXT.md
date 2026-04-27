@@ -210,7 +210,17 @@ WS   /ws
 - `GET /api/status` – now returns `baseline_model` from `comparison` config block
 - `POST /api/settings` – accepts optional `baseline_model`; validates against `models` block; saves to `comparison.baseline_model`
 - Dashboard "Cost Efficiency" panel (section 6) – two bar rows (actual in red, baseline in teal), savings row in amber/teal; when `actual_model === baseline_model` bars are hidden and only the "already efficient" message + subtitle shown; all cost values rounded to 2 decimal places (`toFixed(2)`); savings recommendation shown if savings > $5/week
-- Settings popover – "Baseline model" dropdown populated from `/api/tokenize/models`; saved with all other settings
+- Settings popover – "Baseline model" dropdown populated from `/api/tokenize/models`; sorted alphabetically; saved with all other settings
+
+**Tokenizer ratio check (complete – 7 tests):**
+- `engine/tokenizer_check.py` – standalone script; reads current model from live sessions/DB, calls `POST /v1/messages/count_tokens` twice with fixed ~500-token reference text, writes `~/.trace/tokenizer_ratio.json`
+- `engine/tokenizer_check_wrapper.sh` – reads `ANTHROPIC_API_KEY` from macOS Keychain; uses hardcoded pyenv Python path with fallback; called by LaunchAgent
+- `hooks/setup_tokenizer_check.sh` / `hooks/remove_tokenizer_check.sh` – LaunchAgent management (daily at 07:00, RunAtLoad)
+- `GET /api/tokenizer_ratio` – returns file contents or `{"ratio": 1.0, "checked_at": null}` when missing
+- Dashboard Cost Efficiency panel – amber row shown when ratio > 1.05: _"Tokenizer: {model} uses {ratio}x more tokens than {baseline}"_
+
+**Config cleanup:**
+- `models:` block: GPT models removed (TRACE is Claude-only); 7 Claude models reordered: sonnet-4-6 (default), sonnet-4-7, sonnet-4-5, opus-4-7, opus-4-6, opus-4-5, haiku-4-5
 
 **Out of scope:**
 - Multi-MCP proxy
@@ -251,4 +261,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-27 – Sort baseline model dropdown alphabetically in Settings popover; 569 tests green
+2026-04-27 – Docs: updated README (tokenizer ratio check, Keychain note, example output, supported models); AI_CONTEXT expanded with tokenizer + config cleanup entries; 569 tests green
