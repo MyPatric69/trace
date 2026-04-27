@@ -251,4 +251,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-27 – Removed gpt-* models from both configs; reordered Claude models (sonnet-4-6/4-7/4-5, opus-4-7/4-6/4-5, haiku-4-5); fixed test_tokenize_cost_calculated_from_config; 569 tests green
+2026-04-27 – Sort baseline model dropdown alphabetically in Settings popover; 569 tests green

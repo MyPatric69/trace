@@ -1406,7 +1406,7 @@
     cfg.alert_threshold_pct = s.alert_threshold_pct;
     const sel = $('baseline-model-select');
     if (sel && models.length) {
-      sel.innerHTML = models.map(m =>
+      sel.innerHTML = [...models].sort((a, b) => a.id.localeCompare(b.id)).map(m =>
         `<option value="${m.id}"${m.id === s.baseline_model ? ' selected' : ''}>${m.id}</option>`
       ).join('');
     }
