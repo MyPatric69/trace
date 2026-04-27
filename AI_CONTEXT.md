@@ -209,7 +209,7 @@ WS   /ws
 - `GET /api/efficiency` – computes actual vs. baseline cost per period; returns `actual_cost`, `baseline_cost`, `savings`, `actual_model`, `baseline_model`, `period`; accepts `?project=` and `?period=` (default: week)
 - `GET /api/status` – now returns `baseline_model` from `comparison` config block
 - `POST /api/settings` – accepts optional `baseline_model`; validates against `models` block; saves to `comparison.baseline_model`
-- Dashboard "Cost Efficiency" panel (section 6) – two bar rows (actual in red, baseline in teal), savings row in amber/teal, "You're already on the most cost-efficient model" when already cheaper; savings recommendation shown if savings > $5/week
+- Dashboard "Cost Efficiency" panel (section 6) – two bar rows (actual in red, baseline in teal), savings row in amber/teal; when `actual_model === baseline_model` bars are hidden and only the "already efficient" message + subtitle shown; all cost values rounded to 2 decimal places (`toFixed(2)`); savings recommendation shown if savings > $5/week
 - Settings popover – "Baseline model" dropdown populated from `/api/tokenize/models`; saved with all other settings
 
 **Out of scope:**
@@ -251,4 +251,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-27 – Cost Efficiency feature: /api/efficiency endpoint, baseline_model config, dashboard section, 8 new tests (562 total)
+2026-04-27 – Cost Efficiency fixes: same-model hides bars, all cost values rounded to toFixed(2)

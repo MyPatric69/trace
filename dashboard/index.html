@@ -2062,40 +2062,48 @@
       const actual   = d.actual_cost;
       const baseline = d.baseline_cost;
       const savings  = d.savings;
-      const maxCost  = Math.max(actual, baseline, 0.000001);
-      const actualPct   = (actual   / maxCost * 100).toFixed(1);
-      const baselinePct = (baseline / maxCost * 100).toFixed(1);
-
-      const isAlreadyCheaper = actual <= baseline;
+      const fmt      = v => '$' + v.toFixed(2);
+      const sameModel = d.actual_model === d.baseline_model;
 
       let html = `<div class="eff-subheading">Model comparison · last 7 days</div>`;
 
-      html += `
-        <div class="eff-row">
-          <span class="eff-badge eff-badge--actual" title="${d.actual_model}">${d.actual_model}</span>
-          <div class="eff-bar-track"><div class="eff-bar-fill--actual" style="width:${actualPct}%"></div></div>
-          <span class="eff-cost" style="color:var(--red)">${usd(actual)}</span>
-        </div>
-        <div class="eff-row">
-          <span class="eff-badge eff-badge--baseline" title="${d.baseline_model}">${d.baseline_model}</span>
-          <div class="eff-bar-track"><div class="eff-bar-fill--baseline" style="width:${baselinePct}%"></div></div>
-          <span class="eff-cost" style="color:var(--teal)">${usd(baseline)}</span>
-        </div>
-        <hr class="eff-divider">`;
-
-      if (isAlreadyCheaper) {
-        html += `<div class="eff-savings-row"><span style="color:var(--teal);font-size:0.8125rem;">You're already on the most cost-efficient model</span></div>`;
+      if (sameModel) {
+        html += `
+          <div class="eff-savings-row"><span style="color:var(--teal);font-size:0.8125rem;">You're already on the most cost-efficient model</span></div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:0.25rem;">Using ${d.actual_model} · ${fmt(actual)} this week</div>`;
       } else {
-        const savingsColor = savings > 5 ? 'var(--amber)' : 'var(--teal)';
-        html += `<div class="eff-savings-row">
-          <span style="color:var(--muted);font-size:0.8125rem;">Potential savings by switching to ${d.baseline_model}</span>
-          <span style="color:${savingsColor};font-family:var(--mono);font-size:0.8125rem;font-weight:600;">${usd(savings)} / week</span>
-        </div>`;
-        if (savings > 5) {
-          html += `<div class="tip-row" style="margin-top:0.5rem;">
-            <span class="tip-icon">💡</span>
-            <span>Switching to ${d.baseline_model} could save ~${usd(savings)}/week based on your usage</span>
+        const maxCost     = Math.max(actual, baseline, 0.000001);
+        const actualPct   = (actual   / maxCost * 100).toFixed(1);
+        const baselinePct = (baseline / maxCost * 100).toFixed(1);
+        const isAlreadyCheaper = actual <= baseline;
+
+        html += `
+          <div class="eff-row">
+            <span class="eff-badge eff-badge--actual" title="${d.actual_model}">${d.actual_model}</span>
+            <div class="eff-bar-track"><div class="eff-bar-fill--actual" style="width:${actualPct}%"></div></div>
+            <span class="eff-cost" style="color:var(--red)">${fmt(actual)}</span>
+          </div>
+          <div class="eff-row">
+            <span class="eff-badge eff-badge--baseline" title="${d.baseline_model}">${d.baseline_model}</span>
+            <div class="eff-bar-track"><div class="eff-bar-fill--baseline" style="width:${baselinePct}%"></div></div>
+            <span class="eff-cost" style="color:var(--teal)">${fmt(baseline)}</span>
+          </div>
+          <hr class="eff-divider">`;
+
+        if (isAlreadyCheaper) {
+          html += `<div class="eff-savings-row"><span style="color:var(--teal);font-size:0.8125rem;">You're already on the most cost-efficient model</span></div>`;
+        } else {
+          const savingsColor = savings > 5 ? 'var(--amber)' : 'var(--teal)';
+          html += `<div class="eff-savings-row">
+            <span style="color:var(--muted);font-size:0.8125rem;">Potential savings by switching to ${d.baseline_model}</span>
+            <span style="color:${savingsColor};font-family:var(--mono);font-size:0.8125rem;font-weight:600;">${fmt(savings)} / week</span>
           </div>`;
+          if (savings > 5) {
+            html += `<div class="tip-row" style="margin-top:0.5rem;">
+              <span class="tip-icon">💡</span>
+              <span>Switching to ${d.baseline_model} could save ~${fmt(savings)}/week based on your usage</span>
+            </div>`;
+          }
         }
       }
 
