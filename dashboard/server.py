@@ -668,6 +668,21 @@ def api_efficiency(project: str | None = None, period: str = "week"):
 
 
 # ---------------------------------------------------------------------------
+# /api/tokenizer_ratio  (daily tokenizer ratio – written by engine/tokenizer_check.py)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/tokenizer_ratio")
+def api_tokenizer_ratio():
+    path = TRACE_HOME / "tokenizer_ratio.json"
+    if not path.exists():
+        return {"ratio": 1.0, "checked_at": None}
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {"ratio": 1.0, "checked_at": None}
+
+
+# ---------------------------------------------------------------------------
 # /api/tips
 # ---------------------------------------------------------------------------
 

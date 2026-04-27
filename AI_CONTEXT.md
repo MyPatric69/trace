@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 562/562 tests green ✓
+**Status:** All 4 phases complete – 569/569 tests green ✓
 
 ---
 
@@ -122,7 +122,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**562/562 tests green ✓ (2026-04-27)**
+**569/569 tests green ✓ (2026-04-27)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -251,4 +251,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-27 – Added claude-opus-4-6, claude-opus-4-7, claude-sonnet-4-7 to trace_config.yaml models block
+2026-04-27 – Added tokenizer ratio check: engine/tokenizer_check.py, hooks/setup|remove_tokenizer_check.sh, GET /api/tokenizer_ratio, Cost Efficiency amber warning; 569 tests green

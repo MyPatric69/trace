@@ -478,6 +478,47 @@ For teams using CI/CD pipelines, the hook can be installed automatically as part
 
 ---
 
+## Tokenizer ratio check
+
+Two models can have identical published prices per 1k tokens yet one may
+produce 10–15% more tokens for the same input – making it measurably more
+expensive in practice. The tokenizer ratio check quantifies this difference
+daily so the Cost Efficiency panel reflects real-world token counts, not
+just nominal rate cards.
+
+**How it works:**
+1. Reads the active model (from live sessions or recent DB) and the
+   configured `comparison.baseline_model` from `~/.trace/trace_config.yaml`
+2. Calls `POST /v1/messages/count_tokens` twice with a fixed ~500-token
+   reference text (never changes, so ratios are comparable over time)
+3. Writes `ratio = current_tokens / baseline_tokens` to
+   `~/.trace/tokenizer_ratio.json`
+
+If ratio > 1.05, the dashboard shows an amber notice in the Cost Efficiency
+section: _"Tokenizer: {model} uses {ratio}x more tokens than {baseline} for
+the same text – effective cost is higher than the rate card suggests"_.
+
+**Setup (macOS LaunchAgent – runs once daily at 07:00):**
+
+```bash
+bash hooks/setup_tokenizer_check.sh
+# Requires ANTHROPIC_API_KEY in environment
+# Output: ~/.trace/tokenizer_ratio.json
+# Log:    ~/.trace/tokenizer_check.log
+```
+
+**Remove:**
+
+```bash
+bash hooks/remove_tokenizer_check.sh
+```
+
+> **Note:** Requires `ANTHROPIC_API_KEY` to be set in the LaunchAgent
+> environment (or system environment). Without it the script exits cleanly
+> without writing a ratio file; the dashboard silently shows no ratio row.
+
+---
+
 ## Supported models
 
 Prices are read from `~/.trace/trace_config.yaml` at startup. Adding a new model requires only a new entry in the `models:` block – no code changes.

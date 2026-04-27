@@ -1218,6 +1218,7 @@
   <div class="panel" id="efficiency-card">
     <div class="card-title">Cost Efficiency</div>
     <div id="efficiency-content"><div class="empty">Loading…</div></div>
+    <div id="tokenizer-ratio-row"></div>
   </div>
 
   <!-- 7 · Provider & Model Usage -->
@@ -2113,11 +2114,31 @@
     }
   }
 
+  // ── Tokenizer ratio ───────────────────────────────────────────────────────
+
+  async function loadTokenizerRatio() {
+    const el = $('tokenizer-ratio-row');
+    if (!el) return;
+    try {
+      const d = await api('/api/tokenizer_ratio');
+      if (d.ratio > 1.05) {
+        el.innerHTML = `<div class="tip-row" style="margin-top:0.5rem;color:var(--amber);">
+          <span class="tip-icon">ℹ</span>
+          <span>Tokenizer: ${d.current_model} uses ${d.ratio.toFixed(2)}x more tokens than ${d.baseline_model} for the same text – effective cost is higher than the rate card suggests</span>
+        </div>`;
+      } else {
+        el.innerHTML = '';
+      }
+    } catch (e) {
+      // non-critical
+    }
+  }
+
   // ── Orchestration ─────────────────────────────────────────────────────────
 
   async function loadAll() {
     try {
-      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadProviderModels(), loadMcp(), loadActivity(), loadEfficiency()]);
+      await Promise.all([loadMetrics(), loadDrift(), loadTips(), loadProviderModels(), loadMcp(), loadActivity(), loadEfficiency(), loadTokenizerRatio()]);
     } catch (e) {
       console.error('Refresh error:', e);
     }
