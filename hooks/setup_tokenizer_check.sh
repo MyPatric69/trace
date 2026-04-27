@@ -19,8 +19,8 @@ cat > "$PLIST" <<EOF
   <string>com.trace.tokenizer</string>
   <key>ProgramArguments</key>
   <array>
-    <string>$PYTHON</string>
-    <string>$REPO_DIR/engine/tokenizer_check.py</string>
+    <string>/bin/bash</string>
+    <string>$REPO_DIR/engine/tokenizer_check_wrapper.sh</string>
   </array>
   <key>WorkingDirectory</key>
   <string>$REPO_DIR</string>
