@@ -89,34 +89,6 @@ def _detect_name(project_path: str) -> str | None:
     return Path(project_path).resolve().name
 
 
-def _write_threadbridge_changelog(project_name: str, session_id: str, turns: int, input_tokens: int, output_tokens: int, model: str) -> None:
-    import os, sys
-    threadbridge_core = os.path.expanduser("~/My AI Companion/github/threadbridge/core")
-    if threadbridge_core not in sys.path:
-        sys.path.insert(0, threadbridge_core)
-    from threadbridge import CollabPayload
-    from threadbridge.store import MessageStore
-    from threadbridge.config import DB_PATH
-    summary = (
-        f"## Session {session_id[:8]}\n"
-        f"- Turns: {turns}\n"
-        f"- Input tokens: {input_tokens}\n"
-        f"- Output tokens: {output_tokens}\n"
-        f"- Model: {model}"
-    )
-    tb_store = MessageStore(DB_PATH)
-    p = CollabPayload(
-        type="changelog",
-        from_session=project_name,
-        content=summary,
-        confidence="high",
-    )
-    tb_store.send(
-        topic=f"collab/{project_name}/changelog",
-        payload=p.to_json(),
-        sender=project_name,
-    )
-
 
 def run() -> None:
     """Main entry point – reads JSON from stdin and logs the session."""
@@ -196,14 +168,6 @@ def run() -> None:
         LiveTracker(cwd).clear()
     except Exception as exc:
         _log.error("Failed to clear live session: %s", exc)
-
-    # ThreadBridge: write session changelog
-    try:
-        _write_threadbridge_changelog(project_name, session_id, turns, input_tokens, output_tokens, model)
-    except Exception as tb_err:
-        import os
-        with open(os.path.expanduser("~/.trace/session_logger.log"), "a") as f:
-            f.write(f"ThreadBridge write failed: {tb_err}\n")
 
 
 if __name__ == "__main__":

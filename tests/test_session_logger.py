@@ -200,7 +200,6 @@ def test_run_passes_cache_tokens_to_store(tmp_path, tmp_store, monkeypatch):
                         output_tokens=150),
     ], str(tmp_path))
     monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
-    monkeypatch.setattr(sl_module, "_write_threadbridge_changelog", lambda *args, **kwargs: None)
 
     run()
 
@@ -277,7 +276,6 @@ def test_run_logs_session_when_project_found(tmp_path, tmp_store, monkeypatch):
                         output_tokens=200),
     ], str(tmp_path))
     monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
-    monkeypatch.setattr(sl_module, "_write_threadbridge_changelog", lambda *args, **kwargs: None)
 
     run()
 
@@ -298,7 +296,6 @@ def test_run_exits_silently_when_project_not_found(tmp_path, tmp_store, monkeypa
         _assistant_turn("req_1", input_tokens=100, output_tokens=50),
     ], str(tmp_path))
     monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
-    monkeypatch.setattr(sl_module, "_write_threadbridge_changelog", lambda *args, **kwargs: None)
 
     run()  # must not raise
 
@@ -313,7 +310,6 @@ def test_run_exits_silently_when_no_tokens(tmp_path, tmp_store, monkeypatch):
         _user_turn("Hello"),  # user lines carry no usage
     ], str(tmp_path))
     monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
-    monkeypatch.setattr(sl_module, "_write_threadbridge_changelog", lambda *args, **kwargs: None)
 
     run()  # must not raise
 
@@ -323,6 +319,5 @@ def test_run_exits_silently_when_no_tokens(tmp_path, tmp_store, monkeypatch):
 def test_run_exits_silently_on_invalid_stdin(tmp_store, monkeypatch):
     monkeypatch.setattr(sl_module, "_store", lambda: tmp_store)
     monkeypatch.setattr(sys, "stdin", io.StringIO("not valid json"))
-    monkeypatch.setattr(sl_module, "_write_threadbridge_changelog", lambda *args, **kwargs: None)
 
     run()  # must not raise
