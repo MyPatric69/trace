@@ -107,7 +107,9 @@ print('TRACE initialized at:', store.db_path)
 "
 ```
 
-This creates `~/.trace/trace.db` and `~/.trace/trace_config.yaml` on first run.
+This creates `~/.trace/trace.db` and `~/.trace/user_config.yaml` on first run.
+If a `~/.trace/trace_config.yaml` already exists, user settings are migrated
+from it automatically.
 
 **Step 3.6 – Install Claude Code hooks (required for live tracking):**
 
@@ -181,16 +183,20 @@ personal preferences:
 
 | File | Location | Purpose | Written at runtime? |
 |---|---|---|---|
-| `trace_config.yaml` | Repo root | Model prices, context windows | Never |
+| `trace_config.yaml` | Repo root | Model prices, context windows — updated via `git pull` | **Never** |
 | `user_config.yaml` | `~/.trace/` | Thresholds, notifications, budget, baseline model, MCP servers | Yes (Settings UI / API) |
 
-**Update models** by pulling the repo — your preferences in `~/.trace/user_config.yaml`
-are untouched.
+**Update model prices** — just `git pull`. Your settings in `~/.trace/user_config.yaml`
+are never touched.
 
-**Reset user settings** by deleting `~/.trace/user_config.yaml` — TRACE recreates it
-from defaults on the next run.
+**Reset user settings** — delete `~/.trace/user_config.yaml`. TRACE recreates it from
+defaults on the next run.
 
-### user_config.yaml keys
+**Migration** — if you have an existing `~/.trace/trace_config.yaml` from before this
+split, TRACE automatically extracts your user settings into `~/.trace/user_config.yaml`
+on first run. The old file is left in place untouched.
+
+### ~/.trace/user_config.yaml keys
 
 ```yaml
 session_health:
@@ -207,8 +213,8 @@ comparison:
 mcp_servers: []
 ```
 
-On first run TRACE migrates any existing `~/.trace/trace_config.yaml` user settings
-into the new file automatically.
+All values above are the defaults used when no user config exists.
+Edit this file directly or use the dashboard ⚙ Settings popover.
 
 ---
 
@@ -240,10 +246,8 @@ api_integration:
   monthly_budget_usd: 20.0
 ```
 
-After changing, sync to runtime config:
-```bash
-cp trace_config.yaml ~/.trace/trace_config.yaml
-```
+TRACE reads `api_integration` from the repo's `trace_config.yaml` directly —
+no manual copy step needed.
 
 ### Anthropic
 
@@ -286,8 +290,9 @@ Google Cloud project.
 
 ### Manual (default)
 
-No credentials needed. Budget set via `monthly_budget_usd`
-in `trace_config.yaml`.
+No credentials needed. Budget set via the ⚙ Settings popover in the
+dashboard, or by editing `budgets.default_monthly_usd` in
+`~/.trace/user_config.yaml`.
 
 ### Adding a new provider
 
@@ -388,9 +393,10 @@ Three presets are available – or enter custom values:
 
 Set your monthly spending target in USD. The Monthly Budget card in the metrics row shows current month spend as a percentage of this target. Turns amber at 80%, red at 100%.
 
-Default: $20.00. Saved immediately to `~/.trace/trace_config.yaml`.
+Default: $20.00. Saved immediately to `~/.trace/user_config.yaml`.
 
-Settings are saved immediately to ~/.trace/trace_config.yaml.
+All settings are saved immediately to `~/.trace/user_config.yaml` and
+are never overwritten by `git pull`.
 
 > **Note:** The session health bar is only visible when a specific
 > project is selected. Select your project from the dropdown in the
@@ -401,7 +407,7 @@ Settings are saved immediately to ~/.trace/trace_config.yaml.
 **Session health thresholds** are configured via the ⚙ Settings
 popover in the dashboard header (see [Settings](#settings) above).
 For power users, values can also be edited directly in
-`~/.trace/trace_config.yaml`:
+`~/.trace/user_config.yaml`:
 
 ```yaml
 session_health:
@@ -529,7 +535,7 @@ just nominal rate cards.
 
 **How it works:**
 1. Reads the active model (from live sessions or recent DB) and the
-   configured `comparison.baseline_model` from `~/.trace/trace_config.yaml`
+   configured `comparison.baseline_model` from `~/.trace/user_config.yaml`
 2. Calls `POST /v1/messages/count_tokens` twice with a fixed ~500-token
    reference text (never changes, so ratios are comparable over time)
 3. Writes `ratio = current_tokens / baseline_tokens` to
@@ -590,8 +596,9 @@ bash hooks/remove_tokenizer_check.sh
 
 ## Supported models
 
-Prices are read from `~/.trace/trace_config.yaml` at startup. Adding a new
-model requires only a new entry in the `models:` block – no code changes.
+Prices are read from `trace_config.yaml` in the repo root at startup.
+To add or adjust a model, edit the `models:` block there — no code changes needed.
+Pull the repo on all machines to pick up the updated prices.
 GPT models have been removed; TRACE tracks Claude Code sessions only.
 
 | Model | Input per 1k tokens | Output per 1k tokens | Notes |

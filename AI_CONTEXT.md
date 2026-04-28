@@ -268,4 +268,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-28 – Two-file config split (engine/config.py TraceConfig, 14 new tests); preset button active state fix
+2026-04-28 – Two-file config split (engine/config.py TraceConfig, 14 new tests); preset button active state fix; README config references updated to user_config.yaml
