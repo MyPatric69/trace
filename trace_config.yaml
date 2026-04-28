@@ -59,7 +59,7 @@ notifications:
   enabled: true
   sound: true
 session_health:
-  warn_tokens: 80000
-  critical_tokens: 150000
+  warn_tokens: 120000
+  critical_tokens: 200000
 comparison:
   baseline_model: claude-opus-4-7

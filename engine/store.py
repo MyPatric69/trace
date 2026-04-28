@@ -11,30 +11,26 @@ TRACE_HOME = Path.home() / ".trace"
 class TraceStore:
     def __init__(self, config_path: str | None = None):
         if config_path is None:
-            # Central mode – priority order:
-            #   1. ~/.trace/trace_config.yaml  (runtime, if exists)
-            #   2. ./trace_config.yaml          (project fallback)
+            # Central mode – uses TraceConfig to merge system config (model prices)
+            # with user config (thresholds, notifications, etc.).
             TRACE_HOME.mkdir(parents=True, exist_ok=True)
-            central_config = TRACE_HOME / "trace_config.yaml"
-            project_config = Path("trace_config.yaml")
-
-            if central_config.exists():
-                resolved = central_config
-            elif project_config.exists():
-                resolved = project_config
-            else:
-                raise FileNotFoundError(
-                    "No trace_config.yaml found in ~/.trace/ or current directory."
-                )
-
-            with open(resolved) as f:
-                self.config = yaml.safe_load(f)
-            self.config_path = resolved
+            central = TRACE_HOME / "trace_config.yaml"
+            # Bootstrap ~/.trace/trace_config.yaml for backward compat
+            # (DocSynthesizer / ContextCompressor resolve db_path from it)
+            if not central.exists():
+                repo = Path(__file__).parents[1] / "trace_config.yaml"
+                src = repo if repo.exists() else Path("trace_config.yaml")
+                if src.exists():
+                    self._sync_to_trace_home(src)
+                elif not central.exists():
+                    raise FileNotFoundError(
+                        "No trace_config.yaml found in ~/.trace/ or repo root."
+                    )
+            self.config_path = TRACE_HOME / "trace_config.yaml"
             self.db_path = TRACE_HOME / "trace.db"
-
-            # Sync project config → ~/.trace/ when falling back to it
-            if resolved == project_config:
-                self._sync_to_trace_home(project_config)
+            # Merged config: fresh model prices from repo + user prefs from user_config.yaml
+            from engine.config import TraceConfig
+            self.config = TraceConfig.default().merged
         else:
             # Explicit config provided (tests / legacy callers)
             resolved = Path(config_path)

@@ -174,6 +174,44 @@ store.add_project('my-project', '/path/to/project', 'Description')
 
 ---
 
+## Configuration
+
+TRACE uses a two-file configuration layout that separates model prices from
+personal preferences:
+
+| File | Location | Purpose | Written at runtime? |
+|---|---|---|---|
+| `trace_config.yaml` | Repo root | Model prices, context windows | Never |
+| `user_config.yaml` | `~/.trace/` | Thresholds, notifications, budget, baseline model, MCP servers | Yes (Settings UI / API) |
+
+**Update models** by pulling the repo — your preferences in `~/.trace/user_config.yaml`
+are untouched.
+
+**Reset user settings** by deleting `~/.trace/user_config.yaml` — TRACE recreates it
+from defaults on the next run.
+
+### user_config.yaml keys
+
+```yaml
+session_health:
+  warn_tokens: 120000
+  critical_tokens: 200000
+notifications:
+  enabled: true
+  sound: true
+budgets:
+  default_monthly_usd: 125.0
+  alert_threshold_pct: 80
+comparison:
+  baseline_model: claude-sonnet-4-6
+mcp_servers: []
+```
+
+On first run TRACE migrates any existing `~/.trace/trace_config.yaml` user settings
+into the new file automatically.
+
+---
+
 ## Provider configuration
 
 TRACE supports multiple AI providers. Configure yours

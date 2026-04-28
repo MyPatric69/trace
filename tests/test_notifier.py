@@ -563,7 +563,8 @@ def settings_home(tmp_path, monkeypatch):
     """Redirect TRACE_HOME, skip project sync."""
     import dashboard.server as srv
 
-    config = {
+    # Store config (used by TraceStore for DB only)
+    store_cfg = {
         "trace": {"db_path": "test.db", "version": "0.1.0"},
         "projects": [],
         "budgets": {"default_monthly_usd": 20.0, "alert_threshold_pct": 80},
@@ -572,7 +573,17 @@ def settings_home(tmp_path, monkeypatch):
         "notifications": {"enabled": True, "sound": True},
     }
     central = tmp_path / "trace_config.yaml"
-    central.write_text(yaml.dump(config))
+    central.write_text(yaml.dump(store_cfg))
+
+    # User config – what _load_central_config will read
+    user_cfg = {
+        "session_health":  {"warn_tokens": 80_000, "critical_tokens": 150_000},
+        "notifications":   {"enabled": True, "sound": True},
+        "budgets":         {"default_monthly_usd": 20.0, "alert_threshold_pct": 80},
+        "comparison":      {"baseline_model": "claude-sonnet-4-6"},
+        "mcp_servers":     [],
+    }
+    (tmp_path / "user_config.yaml").write_text(yaml.dump(user_cfg))
 
     store = TraceStore(str(central))
     store.init_db()
@@ -597,7 +608,7 @@ def test_post_settings_updates_config(settings_home):
     assert res.status_code == 200
     assert res.json() == {"status": "ok"}
 
-    saved = yaml.safe_load((settings_home / "trace_config.yaml").read_text())
+    saved = yaml.safe_load((settings_home / "user_config.yaml").read_text())
     assert saved["notifications"]["enabled"] is False
     assert saved["notifications"]["sound"] is False
 
@@ -610,7 +621,7 @@ def test_post_settings_partial_update(settings_home):
     client = TestClient(app)
     client.post("/api/settings", json={"notifications_enabled": False})
 
-    saved = yaml.safe_load((settings_home / "trace_config.yaml").read_text())
+    saved = yaml.safe_load((settings_home / "user_config.yaml").read_text())
     assert saved["notifications"]["enabled"] is False
     assert saved["notifications"]["sound"] is True  # unchanged
 

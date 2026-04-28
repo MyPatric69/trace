@@ -751,20 +751,57 @@ _MCP_DISCLAIMER = (
 
 
 def _load_central_config() -> tuple[Path, dict]:
-    """Read ~/.trace/trace_config.yaml; return (path, config_dict)."""
-    path = TRACE_HOME / "trace_config.yaml"
-    with open(path, encoding="utf-8") as f:
-        return path, yaml.safe_load(f) or {}
+    """Read user config and merge with system model prices.
+
+    Returns (user_config_path, merged_dict).  The merged dict contains:
+    - ``models`` block from the repo's trace_config.yaml (system config, read-only)
+    - User preferences from ~/.trace/user_config.yaml
+
+    Falls back to the legacy trace_config.yaml when user_config.yaml is absent.
+    """
+    from engine.config import TraceConfig, _USER_DEFAULTS
+
+    user_path = TRACE_HOME / "user_config.yaml"
+    user_cfg: dict = {}
+    if user_path.exists():
+        try:
+            with open(user_path, encoding="utf-8") as f:
+                user_cfg = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+
+    if not user_cfg:
+        legacy = TRACE_HOME / "trace_config.yaml"
+        if legacy.exists():
+            try:
+                with open(legacy, encoding="utf-8") as f:
+                    user_cfg = yaml.safe_load(f) or {}
+            except Exception:
+                pass
+
+    system_path = TraceConfig._REPO_ROOT / "trace_config.yaml"
+    system_cfg: dict = {}
+    if system_path.exists():
+        try:
+            with open(system_path, encoding="utf-8") as f:
+                system_cfg = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+
+    merged = dict(system_cfg)
+    for key in _USER_DEFAULTS:
+        # Always assign user keys so system config never leaks user settings
+        merged[key] = user_cfg.get(key, _USER_DEFAULTS[key])
+
+    return user_path, merged
 
 
 def _save_and_sync_config(path: Path, config: dict) -> None:
-    """Write updated config to *path* and sync to the project trace_config.yaml."""
-    text = yaml.dump(config, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    """Write user settings to user_config.yaml; system config is never written at runtime."""
+    from engine.config import _USER_KEYS
+    user_data = {k: config[k] for k in _USER_KEYS if k in config}
+    text = yaml.dump(user_data, default_flow_style=False, allow_unicode=True, sort_keys=False)
     path.write_text(text, encoding="utf-8")
-    # Sync to project trace_config.yaml (next to dashboard/)
-    project = _DASHBOARD_DIR.parent / "trace_config.yaml"
-    if project.exists():
-        project.write_text(text, encoding="utf-8")
 
 
 def _build_mcp_response(config: dict) -> dict:

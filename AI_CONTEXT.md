@@ -222,6 +222,13 @@ WS   /ws
 **Config cleanup:**
 - `models:` block: GPT models removed (TRACE is Claude-only); 7 Claude models reordered: sonnet-4-6 (default), sonnet-4-7, sonnet-4-5, opus-4-7, opus-4-6, opus-4-5, haiku-4-5
 
+**Two-file config split (complete – 14 tests):**
+- `engine/config.py` – new `TraceConfig` class; reads system config from `{repo_root}/trace_config.yaml` (models, prices; read-only at runtime) and user config from `~/.trace/user_config.yaml` (thresholds, notifications, budget, comparison, mcp_servers); merges both into a single dict; migrates from legacy `~/.trace/trace_config.yaml` on first run
+- `engine/store.py` – `TraceStore.default()` now uses `TraceConfig.default().merged` as `self.config`; `~/.trace/trace_config.yaml` bootstrapped for backward compat (DocSynthesizer / ContextCompressor)
+- `dashboard/server.py` – `_load_central_config()` returns `(user_config_path, merged_dict)` where merged includes system models for validation; `_save_and_sync_config()` writes only user keys to `~/.trace/user_config.yaml`, no longer syncs to repo `trace_config.yaml`
+- `tests/test_config.py` – 14 tests covering merge, migration, model price lookup, and save operations
+- `tests/test_mcp_panel.py`, `tests/test_notifier.py` – fixtures updated to use `user_config.yaml`
+
 **Out of scope:**
 - Multi-MCP proxy
 
@@ -261,4 +268,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-28 – Fix settings popover preset button active state (applyHealthPreset now accepts `btn` arg, clears all --default classes, applies to clicked button)
+2026-04-28 – Two-file config split (engine/config.py TraceConfig, 14 new tests); preset button active state fix

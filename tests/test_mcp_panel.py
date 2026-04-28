@@ -58,18 +58,26 @@ def tmp_store(tmp_path):
 def mcp_home(tmp_path, monkeypatch, tmp_store):
     """
     Redirect TRACE_HOME to tmp_path so _load_central_config reads/writes
-    a temp yaml.  Also prevent _save_and_sync_config from touching the real
-    project trace_config.yaml.
+    the temp user_config.yaml.  Also redirect _save_and_sync_config so it
+    only writes the user file (no project sync).
     """
-    # Write a fresh central config with empty mcp_servers
+    # User config with empty mcp_servers
+    user_cfg = tmp_path / "user_config.yaml"
+    user_settings = {
+        "session_health": {"warn_tokens": 80_000, "critical_tokens": 150_000},
+        "notifications":  {"enabled": True, "sound": True},
+        "budgets":        {"default_monthly_usd": 20.0, "alert_threshold_pct": 80},
+        "comparison":     {"baseline_model": "claude-sonnet-4-6"},
+        "mcp_servers":    [],
+    }
+    user_cfg.write_text(yaml.dump(user_settings))
+
+    # Also write a legacy trace_config.yaml so the system-config fallback path works
     central = tmp_path / "trace_config.yaml"
-    config = dict(_BASE_CONFIG)
-    config["mcp_servers"] = []
-    central.write_text(yaml.dump(config))
+    central.write_text(yaml.dump(dict(_BASE_CONFIG)))
 
     monkeypatch.setattr(srv, "TRACE_HOME", tmp_path)
 
-    # Skip project-sync in tests
     def _no_sync(path: Path, cfg: dict) -> None:
         text = yaml.dump(cfg, default_flow_style=False, allow_unicode=True, sort_keys=False)
         path.write_text(text, encoding="utf-8")
@@ -113,7 +121,7 @@ def test_get_mcp_disclaimer_always_present(client):
 
 def test_get_mcp_total_tokens_scales_with_servers(client, mcp_home):
     # Seed two servers directly in the yaml
-    cfg_path = mcp_home / "trace_config.yaml"
+    cfg_path = mcp_home / "user_config.yaml"
     config = yaml.safe_load(cfg_path.read_text())
     config["mcp_servers"] = [
         {"name": "trace",  "estimated_tokens": _TOKENS_PER_SERVER},
@@ -128,7 +136,7 @@ def test_get_mcp_total_tokens_scales_with_servers(client, mcp_home):
 
 def test_get_mcp_missing_key_treated_as_empty(client, mcp_home):
     # Remove mcp_servers key entirely
-    cfg_path = mcp_home / "trace_config.yaml"
+    cfg_path = mcp_home / "user_config.yaml"
     config = yaml.safe_load(cfg_path.read_text())
     config.pop("mcp_servers", None)
     cfg_path.write_text(yaml.dump(config))
@@ -198,7 +206,7 @@ def test_post_mcp_accepts_hyphenated_name(client):
 
 def test_post_mcp_persists_to_yaml(client, mcp_home):
     client.post("/api/mcp", json={"name": "trace"})
-    saved = yaml.safe_load((mcp_home / "trace_config.yaml").read_text())
+    saved = yaml.safe_load((mcp_home / "user_config.yaml").read_text())
     names = [s["name"] for s in saved.get("mcp_servers", [])]
     assert "trace" in names
 
@@ -233,7 +241,7 @@ def test_delete_mcp_unknown_returns_404(client):
 def test_delete_mcp_persists_removal_to_yaml(client, mcp_home):
     client.post("/api/mcp", json={"name": "trace"})
     client.delete("/api/mcp/trace")
-    saved = yaml.safe_load((mcp_home / "trace_config.yaml").read_text())
+    saved = yaml.safe_load((mcp_home / "user_config.yaml").read_text())
     names = [s["name"] for s in saved.get("mcp_servers", [])]
     assert "trace" not in names
 
