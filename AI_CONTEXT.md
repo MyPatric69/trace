@@ -268,4 +268,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-28 – Auto-synced 1 commit(s) to 42a7f8a
+2026-04-28 – install.sh + README docs (Quick install expanded, TRACE vs /context note)

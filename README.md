@@ -16,8 +16,24 @@ Clone the repo and run:
 bash install.sh
 ```
 
-TRACE detects whether this is a fresh install, a project addition, or an
-update and guides you through the right steps.
+`install.sh` auto-detects your situation and runs the right steps:
+
+| Situation | What happens |
+|---|---|
+| `~/.trace/` does not exist | Fresh install – prerequisites, dependencies, hooks, dashboard autostart |
+| TRACE installed, run from a project dir | Adds the project – registers it, installs git hook |
+| TRACE installed, run from the TRACE repo | Interactive menu – add project / update / reinstall |
+
+**Project detection** uses `CLAUDE.md` or `.git` in the current directory.
+Run `install.sh` from your project root to register it.
+
+**One-time prerequisite** – store your API key in Keychain once:
+
+```bash
+security add-generic-password -s ANTHROPIC_API_KEY -a anthropic -w sk-ant-...
+```
+
+`install.sh` checks for this key and prints instructions if it is missing.
 
 See [Installation](#installation) below for manual setup and advanced options.
 
@@ -629,6 +645,19 @@ GPT models have been removed; TRACE tracks Claude Code sessions only.
 ---
 
 ## Token count accuracy
+
+> **TRACE vs `/context` – why the numbers differ**
+>
+> TRACE tracks `usage.input_tokens` as returned by the Anthropic API.
+> This is the exact billable amount charged to your account.
+>
+> Claude Code's `/context` command shows the full context window
+> breakdown (system prompt, tools, memory files, messages, autocompact
+> buffer). This includes non-billable overhead that is not reflected
+> in the API response.
+>
+> The two numbers measure different things and will not match.
+> TRACE is the authoritative source for what you are actually charged.
 
 > **Note on token count accuracy**
 >
