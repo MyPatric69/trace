@@ -261,4 +261,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-27 – Docs: updated README (tokenizer ratio check, Keychain note, example output, supported models); AI_CONTEXT expanded with tokenizer + config cleanup entries; 569 tests green
+2026-04-28 – Fix settings popover preset button active state (applyHealthPreset now accepts `btn` arg, clears all --default classes, applies to clicked button)

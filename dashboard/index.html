@@ -1100,9 +1100,9 @@
           </div>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 4px;">
-          <button class="settings-preset-btn" onclick="applyHealthPreset(50000,100000)">Economy 50k/100k</button>
-          <button class="settings-preset-btn settings-preset-btn--default" onclick="applyHealthPreset(80000,150000)">Standard 80k/150k</button>
-          <button class="settings-preset-btn" onclick="applyHealthPreset(120000,200000)">Intensive 120k/200k</button>
+          <button class="settings-preset-btn" onclick="applyHealthPreset(50000,100000,this)">Economy 50k/100k</button>
+          <button class="settings-preset-btn settings-preset-btn--default" onclick="applyHealthPreset(80000,150000,this)">Standard 80k/150k</button>
+          <button class="settings-preset-btn" onclick="applyHealthPreset(120000,200000,this)">Intensive 120k/200k</button>
         </div>
         <div class="pop-divider"></div>
         <!-- Monthly budget -->
@@ -1454,11 +1454,13 @@
     }
   }
 
-  function applyHealthPreset(warn, crit) {
+  function applyHealthPreset(warn, crit, btn) {
     const warnInput = $('health-warn-tokens');
     const critInput = $('health-critical-tokens');
     if (warnInput) warnInput.value = warn;
     if (critInput) critInput.value = crit;
+    document.querySelectorAll('.settings-preset-btn').forEach(b => b.classList.remove('settings-preset-btn--default'));
+    if (btn) btn.classList.add('settings-preset-btn--default');
   }
 
   function toggleSettingsPopover() {
