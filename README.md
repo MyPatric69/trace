@@ -8,6 +8,21 @@ TRACE is a local MCP server that tracks token costs and keeps `AI_CONTEXT.md` au
 
 ---
 
+## Quick install
+
+Clone the repo and run:
+
+```bash
+bash install.sh
+```
+
+TRACE detects whether this is a fresh install, a project addition, or an
+update and guides you through the right steps.
+
+See [Installation](#installation) below for manual setup and advanced options.
+
+---
+
 ## What TRACE does
 
 **Token cost tracking.** Every AI session is logged with model, input tokens, output tokens, and calculated cost. TRACE aggregates this per project and period, surfaces budget alerts when monthly spend approaches the configured limit, and returns actionable optimisation tips when sessions run expensive.
