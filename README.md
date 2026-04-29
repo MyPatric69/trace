@@ -8,36 +8,44 @@ TRACE is a local MCP server that tracks token costs and keeps `AI_CONTEXT.md` au
 
 ---
 
-## Quick install
+## Quick install / trace.sh
 
-Clone the repo and run:
+Clone the repo and run `trace.sh` from the TRACE repo root:
 
 ```bash
+# Interactive menu
 bash trace.sh
+
+# Direct operations
+bash trace.sh add ~/projects/myapp
+bash trace.sh remove ~/projects/myapp
+bash trace.sh update
+bash trace.sh uninstall
 ```
 
-`trace.sh` is the TRACE lifecycle manager. It always shows an interactive menu
-and auto-detects the most likely option for your situation:
+`trace.sh` is always run from the TRACE repo. For project operations you either
+pass the path as an argument or are prompted to enter it interactively.
 
-| Situation | Auto-selected option |
+### Auto-detected default
+
+| Situation | Auto-selected menu option |
 |---|---|
 | `~/.trace/user_config.yaml` does not exist | **1 – Install TRACE** |
-| TRACE installed, run from a project directory | **2 – Add project** |
-| TRACE installed, run from the TRACE repo | **3 – Update TRACE** |
+| TRACE installed | **3 – Update TRACE** |
 
 ### Menu options
 
 | # | Option | What it does |
 |---|---|---|
 | 1 | Install TRACE | Sets up TRACE from scratch – hooks, dashboard, tokenizer check |
-| 2 | Add project | Registers this directory and installs the Claude Code hook |
+| 2 | Add project | Prompts for a project path, then registers it and installs the git hook |
 | 3 | Update TRACE | `git pull` + `pip install` + reload LaunchAgents – user data untouched |
-| 4 | Remove project | Removes hook from the current directory and unregisters it from TRACE |
+| 4 | Remove project | Prompts for a project path, then removes its hook and unregisters it |
 | 5 | Uninstall TRACE | Removes all LaunchAgents, MCP entry, `~/.trace/` – asks for confirmation |
 | 6 | Exit | — |
 
-**Project detection** uses `CLAUDE.md` or `.git` in the current directory.
-Run `trace.sh` from your project root to register it.
+**Project validation** – paths must contain `CLAUDE.md` or `.git`.
+Tab completion is available when entering a path interactively.
 
 **One-time prerequisite** – store your API key in Keychain once:
 

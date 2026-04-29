@@ -1,6 +1,12 @@
 #!/bin/bash
 # trace.sh – TRACE lifecycle manager
-# Usage: bash trace.sh (run from the TRACE repo or any project directory)
+# Usage:
+#   bash trace.sh                          # interactive menu
+#   bash trace.sh install                  # install TRACE
+#   bash trace.sh add [path]               # add project to TRACE
+#   bash trace.sh remove [path]            # remove project from TRACE
+#   bash trace.sh update                   # update TRACE
+#   bash trace.sh uninstall                # uninstall TRACE
 # macOS only. No sudo required.
 
 set -euo pipefail
@@ -19,7 +25,6 @@ step() { echo -e "${BOLD}→ $*${RESET}"; }
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$PWD"
 
 # ── Version ───────────────────────────────────────────────────────────────────
 TRACE_VERSION="$(grep 'version:' "$SCRIPT_DIR/trace_config.yaml" | head -1 | awk '{print $2}')"
@@ -27,14 +32,6 @@ TRACE_VERSION="$(grep 'version:' "$SCRIPT_DIR/trace_config.yaml" | head -1 | awk
 # ── Detection ─────────────────────────────────────────────────────────────────
 TRACE_INSTALLED=false
 [[ -f "$HOME/.trace/user_config.yaml" ]] && TRACE_INSTALLED=true
-
-IN_TRACE_REPO=false
-[[ "$PROJECT_DIR" == "$SCRIPT_DIR" ]] && IN_TRACE_REPO=true
-
-IN_PROJECT=false
-if [[ "$PROJECT_DIR" != "$SCRIPT_DIR" ]] && { [[ -f "$PROJECT_DIR/CLAUDE.md" ]] || [[ -d "$PROJECT_DIR/.git" ]]; }; then
-  IN_PROJECT=true
-fi
 
 # ── Header ────────────────────────────────────────────────────────────────────
 show_header() {
@@ -51,6 +48,40 @@ show_header() {
   echo -e "${BOLD}║${RESET}${sub_line}$(printf '%*s' $sub_pad '')${BOLD}║${RESET}"
   echo -e "${BOLD}╚══════════════════════════════════════════╝${RESET}"
   echo ""
+}
+
+# ── Path prompt helper ────────────────────────────────────────────────────────
+PROMPTED_PATH=""
+
+prompt_project_path() {
+  local attempt=0 raw_path resolved
+  PROMPTED_PATH=""
+  while [[ $attempt -lt 3 ]]; do
+    echo -e "  ${YELLOW}(tip: use Tab to autocomplete the path)${RESET}"
+    if ! read -e -r -p "  Project path (absolute or relative): " raw_path; then
+      raw_path=""
+    fi
+    raw_path="${raw_path/#\~/$HOME}"
+    resolved="$(realpath "$raw_path" 2>/dev/null || echo "")"
+    if [[ -n "$resolved" ]] && { [[ -f "$resolved/CLAUDE.md" ]] || [[ -d "$resolved/.git" ]]; }; then
+      PROMPTED_PATH="$resolved"
+      return 0
+    fi
+    warn "Not a valid project directory (needs CLAUDE.md or .git): ${raw_path:-<empty>}"
+    (( attempt++ ))
+  done
+  err "Max attempts reached. Provide a directory containing CLAUDE.md or .git."
+}
+
+resolve_path_arg() {
+  local path="$1"
+  path="${path/#\~/$HOME}"
+  local resolved
+  resolved="$(realpath "$path" 2>/dev/null || echo "")"
+  if [[ -z "$resolved" ]] || ! { [[ -f "$resolved/CLAUDE.md" ]] || [[ -d "$resolved/.git" ]]; }; then
+    err "Not a valid project directory (needs CLAUDE.md or .git): $path"
+  fi
+  echo "$resolved"
 }
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -173,27 +204,18 @@ mode_fresh_install() {
   step "Setting up tokenizer check..."
   bash "$SCRIPT_DIR/hooks/setup_tokenizer_check.sh"
 
-  if [[ "$IN_PROJECT" == true ]]; then
-    register_project "$PROJECT_DIR"
-    if [[ -d "$PROJECT_DIR/.git" ]]; then
-      step "Installing git hook in project..."
-      bash "$SCRIPT_DIR/hooks/install_hook.sh" "$PROJECT_DIR"
-    fi
-  fi
-
   echo ""
   ok "TRACE installed successfully"
   echo ""
   echo "  Dashboard: http://localhost:8080"
   echo "  Restart Claude Desktop to activate the MCP server"
-  echo "  Next: open a Claude Code session to start tracking"
+  echo "  Next: run 'bash trace.sh add <path>' to register a project"
   echo ""
 }
 
 # ── Option 2 – Add project ────────────────────────────────────────────────────
 mode_add_project() {
-  local name
-  name="$(basename "$PROJECT_DIR")"
+  local target_path="${1:-}"
 
   echo ""
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
@@ -201,23 +223,27 @@ mode_add_project() {
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo ""
 
-  if ! [[ -f "$PROJECT_DIR/CLAUDE.md" ]] && ! [[ -d "$PROJECT_DIR/.git" ]]; then
-    warn "Current directory ('$PROJECT_DIR') does not look like a project."
-    warn "Run trace.sh from a directory that contains a CLAUDE.md or .git folder."
-    exit 1
+  if [[ -z "$target_path" ]]; then
+    prompt_project_path
+    target_path="$PROMPTED_PATH"
+  else
+    target_path="$(resolve_path_arg "$target_path")"
   fi
+
+  local name
+  name="$(basename "$target_path")"
 
   step "Adding project '$name' to TRACE..."
 
   step "Verifying Claude Code hooks (idempotent)..."
   bash "$SCRIPT_DIR/hooks/setup_claude_hook.sh"
 
-  register_project "$PROJECT_DIR"
+  register_project "$target_path"
 
-  if [[ -d "$PROJECT_DIR/.git" ]]; then
-    if [[ ! -f "$PROJECT_DIR/.git/hooks/post-commit" ]]; then
+  if [[ -d "$target_path/.git" ]]; then
+    if [[ ! -f "$target_path/.git/hooks/post-commit" ]]; then
       step "Installing git hook..."
-      bash "$SCRIPT_DIR/hooks/install_hook.sh" "$PROJECT_DIR"
+      bash "$SCRIPT_DIR/hooks/install_hook.sh" "$target_path"
     else
       echo "  Git hook already installed"
     fi
@@ -267,15 +293,25 @@ mode_update() {
 
 # ── Option 4 – Remove project ─────────────────────────────────────────────────
 mode_remove_project() {
-  local name
-  name="$(basename "$PROJECT_DIR")"
+  local target_path="${1:-}"
 
   echo ""
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo -e "${BOLD} Option 4 – Remove project${RESET}"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo ""
-  echo -e "  Project: ${BOLD}'${name}'${RESET} (${PROJECT_DIR})"
+
+  if [[ -z "$target_path" ]]; then
+    prompt_project_path
+    target_path="$PROMPTED_PATH"
+  else
+    target_path="$(resolve_path_arg "$target_path")"
+  fi
+
+  local name
+  name="$(basename "$target_path")"
+
+  echo -e "  Project: ${BOLD}'${name}'${RESET} (${target_path})"
   echo ""
 
   local confirm
@@ -286,9 +322,9 @@ mode_remove_project() {
     exit 0
   fi
 
-  if [[ -f "$PROJECT_DIR/.git/hooks/post-commit" ]]; then
+  if [[ -f "$target_path/.git/hooks/post-commit" ]]; then
     step "Removing git hook..."
-    rm -f "$PROJECT_DIR/.git/hooks/post-commit"
+    rm -f "$target_path/.git/hooks/post-commit"
     echo "  Removed: .git/hooks/post-commit"
   else
     echo "  No git hook found in .git/hooks/"
@@ -444,15 +480,8 @@ else:
 
 # ── Main menu ─────────────────────────────────────────────────────────────────
 show_menu() {
-  # Determine auto-detected default
   local default=1
-  if [[ "$TRACE_INSTALLED" == true ]]; then
-    if [[ "$IN_TRACE_REPO" == true ]]; then
-      default=3
-    else
-      default=2
-    fi
-  fi
+  [[ "$TRACE_INSTALLED" == true ]] && default=3
 
   echo "  What would you like to do?"
   echo ""
@@ -489,8 +518,8 @@ show_menu() {
       ;;
     2)
       echo ""
-      echo -e "  ${BOLD}Registers this directory and installs the Claude Code hook${RESET}"
-      mode_add_project
+      echo -e "  ${BOLD}Registers a project directory and installs the Claude Code hook${RESET}"
+      mode_add_project ""
       ;;
     3)
       echo ""
@@ -500,7 +529,7 @@ show_menu() {
     4)
       echo ""
       echo -e "  ${BOLD}Removes hook from a project and unregisters it from TRACE${RESET}"
-      mode_remove_project
+      mode_remove_project ""
       ;;
     5)
       echo ""
@@ -518,5 +547,24 @@ show_menu() {
 }
 
 # ── Entry point ───────────────────────────────────────────────────────────────
+SUBCMD="${1:-}"
+SUBCMD_PATH="${2:-}"
+
 show_header
-show_menu
+
+case "$SUBCMD" in
+  "")         show_menu ;;
+  install)    mode_fresh_install ;;
+  add)        mode_add_project "$SUBCMD_PATH" ;;
+  remove)     mode_remove_project "$SUBCMD_PATH" ;;
+  update)     mode_update ;;
+  uninstall)  mode_uninstall ;;
+  *)
+    err "Unknown command: '$SUBCMD'
+  Usage: bash trace.sh [install|add|remove|update|uninstall] [path]
+  Examples:
+    bash trace.sh add ~/projects/myapp
+    bash trace.sh remove ~/projects/myapp
+    bash trace.sh update"
+    ;;
+esac

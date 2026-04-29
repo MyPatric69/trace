@@ -268,4 +268,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-29 – install.sh removed (replaced by trace.sh); 583 tests green
+2026-04-29 – trace.sh refactored: always runs from TRACE repo, accepts project path as argument or via interactive prompt; README Quick install section updated
