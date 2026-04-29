@@ -57,7 +57,6 @@ prompt_project_path() {
   local attempt=0 raw_path resolved
   PROMPTED_PATH=""
   while [[ $attempt -lt 3 ]]; do
-    echo -e "  ${YELLOW}(tip: use Tab to autocomplete the path)${RESET}"
     if ! read -e -r -p "  Project path (absolute or relative): " raw_path; then
       raw_path=""
     fi
@@ -221,6 +220,9 @@ mode_add_project() {
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo -e "${BOLD} Option 2 – Add project to TRACE${RESET}"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+
+  warn "Make sure you have run 'claude /init' or 'git init' in the project directory first."
   echo ""
 
   if [[ -z "$target_path" ]]; then
@@ -481,7 +483,7 @@ else:
 # ── Main menu ─────────────────────────────────────────────────────────────────
 show_menu() {
   local default=1
-  [[ "$TRACE_INSTALLED" == true ]] && default=3
+  [[ "$TRACE_INSTALLED" == true ]] && default=2
 
   echo "  What would you like to do?"
   echo ""

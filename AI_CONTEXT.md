@@ -268,4 +268,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-04-29 – trace.sh: clear at startup; refactored to always run from TRACE repo with path arg/prompt for add/remove
+2026-04-29 – trace.sh: default menu option 2 when installed; /init warning before path prompt; tab tip removed
