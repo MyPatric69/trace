@@ -13,19 +13,31 @@ TRACE is a local MCP server that tracks token costs and keeps `AI_CONTEXT.md` au
 Clone the repo and run:
 
 ```bash
-bash install.sh
+bash trace.sh
 ```
 
-`install.sh` auto-detects your situation and runs the right steps:
+`trace.sh` is the TRACE lifecycle manager. It always shows an interactive menu
+and auto-detects the most likely option for your situation:
 
-| Situation | What happens |
+| Situation | Auto-selected option |
 |---|---|
-| `~/.trace/` does not exist | Fresh install – prerequisites, dependencies, hooks, dashboard autostart |
-| TRACE installed, run from a project dir | Adds the project – registers it, installs git hook |
-| TRACE installed, run from the TRACE repo | Interactive menu – add project / update / reinstall |
+| `~/.trace/user_config.yaml` does not exist | **1 – Install TRACE** |
+| TRACE installed, run from a project directory | **2 – Add project** |
+| TRACE installed, run from the TRACE repo | **3 – Update TRACE** |
+
+### Menu options
+
+| # | Option | What it does |
+|---|---|---|
+| 1 | Install TRACE | Sets up TRACE from scratch – hooks, dashboard, tokenizer check |
+| 2 | Add project | Registers this directory and installs the Claude Code hook |
+| 3 | Update TRACE | `git pull` + `pip install` + reload LaunchAgents – user data untouched |
+| 4 | Remove project | Removes hook from the current directory and unregisters it from TRACE |
+| 5 | Uninstall TRACE | Removes all LaunchAgents, MCP entry, `~/.trace/` – asks for confirmation |
+| 6 | Exit | — |
 
 **Project detection** uses `CLAUDE.md` or `.git` in the current directory.
-Run `install.sh` from your project root to register it.
+Run `trace.sh` from your project root to register it.
 
 **One-time prerequisite** – store your API key in Keychain once:
 
@@ -33,7 +45,7 @@ Run `install.sh` from your project root to register it.
 security add-generic-password -s ANTHROPIC_API_KEY -a anthropic -w sk-ant-...
 ```
 
-`install.sh` checks for this key and prints instructions if it is missing.
+`trace.sh` checks for this key and prints instructions if it is missing.
 
 See [Installation](#installation) below for manual setup and advanced options.
 

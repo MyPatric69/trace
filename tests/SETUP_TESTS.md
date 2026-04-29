@@ -1,14 +1,14 @@
-# TRACE Install Script – Manual Verification
+# TRACE Setup Script – Manual Verification
 
-`install.sh` uses shell features and LaunchAgents that cannot be unit-tested
-with pytest. Verify each mode manually before releasing.
+`trace.sh` uses shell features and LaunchAgents that cannot be unit-tested
+with pytest. Verify each option manually before releasing.
 
 ---
 
 ## Prerequisites
 
 ```bash
-# These must pass before running any mode
+# These must pass before running any option
 python3 --version   # ≥ 3.10
 git --version
 pip3 --version
@@ -16,7 +16,23 @@ pip3 --version
 
 ---
 
-## Mode 1 – Fresh install
+## Header (always shown)
+
+```bash
+cd /path/to/trace
+bash trace.sh
+```
+
+**Expected:**
+- Box drawn with `╔ ╝ ║` characters
+- Version read from `trace_config.yaml` (e.g. `TRACE Manager v0.2.0`)
+- Subtitle: `Token-Aware AI Context Engine`
+- Menu with options 1–6 displayed
+- Auto-detected option highlighted in green with `→` marker
+
+---
+
+## Option 1 – Install TRACE
 
 **Setup:** `~/.trace/user_config.yaml` must NOT exist.
 
@@ -25,7 +41,8 @@ pip3 --version
 mv ~/.trace ~/.trace.bak
 
 cd /path/to/trace
-bash install.sh
+bash trace.sh
+# Press Enter to accept auto-selected option 1
 ```
 
 **Expected:**
@@ -41,39 +58,41 @@ bash install.sh
 - `com.trace.tokenizer` LaunchAgent loaded: `launchctl list | grep trace.tokenizer`
 - Final: `✅ TRACE installed successfully` with dashboard URL
 
-**Idempotency check:** Run `bash install.sh` a second time – no errors, no
+**Idempotency check:** Run `bash trace.sh` a second time – no errors, no
 duplicate entries in `~/.claude/settings.json`.
 
 ---
 
-## Mode 1 variant – Fresh install from a project directory
+## Option 1 variant – Fresh install from a project directory
 
 **Setup:** clean state (`~/.trace` removed) AND run from a non-TRACE project.
 
 ```bash
 mv ~/.trace ~/.trace.bak
 cd /path/to/some-other-project   # must have .git or CLAUDE.md
-bash /path/to/trace/install.sh
+bash /path/to/trace/trace.sh
+# Select option 1
 ```
 
-**Expected (in addition to Mode 1 above):**
+**Expected (in addition to Option 1 above):**
 - `→ Registering project '<dirname>'...` printed
 - Project appears in `python3 -c "from engine.store import TraceStore; print([p['name'] for p in TraceStore.default().list_projects()])"`
 - `.git/hooks/post-commit` created in the project directory (if it is a git repo)
 
 ---
 
-## Mode 2 – Add project
+## Option 2 – Add project
 
 **Setup:** TRACE already installed, run from a project directory.
 
 ```bash
 cd /path/to/another-project   # has .git or CLAUDE.md
-bash /path/to/trace/install.sh
+bash /path/to/trace/trace.sh
+# Option 2 is auto-selected; press Enter
 ```
 
 **Expected:**
-- `TRACE vX.X.X – Add project` header
+- `Option 2 – Add project to TRACE` header printed
 - `→ Verifying Claude Code hooks (idempotent)...` (no duplicate hooks added)
 - `→ Registering project '<dirname>'...`
 - Project appears in `list_projects()` output
@@ -84,7 +103,8 @@ bash /path/to/trace/install.sh
 
 ```bash
 cd /tmp
-bash /path/to/trace/install.sh
+bash /path/to/trace/trace.sh
+# Select option 2
 ```
 
 Expected: `⚠️` warning and exit 1 (no .git or CLAUDE.md found).
@@ -94,63 +114,104 @@ Expected: `⚠️` warning and exit 1 (no .git or CLAUDE.md found).
 
 ---
 
-## Mode 3 – Update (via menu)
+## Option 3 – Update TRACE
 
 **Setup:** TRACE installed, run from the TRACE repo directory.
 
 ```bash
 cd /path/to/trace
-bash install.sh
-# Select: 2) Update TRACE to latest version
+bash trace.sh
+# Option 3 is auto-selected; press Enter
 ```
 
 **Expected:**
-- `→ Pulling latest changes...` (git pull runs)
+- Description line: `git pull + pip install + reload LaunchAgents – user data untouched`
+- `→ Pulling latest changes...` (git pull output shown)
 - `✅ Dependencies updated`
 - `→ Reloading LaunchAgents...` with `Reloaded: com.trace.dashboard` and
-  `Reloaded: com.trace.tokenizer`
-- Final: `✅ TRACE updated to latest version`
-- `~/.trace/user_config.yaml` unchanged
+  `Reloaded: com.trace.tokenizer` (or warning if not installed)
+- If already on latest: `✅ Already on latest version (vX.X.X)`
+- If updated: `✅ Updated from vX.X.X to vY.Y.Y – user data preserved`
+- `~/.trace/user_config.yaml` unchanged after update
 
 ---
 
-## Menu – installed + TRACE repo
+## Option 4 – Remove project
 
-**Setup:** TRACE installed, run from the TRACE repo.
+**Setup:** TRACE installed, run from a registered project directory.
 
 ```bash
-cd /path/to/trace
-bash install.sh
+cd /path/to/registered-project
+bash /path/to/trace/trace.sh
+# Select option 4
 ```
 
 **Expected:**
-- `TRACE vX.X.X is already installed.` printed
-- Menu with options 1–4 displayed
-- Each option routes to the correct mode
-- Option 4 exits cleanly with code 0
+- Description line: `Removes hook from a project and unregisters it from TRACE`
+- Project name and path displayed
+- Confirmation prompt: `Remove TRACE from '<name>'? [y/N]`
+- On `y`: git hook removed, project unregistered from DB
+- Final: `✅ TRACE removed from '<name>'`
+- Note: `Session data in trace.db is preserved`
+- On `N` or Enter: `Cancelled.` and exit 0
+
+**Verify:**
+```bash
+ls /path/to/registered-project/.git/hooks/post-commit   # should not exist
+python3 -c "from engine.store import TraceStore; print([p['name'] for p in TraceStore.default().list_projects()])"
+# project name should be absent
+```
 
 ---
 
-## Full reinstall (menu option 3)
+## Option 5 – Uninstall TRACE
 
-**Setup:** TRACE installed with existing `~/.trace/user_config.yaml`.
+**Setup:** TRACE installed with LaunchAgents, registered projects, and MCP entry.
 
 ```bash
 cd /path/to/trace
-bash install.sh
-# Select: 3) Full reinstall (preserves user settings)
+bash trace.sh
+# Select option 5
 ```
 
 **Expected:**
-- Existing `user_config.yaml` content survives reinstall
-- LaunchAgents reloaded
-- Final: `✅ TRACE reinstalled`
+- Description line: `Removes all LaunchAgents, MCP entry, ~/.trace/ – asks for confirmation`
+- Warning box listing all items that will be removed
+- Confirmation prompt: `Type 'uninstall' to confirm:`
+- On wrong input: `Cancelled.` and exit 0
+- On `uninstall`:
+  - Git hooks removed from all registered projects
+  - `com.trace.dashboard` and `com.trace.tokenizer` LaunchAgents unloaded and plists deleted
+  - `trace` entry removed from `~/Library/Application Support/Claude/claude_desktop_config.json`
+  - TRACE hooks removed from `~/.claude/settings.json`
+  - `~/.trace/` directory deleted
+  - Final: `✅ TRACE uninstalled. Your repo is still at <path>`
+
+**Verify:**
+```bash
+ls ~/.trace/                             # should not exist
+launchctl list | grep trace              # no entries
+cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | python3 -m json.tool | grep trace
+# should be empty
+ls /path/to/registered-project/.git/hooks/post-commit   # should not exist
+```
+
+---
+
+## Option 6 – Exit
+
+```bash
+bash /path/to/trace/trace.sh
+# Select option 6
+```
+
+**Expected:** `Bye.` printed, exit code 0.
 
 ---
 
 ## Automated test
 
-No pytest tests for install.sh. After running any mode, verify that
+No pytest tests for trace.sh. After running any option, verify that
 the full test suite still passes:
 
 ```bash
