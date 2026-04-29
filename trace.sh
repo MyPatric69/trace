@@ -53,6 +53,15 @@ show_header() {
 # ── Path prompt helper ────────────────────────────────────────────────────────
 PROMPTED_PATH=""
 
+_normalize_path() {
+  local p="$1"
+  # Resolve backslash-escaped spaces (Tab-completed paths)
+  p="$(eval echo "$p")"
+  # Strip trailing slash
+  p="${p%/}"
+  echo "$p"
+}
+
 prompt_project_path() {
   local attempt=0 raw_path resolved
   PROMPTED_PATH=""
@@ -60,6 +69,7 @@ prompt_project_path() {
     if ! read -e -r -p "  Project path (absolute or relative): " raw_path; then
       raw_path=""
     fi
+    raw_path="$(_normalize_path "$raw_path")"
     raw_path="${raw_path/#\~/$HOME}"
     resolved="$(realpath "$raw_path" 2>/dev/null || echo "")"
     if [[ -n "$resolved" ]] && { [[ -f "$resolved/CLAUDE.md" ]] || [[ -d "$resolved/.git" ]]; }; then
@@ -74,6 +84,7 @@ prompt_project_path() {
 
 resolve_path_arg() {
   local path="$1"
+  path="$(_normalize_path "$path")"
   path="${path/#\~/$HOME}"
   local resolved
   resolved="$(realpath "$path" 2>/dev/null || echo "")"
