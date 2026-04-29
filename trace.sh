@@ -550,6 +550,7 @@ show_menu() {
 SUBCMD="${1:-}"
 SUBCMD_PATH="${2:-}"
 
+clear
 show_header
 
 case "$SUBCMD" in
