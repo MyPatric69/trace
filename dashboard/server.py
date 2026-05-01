@@ -371,7 +371,9 @@ def api_today(project: str | None = None):
     live_cost   = 0.0
     try:
         sessions = LiveTracker(None).get_all_active()
-        matching = [s for s in sessions if project is None or s.get("project") == project]
+        matching = [s for s in sessions
+                    if (project is None or s.get("project") == project)
+                    and not s.get("stale")]
         if matching:
             live_active = True
             for s in matching:

@@ -531,6 +531,12 @@
       font-size: 0.8125rem;
       font-family: var(--mono);
     }
+    .live-paused {
+      font-size: 0.6875rem;
+      color: var(--muted);
+      font-weight: 400;
+      margin-left: 0.4rem;
+    }
     .clear-live-btn {
       margin-left: auto;
       background: none;
@@ -1726,6 +1732,14 @@
 
   // ── Live session panel ────────────────────────────────────────────────────
 
+  function pausedLabel(updatedAt) {
+    if (!updatedAt) return 'paused';
+    const mins = Math.floor((Date.now() - new Date(updatedAt).getTime()) / 60000);
+    if (mins < 1) return 'paused just now';
+    if (mins < 60) return 'paused ' + mins + ' min ago';
+    return 'paused ' + Math.floor(mins / 60) + 'h ago';
+  }
+
   async function loadLive() {
     try {
       const params = selectedProject ? '?project=' + encodeURIComponent(selectedProject) : '';
@@ -1747,7 +1761,10 @@
       if (d.sessions.length === 1) {
         // Single session – detailed view
         const s = d.sessions[0];
-        project.textContent = s.project !== 'unknown' ? s.project : 'unknown project';
+        const projectName = s.project !== 'unknown' ? s.project : 'unknown project';
+        project.innerHTML = s.stale
+          ? projectName + ' <span class="live-paused">' + pausedLabel(s.updated_at) + '</span>'
+          : projectName;
 
         if (s.initializing || (s.input_tokens === 0 && s.output_tokens === 0)) {
           body.innerHTML = '<div class="live-inactive">Session starting\u2026</div>';
@@ -1796,12 +1813,16 @@
           ${ctxBar}`;
       } else {
         // Multiple sessions – compact list view
-        project.textContent = d.sessions.length + ' active sessions';
+        const activeCount = d.sessions.filter(s => !s.stale).length;
+        const staleCount  = d.sessions.length - activeCount;
+        project.textContent = activeCount + ' active' + (staleCount > 0 ? ', ' + staleCount + ' paused' : '') + ' sessions';
         body.innerHTML = d.sessions.map(s => {
           const healthCls = s.health === 'reset' ? 'reset' : s.health === 'warn' ? 'warn' : 'ok';
           const healthLbl = healthCls === 'reset' ? 'Reset' : healthCls === 'warn' ? 'Warn' : 'OK';
+          const nameLabel = s.project !== 'unknown' ? s.project : 'unknown';
+          const staleSpan = s.stale ? ' <span class="live-paused">' + pausedLabel(s.updated_at) + '</span>' : '';
           return `<div class="live-session-row">
-            <span class="live-session-project">${s.project !== 'unknown' ? s.project : 'unknown'}</span>
+            <span class="live-session-project">${nameLabel}${staleSpan}</span>
             <span class="live-session-stat">${num(s.input_tokens + s.cache_creation_tokens)} in</span>
             <span class="live-session-stat">${usd(s.cost_usd)}</span>
             <span class="live-session-stat">${s.turns} turns</span>

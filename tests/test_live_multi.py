@@ -121,29 +121,42 @@ def test_get_all_active_sorted_by_updated_at_desc(live_dir, live_path):
 
 
 # ---------------------------------------------------------------------------
-# get_all_active() – filters stale sessions (> 10 min old)
+# get_all_active() – stale sessions included with stale: True
 # ---------------------------------------------------------------------------
 
-def test_get_all_active_filters_stale_sessions(live_dir, live_path, monkeypatch):
-    """Sessions whose file mtime is > _STALE_SECONDS ago are excluded."""
+def test_get_all_active_marks_stale_session(live_dir, live_path):
+    """Sessions whose file mtime is > _STALE_SECONDS get stale=True; fresh ones get stale=False."""
     _session_file(live_dir, "fresh", project="fresh-proj")
     stale_file = _session_file(live_dir, "stale", project="stale-proj")
 
-    # Wind back mtime of the stale file
     old_time = time.time() - (lt_module._STALE_SECONDS + 60)
     import os
     os.utime(stale_file, (old_time, old_time))
 
     sessions = LiveTracker(None).get_all_active()
-    assert len(sessions) == 1
-    assert sessions[0]["project"] == "fresh-proj"
+    assert len(sessions) == 2
+
+    by_project = {s["project"]: s for s in sessions}
+    assert by_project["fresh-proj"]["stale"] is False
+    assert by_project["stale-proj"]["stale"] is True
 
 
-def test_get_all_active_all_stale_returns_empty(live_dir, live_path, monkeypatch):
+def test_get_all_active_all_stale_returns_all_with_stale_true(live_dir, live_path, monkeypatch):
+    """When _STALE_SECONDS=0 every file is stale – all are returned with stale=True."""
     monkeypatch.setattr(lt_module, "_STALE_SECONDS", 0)
     _session_file(live_dir, "sess-a")
     _session_file(live_dir, "sess-b")
-    assert LiveTracker(None).get_all_active() == []
+    sessions = LiveTracker(None).get_all_active()
+    assert len(sessions) == 2
+    assert all(s["stale"] is True for s in sessions)
+
+
+def test_get_all_active_fresh_session_has_stale_false(live_dir, live_path):
+    """A session file just written should have stale=False."""
+    _session_file(live_dir, "new-sess", project="myproject")
+    sessions = LiveTracker(None).get_all_active()
+    assert len(sessions) == 1
+    assert sessions[0]["stale"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +296,44 @@ def test_api_live_inactive_when_project_not_matching(app_client, live_dir):
     _session_file(live_dir, "sess-a", project="alpha")
 
     r = app_client.get("/api/live?project=other")
+    data = r.json()
+    assert data["active"] is False
+    assert data["sessions"] == []
+
+
+# ---------------------------------------------------------------------------
+# Stale session behaviour via /api/live
+# ---------------------------------------------------------------------------
+
+def test_api_live_returns_stale_session_with_stale_true(app_client, live_dir):
+    """Stale sessions are passed through with stale=True – not filtered out."""
+    stale_file = _session_file(live_dir, "paused-sess", project="myproj")
+
+    old_time = time.time() - (lt_module._STALE_SECONDS + 120)
+    import os
+    os.utime(stale_file, (old_time, old_time))
+
+    r = app_client.get("/api/live")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["active"] is True
+    assert len(data["sessions"]) == 1
+    assert data["sessions"][0]["stale"] is True
+
+
+def test_api_live_non_stale_session_has_stale_false(app_client, live_dir):
+    """A freshly updated session has stale=False in the API response."""
+    _session_file(live_dir, "active-sess", project="myproj")
+
+    r = app_client.get("/api/live")
+    data = r.json()
+    assert data["active"] is True
+    assert data["sessions"][0]["stale"] is False
+
+
+def test_api_live_inactive_when_no_files(app_client, live_dir):
+    """No session files (stop hook fired) → active=False, sessions=[]."""
+    r = app_client.get("/api/live")
     data = r.json()
     assert data["active"] is False
     assert data["sessions"] == []

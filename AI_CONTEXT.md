@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 569/569 tests green ✓
+**Status:** All 4 phases complete – 587/587 tests green ✓
 
 ---
 
@@ -122,7 +122,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**569/569 tests green ✓ (2026-04-27)**
+**587/587 tests green ✓ (2026-05-01)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -266,6 +266,13 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ---
 
+**Stale session persistence (complete – 18 new tests):**
+- `engine/live_tracker.py` – `get_all_active()` now includes stale sessions with `"stale": True` (previously filtered out); `get_live()` still filters stale for callers that want only fresh sessions
+- `dashboard/server.py` – `api_today()` filters stale sessions from live totals to avoid double-counting
+- `dashboard/index.html` – Live Session panel shows "paused X min ago" label next to project name for stale sessions; multi-session view summarises "N active, M paused sessions"; `pausedLabel()` helper computes minutes/hours since `updated_at`; `.live-paused` CSS class added
+
+---
+
 ## Last updated
 
-2026-04-29 – trace.sh: handle backslash-escaped spaces and trailing slashes in project paths
+2026-05-01 – Stale session persistence: keep live session visible on inactivity (587 tests)

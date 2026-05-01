@@ -432,7 +432,12 @@ class LiveTracker:
             _log.error("LiveTracker.clear (last_health): %s", exc)
 
     def get_all_active(self) -> list[dict]:
-        """Return all non-stale active sessions sorted by updated_at descending."""
+        """Return all sessions sorted by updated_at descending.
+
+        Sessions whose file mtime is older than _STALE_SECONDS get ``"stale": True``
+        so the dashboard can show "paused X min ago" instead of disappearing.
+        The file is only removed when the stop hook fires (LiveTracker.clear).
+        """
         now = time.time()
         result: list[dict] = []
         try:
@@ -440,9 +445,9 @@ class LiveTracker:
                 return result
             for f in _LIVE_DIR.glob("*.json"):
                 try:
-                    if now - f.stat().st_mtime > _STALE_SECONDS:
-                        continue
+                    mtime = f.stat().st_mtime
                     data = json.loads(f.read_text())
+                    data["stale"] = now - mtime > _STALE_SECONDS
                     result.append(data)
                 except Exception:
                     continue
@@ -452,8 +457,8 @@ class LiveTracker:
         return result
 
     def get_live(self) -> dict | None:
-        """Return the most recent active session, or None if none are active."""
-        sessions = self.get_all_active()
+        """Return the most recent non-stale session, or None if none are active."""
+        sessions = [s for s in self.get_all_active() if not s.get("stale")]
         return sessions[0] if sessions else None
 
     def _write_last_health(self, live_data: dict) -> None:
