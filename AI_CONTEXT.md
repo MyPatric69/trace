@@ -108,7 +108,7 @@ trace/
 │   ├── manifest_de.html
 │   └── manifest_en.html
 │
-└── tests/                 ← 554 tests, all green
+└── tests/                 ← 592 tests, all green
 
 ~/.trace/
 ├── trace.db               ← single central DB for all projects
@@ -149,7 +149,7 @@ trace/
 - **Turns tracking** – `turns` column in `sessions` table; `upsert_live_session()` + `delete_live_session()` in store; turns displayed in live panel, health bar, daily summary
 - **Provider badges** – `resolve_provider(model)` helper + `/api/providers` endpoint; per-project badges with model subtitles; provider detection: `claude-*` → anthropic, `gpt-*/o1-*/o3-*/o4-*` → openai, `gemini-*/gemma-*` → google
 - **Hook refinement** – `engine/hook_runner.py` runs synthesis on every commit type (no `SKIP_PREFIXES`/`should_skip()`); staleness fallback forces synthesis when `AI_CONTEXT.md` is >2 days old; `engine/doc_synthesizer.py` adds `get_context_age_days()`; `/api/drift` response includes `ai_context_age_days`; dashboard shows amber badge when >2 days old
-- **Multi-session live tracking** – `engine/live_tracker.py` writes per-session files to `~/.trace/live/{session_id}.json`; `get_all_active()` returns all non-stale sessions (10 min); `clear(session_id=None)` removes specific or all session files; backward compat: migrates legacy `live_session.json` on first write; `/api/live` returns `{"active", "sessions": [...], "last_health"}`; dashboard live panel shows single-session detail or multi-session compact list
+- **Multi-session live tracking** – `engine/live_tracker.py` writes per-session files to `~/.trace/live/{session_id}.json`; `get_all_active()` returns all non-stale sessions (5 min, `_STALE_SECONDS=300`); `clear(session_id=None)` removes specific or all session files; backward compat: migrates legacy `live_session.json` on first write; `/api/live` returns `{"active", "sessions": [...], "last_health"}`; dashboard live panel shows single-session detail or multi-session compact list
 - **7-day date picker** – `/api/stats/{date}` endpoint + `/api/today` summary
 - **Configurable health thresholds** – green/yellow/red read from `trace_config.yaml` (no hardcoded 100k)
 - **MCP server panel** – add/remove MCP servers via UI; reads from both Claude config locations
@@ -197,7 +197,7 @@ WS   /ws
 - `dashboard/index.html` – Settings panel with Notifications + Sound toggles; Sound greyed out when Notifications off; persisted via `POST /api/settings` on toggle change
 
 **Dashboard consolidation and recent expansions (complete):**
-- **Context window utilization** – `peak_context_tokens` column in `sessions` table; `engine/live_tracker.py` records peak during session; `/api/live` response includes `peak_context_tokens`; dashboard health panel shows utilization bar
+- **Context window utilization** – `peak_context_tokens` column in `sessions` table; `engine/live_tracker.py` records peak during session as `max(input + cache_creation + cache_read per turn)` – full context window load, not just uncached input; `/api/live` response includes `peak_context_tokens`; dashboard health panel shows utilization bar
 - **Activity section** – `/api/activity` endpoint returns session counts, turn totals, current/longest streak, avg. cost/session, and 52-week heatmap data; `get_activity_stats()` + `get_heatmap_data()` added to `TraceStore`; heatmap uses relative colour scaling (most expensive day = full-intensity teal, no activity = transparent)
 - **Monthly budget in Settings** – `POST /api/settings` accepts `monthly_budget_usd` (float, > 0); `GET /api/status` returns `monthly_budget_usd` alongside `warn_tokens`/`critical_tokens`; Settings popover Monthly Budget field saves immediately to `~/.trace/trace_config.yaml`; default $20.00
 - **Provider & Model Usage merged** – previously separate "AI Provider" and "Model Usage" panels consolidated into a single "Provider & Model Usage" section; provider badges and model cost bars rendered together
@@ -275,4 +275,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-02 – peak_context_tokens now tracks input+cache_creation+cache_read per turn (full context window load); 592/592 tests green
+2026-05-02 – Docs updated: peak_context_tokens definition, stale threshold (5 min), Live Session panel description, CLAUDE.md API endpoints and config split, README context window explanation

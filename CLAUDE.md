@@ -33,19 +33,18 @@ trace_config.yaml           Single source of truth: db path, model prices, budge
 
 ## Current Phase
 
-**v0.3.0 released – v0.4.0 planning.**
-554 tests green. Dashboard stable with day picker, provider badges,
-persistent health indicator, enriched handoff prompt, activity stats,
-52-week heatmap, context window utilization, monthly budget tracking.
-Focus: Prometheus /metrics endpoint → Grafana integration.
-Publish to Dev.to and Hacker News pending.
+**All phases complete – 592 tests green.**
+Dashboard stable: stale session indicator ("paused X min ago", 5-min threshold),
+context window utilization bar (peak = max(input + cache_creation + cache_read) per turn),
+day picker, provider badges, persistent health indicator, enriched handoff prompt,
+activity stats, 52-week heatmap, monthly budget tracking, cost efficiency panel.
 
 ## Runtime Rules
 
 - Never break existing tests – run pytest tests/ -v before committing
 - AI_CONTEXT.md is auto-maintained by TRACE – do not edit manually
 - Central DB: ~/.trace/trace.db – never delete or modify directly
-- Config: ~/.trace/trace_config.yaml – source of truth for prices/thresholds
+- Config: `trace_config.yaml` (repo root, model prices – read-only) + `~/.trace/user_config.yaml` (thresholds, budget, notifications – written at runtime)
 - Conventional Commits: feat/fix/docs/chore/refactor
 - YAGNI, KISS, DRY, Single Responsibility
 
@@ -73,7 +72,7 @@ Order (top to bottom):
 ## API Endpoints
 
 ```
-GET  /api/status               – health, warn_tokens, critical_tokens, monthly_budget_usd
+GET  /api/status               – health, warn_tokens, critical_tokens, monthly_budget_usd, baseline_model
 GET  /api/projects
 GET  /api/costs                ?period=
 GET  /api/costs/{project}      ?period=
@@ -87,8 +86,10 @@ GET  /api/drift/{project}
 GET  /api/sync/{project}
 GET  /api/live                 ?project=
 GET  /api/activity             – activity stats and 52-week heatmap
+GET  /api/efficiency           ?project= &period= – actual vs. baseline cost
+GET  /api/tokenizer_ratio      – ratio of current model tokens vs. baseline
 POST /api/live/clear
-POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd (float, > 0)
+POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd, baseline_model
 GET  /api/tips                 ?project_name=
 GET  /api/new_session/{project}  ?dry_run=
 WS   /ws
@@ -97,7 +98,7 @@ WS   /ws
 ## DB Schema
 
 `sessions` table key columns:
-- `peak_context_tokens` – highest context window usage recorded in the session
+- `peak_context_tokens` – peak context load per turn: max(input_tokens + cache_creation_input_tokens + cache_read_input_tokens) across all turns
 
 `TraceStore` methods of note:
 - `get_activity_stats(project_id=None)` – returns session counts, streak data

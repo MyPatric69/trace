@@ -382,13 +382,18 @@ Shows live token usage, costs, drift status, and recommendations for all project
 | # | Section | What it shows |
 |---|---|---|
 | 1 | Metrics cards | Input / cache / output tokens, session cost, monthly budget % |
-| 2 | Live Session | Real-time token counts and cost for the active session |
+| 2 | Live Session | Real-time token counts and cost; shows "paused X min ago" when inactive for >5 min; context window utilization bar showing peak context load vs. model window size |
 | 3 | Session Health | Health bar + threshold markers; handoff link |
 | 4 | Context Drift + Recommendations | Drift status per project; smart cost tips |
 | 5 | Activity | Sessions, streaks, avg. cost/session, 52-week heatmap |
 | 6 | Provider & Model Usage | Provider badges per project + model cost bars (last 7 days) |
 | 7 | MCP Servers | Registered MCP servers and token-overhead estimate |
 | 8 | Token Calculator | Estimate cost before sending a prompt |
+
+**Live Session panel explained:**
+- **Context window utilization bar** – shows the highest single-turn context load as a percentage of the model's context window. Calculated as `max(input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` across all turns — this reflects the actual tokens loaded into the model for that API call, including cached context. A session that is 80% cached will still show a realistic utilization here.
+- **"Paused X min ago"** – a session is marked stale after 5 minutes of inactivity. The live data is preserved so the panel doesn't disappear mid-session; the label clarifies that no new turns are being tracked.
+- **Context Window bar vs. Session Health bar** – Session Health turns yellow/red based on cumulative token spend across all turns (used for handoff recommendations); Context Window shows the peak single-turn load (used to gauge how full the model's context was at peak usage).
 
 **Activity metrics explained:**
 - **Sessions** – number of Claude Code sessions started
@@ -668,15 +673,22 @@ GPT models have been removed; TRACE tracks Claude Code sessions only.
 
 > **TRACE vs `/context` – why the numbers differ**
 >
-> TRACE tracks `usage.input_tokens` as returned by the Anthropic API.
-> This is the exact billable amount charged to your account.
+> For **cost tracking**, TRACE sums `usage.input_tokens + cache_creation_input_tokens`
+> per turn — this is the billable amount charged to your account.
+> `cache_read_input_tokens` is intentionally excluded from the cost total because
+> it re-counts the same cached context on every request and would inflate session
+> totals many times over.
+>
+> For the **context window utilization bar**, TRACE uses
+> `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` per turn
+> (the peak across all turns). This correctly reflects how much of the model's
+> context window was actually occupied for that API call.
 >
 > Claude Code's `/context` command shows the full context window
 > breakdown (system prompt, tools, memory files, messages, autocompact
-> buffer). This includes non-billable overhead that is not reflected
-> in the API response.
+> buffer). This includes non-billable overhead not reflected in the API response.
 >
-> The two numbers measure different things and will not match.
+> The numbers measure different things and will not match exactly.
 > TRACE is the authoritative source for what you are actually charged.
 
 > **Note on token count accuracy**
