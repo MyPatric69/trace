@@ -93,12 +93,15 @@ def parse_transcript(transcript_path: str) -> dict:
                 usage = msg.get("usage") or {}
                 if isinstance(usage, dict):
                     turn_input             = int(usage.get("input_tokens")                  or 0)
+                    turn_cache_creation    = int(usage.get("cache_creation_input_tokens")   or 0)
+                    turn_cache_read        = int(usage.get("cache_read_input_tokens")       or 0)
                     input_tokens          += turn_input
-                    cache_creation_tokens += int(usage.get("cache_creation_input_tokens")   or 0)
-                    cache_read_tokens     += int(usage.get("cache_read_input_tokens")       or 0)
+                    cache_creation_tokens += turn_cache_creation
+                    cache_read_tokens     += turn_cache_read
                     output_tokens         += int(usage.get("output_tokens")                 or 0)
-                    if turn_input > peak_context_tokens:
-                        peak_context_tokens = turn_input
+                    turn_context_load      = turn_input + turn_cache_creation + turn_cache_read
+                    if turn_context_load > peak_context_tokens:
+                        peak_context_tokens = turn_context_load
 
     except Exception as exc:
         _log.error("parse_transcript failed for %s: %s", transcript_path, exc)

@@ -73,13 +73,23 @@ def test_peak_context_zero_for_missing_file(tmp_path):
     assert result["peak_context_tokens"] == 0
 
 
-def test_peak_context_excludes_cache_creation_from_peak(tmp_path):
-    # peak_context_tokens tracks input_tokens only (not cache_creation separately)
+def test_peak_context_includes_all_cache_tokens(tmp_path):
+    # peak_context_tokens = input + cache_creation + cache_read (full context window load)
     p = _write(tmp_path, [
         _turn("r1", input_tokens=3000, cache_creation=2000),
     ])
     result = parse_transcript(str(p))
-    assert result["peak_context_tokens"] == 3000
+    assert result["peak_context_tokens"] == 5000  # 3000 + 2000 + 0
+
+
+def test_peak_context_realistic_caching_session(tmp_path):
+    # Real-world caching scenario: tiny input_tokens, large cache_read
+    # Turn: input=3, cache_creation=7441, cache_read=10608 → context_load=18052
+    p = _write(tmp_path, [
+        _turn("r1", input_tokens=3, cache_creation=7441, cache_read=10608),
+    ])
+    result = parse_transcript(str(p))
+    assert result["peak_context_tokens"] == 18052  # 3 + 7441 + 10608
 
 
 def test_deduplication_does_not_affect_peak(tmp_path):

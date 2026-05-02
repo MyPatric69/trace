@@ -761,9 +761,25 @@ def test_context_window_pct_uses_peak_not_cumulative_total(tmp_path, tmp_store, 
 
     transcript = _write_transcript(tmp_path, [
         _assistant_turn("r1", input_tokens=100_000, output_tokens=500),
-        _assistant_turn("r2", input_tokens=3, output_tokens=100),  # tiny new input (caching)
+        _assistant_turn("r2", input_tokens=3, output_tokens=100),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
     assert result["peak_context_tokens"] == 100_000
     assert result["context_window_size"] == 200_000
     assert result["context_window_pct"] == pytest.approx(50.0)
+
+
+def test_peak_context_realistic_caching_session(tmp_path, tmp_store, patched_tracker, monkeypatch):
+    # Real-world: input_tokens is tiny because most context is cached
+    # Turn: input=3, cache_creation=7441, cache_read=10608 → context_load=18052
+    # context_window_pct = 18052 / 200000 ≈ 9.0%
+    tmp_store.config["context_windows"] = {"claude-": 200_000}
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=3, cache_creation=7441, cache_read=10608, output_tokens=200),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["peak_context_tokens"] == 18052  # 3 + 7441 + 10608
+    assert result["context_window_size"] == 200_000
+    assert result["context_window_pct"] == pytest.approx(9.0, abs=0.1)

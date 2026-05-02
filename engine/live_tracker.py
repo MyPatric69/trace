@@ -187,12 +187,15 @@ def _incremental_parse(transcript_path: str, prev: dict | None) -> dict:
             usage = msg.get("usage") or {}
             if isinstance(usage, dict):
                 turn_input          = int(usage.get("input_tokens")                or 0)
+                turn_cache_creation = int(usage.get("cache_creation_input_tokens") or 0)
+                turn_cache_read     = int(usage.get("cache_read_input_tokens")     or 0)
                 new_input          += turn_input
-                new_cache_creation += int(usage.get("cache_creation_input_tokens") or 0)
-                new_cache_read     += int(usage.get("cache_read_input_tokens")     or 0)
+                new_cache_creation += turn_cache_creation
+                new_cache_read     += turn_cache_read
                 new_output         += int(usage.get("output_tokens")               or 0)
-                if turn_input > new_peak_context:
-                    new_peak_context = turn_input
+                turn_context_load   = turn_input + turn_cache_creation + turn_cache_read
+                if turn_context_load > new_peak_context:
+                    new_peak_context = turn_context_load
 
     except Exception as exc:
         _log.error("_incremental_parse failed for %s: %s", transcript_path, exc)
