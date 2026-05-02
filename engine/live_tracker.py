@@ -31,7 +31,7 @@ _LOG_FILE = TRACE_HOME / "session_logger.log"
 _LIVE_DIR  = TRACE_HOME / "live"          # per-session files: {session_id}.json
 _LIVE_PATH = TRACE_HOME / "live_session.json"  # legacy – migrated on first write
 _LAST_HEALTH_PATH = TRACE_HOME / "last_health.json"
-_STALE_SECONDS = 600  # 10 minutes
+_STALE_SECONDS = 300  # 5 minutes
 _SANITY_LIMIT = 200_000
 
 # Severity order for health colours – used to detect escalations

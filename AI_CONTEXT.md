@@ -275,4 +275,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-01 – Stale session persistence: keep live session visible on inactivity (587 tests)
+2026-05-02 – Reduced _STALE_SECONDS from 600 to 300 (5 min) in engine/live_tracker.py
