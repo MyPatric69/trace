@@ -718,3 +718,52 @@ def test_update_context_window_pct_zero_when_no_tokens(tmp_path, patched_tracker
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
     assert result["context_window_pct"] == 0.0
+
+
+def test_peak_context_tokens_increases_across_incremental_calls(tmp_path, patched_tracker):
+    # Simulate a growing session: context accumulates → peak grows monotonically
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=5_000, output_tokens=100),
+    ])
+    tracker = LiveTracker(None)
+    r1 = tracker.update(str(transcript), str(tmp_path))
+    assert r1["peak_context_tokens"] == 5_000
+
+    with open(transcript, "a") as f:
+        f.write(json.dumps(_assistant_turn("r2", input_tokens=8_000, output_tokens=200)) + "\n")
+    r2 = tracker.update(str(transcript), str(tmp_path))
+    assert r2["peak_context_tokens"] == 8_000
+
+    with open(transcript, "a") as f:
+        f.write(json.dumps(_assistant_turn("r3", input_tokens=12_000, output_tokens=300)) + "\n")
+    r3 = tracker.update(str(transcript), str(tmp_path))
+    assert r3["peak_context_tokens"] == 12_000
+
+
+def test_peak_context_tokens_is_max_not_sum(tmp_path, patched_tracker):
+    # Five turns with varying input_tokens; peak = highest single turn, not cumulative sum
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=3_000, output_tokens=50),
+        _assistant_turn("r2", input_tokens=15_000, output_tokens=100),
+        _assistant_turn("r3", input_tokens=7_000, output_tokens=75),
+        _assistant_turn("r4", input_tokens=11_000, output_tokens=120),
+        _assistant_turn("r5", input_tokens=9_000, output_tokens=90),
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["peak_context_tokens"] == 15_000   # max, not 45_000 (sum)
+    assert result["input_tokens"] == 45_000           # cumulative sum unaffected
+
+
+def test_context_window_pct_uses_peak_not_cumulative_total(tmp_path, tmp_store, patched_tracker, monkeypatch):
+    # pct = peak / window_size; not based on accumulated total across turns
+    tmp_store.config["context_windows"] = {"claude-": 200_000}
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+
+    transcript = _write_transcript(tmp_path, [
+        _assistant_turn("r1", input_tokens=100_000, output_tokens=500),
+        _assistant_turn("r2", input_tokens=3, output_tokens=100),  # tiny new input (caching)
+    ])
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["peak_context_tokens"] == 100_000
+    assert result["context_window_size"] == 200_000
+    assert result["context_window_pct"] == pytest.approx(50.0)

@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 587/587 tests green ✓
+**Status:** All 4 phases complete – 590/590 tests green ✓
 
 ---
 
@@ -122,7 +122,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**587/587 tests green ✓ (2026-05-01)**
+**590/590 tests green ✓ (2026-05-02)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -275,4 +275,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-02 – Reduced _STALE_SECONDS from 600 to 300 (5 min) in engine/live_tracker.py
+2026-05-02 – Reduced _STALE_SECONDS to 300 (5 min); added 3 peak_context_tokens tests (monotonic growth, max-not-sum, pct-from-peak); 590/590 tests green
