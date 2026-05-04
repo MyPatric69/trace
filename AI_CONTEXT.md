@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All 4 phases complete – 592/592 tests green ✓
+**Status:** All phases complete – 596/596 tests green ✓
 
 ---
 
@@ -122,7 +122,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**592/592 tests green ✓ (2026-05-02)**
+**596/596 tests green ✓ (2026-05-04)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -177,6 +177,7 @@ GET  /api/live                 ?project=
 GET  /api/activity             – activity stats and 52-week heatmap
 GET  /api/efficiency           ?project= &period= – cost vs. baseline model
 POST /api/live/clear
+POST /api/statusline           – real-time update from status line bridge
 POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd, baseline_model
 GET  /api/tips                 ?project_name=
 GET  /api/new_session/{project}  ?dry_run=
@@ -221,6 +222,14 @@ WS   /ws
 
 **Config cleanup:**
 - `models:` block: GPT models removed (TRACE is Claude-only); 7 Claude models reordered: sonnet-4-6 (default), sonnet-4-7, sonnet-4-5, opus-4-7, opus-4-6, opus-4-5, haiku-4-5
+
+**Status line bridge (complete – 4 tests):**
+- `hooks/statusline_bridge.sh` – reads Claude Code session JSON from stdin, extracts session_id/cwd/context_window/cost/model with jq, POSTs to `POST /api/statusline` (sync, max-time 1s), outputs `[model] project | CTX: X% | $cost | ● TRACE` (ANSI-colored); `● TRACE` omitted when dashboard unreachable
+- `hooks/setup_statusline_bridge.sh` – copies bridge to `~/.claude/statusline_bridge.sh`, adds `statusLine: {type: command, command: ...}` to `~/.claude/settings.json` (merges, idempotent)
+- `hooks/remove_statusline_bridge.sh` – removes `statusLine` key from settings.json, deletes `~/.claude/statusline_bridge.sh`
+- `dashboard/server.py` – `POST /api/statusline`: updates `context_window_pct`, `peak_context_tokens`, `cost_usd`, `updated_at` on an existing live session file; creates a minimal session file if none exists; detects project from cwd (same logic as LiveTracker); returns 200 always
+- `trace.sh` – Option 7 (Setup status line bridge) and Option 8 (Remove status line bridge) added to menu
+- `README.md` – "## Status line bridge" section added
 
 **Two-file config split (complete – 14 tests):**
 - `engine/config.py` – new `TraceConfig` class; reads system config from `{repo_root}/trace_config.yaml` (models, prices; read-only at runtime) and user config from `~/.trace/user_config.yaml` (thresholds, notifications, budget, comparison, mcp_servers); merges both into a single dict; migrates from legacy `~/.trace/trace_config.yaml` on first run
@@ -275,4 +284,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-02 – Docs updated: peak_context_tokens definition, stale threshold (5 min), Live Session panel description, CLAUDE.md API endpoints and config split, README context window explanation
+2026-05-04 – Status line bridge feature added

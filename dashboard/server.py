@@ -544,6 +544,97 @@ def api_live(project: str | None = None):
 
 
 # ---------------------------------------------------------------------------
+# /api/statusline  (real-time update from Claude Code status line bridge)
+# ---------------------------------------------------------------------------
+
+class StatuslineRequest(BaseModel):
+    session_id: str = ""
+    cwd: str = ""
+    context_window_pct: float = 0.0
+    context_window_size: int = 200_000
+    input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    output_tokens: int = 0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    cost_usd: float = 0.0
+    model: str = "unknown"
+
+
+@app.post("/api/statusline")
+def api_statusline(req: StatuslineRequest):
+    """Accept a real-time update from hooks/statusline_bridge.sh.
+
+    Updates an existing live session file with the latest context window %,
+    peak context tokens, and cost.  Creates a minimal session file when the
+    PreToolUse hook hasn't fired yet for this session.  Always returns 200.
+    """
+    from engine.live_tracker import _LIVE_DIR
+
+    try:
+        session_id = req.session_id
+        if not session_id:
+            return {"status": "ok"}
+
+        now = datetime.now().isoformat(timespec="seconds")
+        _LIVE_DIR.mkdir(parents=True, exist_ok=True)
+        session_file = _LIVE_DIR / f"{session_id}.json"
+
+        peak = (
+            req.input_tokens
+            + req.cache_creation_input_tokens
+            + req.cache_read_input_tokens
+        )
+
+        if session_file.exists():
+            try:
+                data = json.loads(session_file.read_text())
+                existing_peak = int(data.get("peak_context_tokens", 0))
+                data["context_window_pct"] = req.context_window_pct
+                data["peak_context_tokens"] = max(existing_peak, peak)
+                data["cost_usd"] = req.cost_usd
+                data["updated_at"] = now
+                session_file.write_text(json.dumps(data, indent=2))
+            except Exception:
+                pass
+        else:
+            project: str | None = None
+            try:
+                tracker = LiveTracker(req.cwd)
+                project = tracker.project_name
+            except Exception:
+                pass
+            if not project:
+                project = Path(req.cwd).name if req.cwd else "unknown"
+
+            data = {
+                "session_id":          session_id,
+                "project":             project,
+                "cwd":                 req.cwd,
+                "input_tokens":        req.total_input_tokens,
+                "cache_creation_tokens": 0,
+                "cache_read_tokens":   0,
+                "output_tokens":       req.total_output_tokens,
+                "peak_context_tokens": peak,
+                "context_window_size": req.context_window_size,
+                "context_window_pct":  req.context_window_pct,
+                "cost_usd":            req.cost_usd,
+                "model":               req.model,
+                "turns":               0,
+                "health":              "green",
+                "initializing":        False,
+                "last_byte_offset":    0,
+                "updated_at":          now,
+            }
+            session_file.write_text(json.dumps(data, indent=2))
+    except Exception:
+        pass
+
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
 # /api/live/clear  (manual clear – e.g. after a DB reset)
 # ---------------------------------------------------------------------------
 

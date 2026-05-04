@@ -650,6 +650,50 @@ bash hooks/remove_tokenizer_check.sh
 
 ---
 
+## Status line bridge
+
+The status line bridge gives you a real-time context window and cost indicator directly in your terminal — updated after every Claude Code assistant message, including during long tool calls (more frequent than the Stop hook).
+
+**What it shows:**
+
+```
+[sonnet-4-6] myproject | CTX: 42% | $0.12 | ● TRACE
+```
+
+| Field | Description |
+|---|---|
+| Model | Short model name: sonnet-4-6, opus-4-7, haiku-4-5 |
+| Project | Name of your current working directory |
+| CTX | Context window usage % — green < 60%, yellow 60–85%, red > 85% |
+| Cost | Total session cost so far |
+| ● TRACE | Shown when the TRACE dashboard is reachable; omitted if not running |
+
+Updates are also sent to `http://localhost:8080/api/statusline` so the live session panel reflects the most recent turn without waiting for the Stop hook.
+
+**Setup:**
+
+```bash
+bash trace.sh           # → option 7: Setup status line bridge
+# or directly:
+bash hooks/setup_statusline_bridge.sh
+```
+
+**Requirements:** `jq` must be installed:
+
+```bash
+brew install jq
+```
+
+**Remove:**
+
+```bash
+bash trace.sh           # → option 8: Remove status line bridge
+# or directly:
+bash hooks/remove_statusline_bridge.sh
+```
+
+---
+
 ## Supported models
 
 Prices are read from `trace_config.yaml` in the repo root at startup.

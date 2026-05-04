@@ -33,7 +33,7 @@ trace_config.yaml           Single source of truth: db path, model prices, budge
 
 ## Current Phase
 
-**All phases complete – 592 tests green.**
+**All phases complete – 596 tests green.**
 Dashboard stable: stale session indicator ("paused X min ago", 5-min threshold),
 context window utilization bar (peak = max(input + cache_creation + cache_read) per turn),
 day picker, provider badges, persistent health indicator, enriched handoff prompt,
@@ -89,6 +89,7 @@ GET  /api/activity             – activity stats and 52-week heatmap
 GET  /api/efficiency           ?project= &period= – actual vs. baseline cost
 GET  /api/tokenizer_ratio      – ratio of current model tokens vs. baseline
 POST /api/live/clear
+POST /api/statusline           – real-time update from status line bridge
 POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd, baseline_model
 GET  /api/tips                 ?project_name=
 GET  /api/new_session/{project}  ?dry_run=

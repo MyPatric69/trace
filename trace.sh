@@ -491,6 +491,28 @@ else:
   echo ""
 }
 
+# ── Option 7 – Setup status line bridge ──────────────────────────────────────
+mode_setup_statusline() {
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo -e "${BOLD} Option 7 – Setup status line bridge${RESET}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+  bash "$SCRIPT_DIR/hooks/setup_statusline_bridge.sh"
+  echo ""
+}
+
+# ── Option 8 – Remove status line bridge ─────────────────────────────────────
+mode_remove_statusline() {
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo -e "${BOLD} Option 8 – Remove status line bridge${RESET}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+  bash "$SCRIPT_DIR/hooks/remove_statusline_bridge.sh"
+  echo ""
+}
+
 # ── Main menu ─────────────────────────────────────────────────────────────────
 show_menu() {
   local default=1
@@ -506,6 +528,8 @@ show_menu() {
     "4  Remove project"
     "5  Uninstall TRACE       removes everything"
     "6  Exit"
+    "7  Setup status line bridge   real-time context updates"
+    "8  Remove status line bridge"
   )
 
   local i
@@ -552,6 +576,16 @@ show_menu() {
     6)
       echo "Bye."
       exit 0
+      ;;
+    7)
+      echo ""
+      echo -e "  ${BOLD}Installs the status line bridge – real-time context/cost in your terminal${RESET}"
+      mode_setup_statusline
+      ;;
+    8)
+      echo ""
+      echo -e "  ${BOLD}Removes the status line bridge script and settings.json entry${RESET}"
+      mode_remove_statusline
       ;;
     *)
       err "Invalid choice: $choice"
