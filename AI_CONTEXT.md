@@ -224,6 +224,7 @@ WS   /ws
 - `models:` block: GPT models removed (TRACE is Claude-only); 7 Claude models reordered: sonnet-4-6 (default), sonnet-4-7, sonnet-4-5, opus-4-7, opus-4-6, opus-4-5, haiku-4-5
 
 **Status line bridge (complete – 4 tests):**
+Provides real-time context window updates sourced directly from the Claude Code status line API — not estimated from transcript parsing. Fills the gap during long tool calls where the Stop hook does not fire until the full turn completes. Terminal output: `[model] project | CTX: X% | $cost | ● TRACE`. CTX% is the percentage of Claude Code's 200k context window used; value is official, not estimated.
 - `hooks/statusline_bridge.sh` – reads Claude Code session JSON from stdin, extracts session_id/cwd/context_window/cost/model with jq, POSTs to `POST /api/statusline` (sync, max-time 1s), outputs `[model] project | CTX: X% | $cost | ● TRACE` (ANSI-colored); `● TRACE` omitted when dashboard unreachable
 - `hooks/setup_statusline_bridge.sh` – copies bridge to `~/.claude/statusline_bridge.sh`, adds `statusLine: {type: command, command: ...}` to `~/.claude/settings.json` (merges, idempotent)
 - `hooks/remove_statusline_bridge.sh` – removes `statusLine` key from settings.json, deletes `~/.claude/statusline_bridge.sh`
@@ -284,4 +285,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-04 – Status line bridge feature added
+2026-05-04 – Docs updated: status line bridge documented in README, CLAUDE.md, AI_CONTEXT.md

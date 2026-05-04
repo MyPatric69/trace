@@ -392,6 +392,8 @@ Shows live token usage, costs, drift status, and recommendations for all project
 
 **Live Session panel explained:**
 - **Context window utilization bar** – shows the highest single-turn context load as a percentage of the model's context window. Calculated as `max(input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` across all turns — this reflects the actual tokens loaded into the model for that API call, including cached context. A session that is 80% cached will still show a realistic utilization here.
+  - *Without status line bridge:* updates only when the Stop hook fires (once per completed turn).
+  - *With status line bridge:* updates after every assistant message, including during long tool calls. Values sourced directly from Claude Code — not estimated.
 - **"Paused X min ago"** – a session is marked stale after 5 minutes of inactivity. The live data is preserved so the panel doesn't disappear mid-session; the label clarifies that no new turns are being tracked.
 - **Context Window bar vs. Session Health bar** – Session Health turns yellow/red based on cumulative token spend across all turns (used for handoff recommendations); Context Window shows the peak single-turn load (used to gauge how full the model's context was at peak usage).
 
@@ -664,13 +666,13 @@ The status line bridge gives you a real-time context window and cost indicator d
 |---|---|
 | Model | Short model name: sonnet-4-6, opus-4-7, haiku-4-5 |
 | Project | Name of your current working directory |
-| CTX | Context window usage % — green < 60%, yellow 60–85%, red > 85% |
+| CTX | Percentage of Claude Code's 200k context window — value sourced directly from Claude Code (official, not estimated); green < 60%, yellow 60–85%, red > 85% |
 | Cost | Total session cost so far |
 | ● TRACE | Shown when the TRACE dashboard is reachable; omitted if not running |
 
-Updates are also sent to `http://localhost:8080/api/statusline` so the live session panel reflects the most recent turn without waiting for the Stop hook.
+Updates are also sent to `http://localhost:8080/api/statusline` so the dashboard Context Window bar reflects the most recent turn in real-time — including during long tool calls, where the Stop hook does not fire until the full turn completes.
 
-**Setup:**
+**Setup** (`trace.sh` → Option 7):
 
 ```bash
 bash trace.sh           # → option 7: Setup status line bridge

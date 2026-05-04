@@ -56,6 +56,27 @@ bash dashboard/start.sh   # start dashboard → http://localhost:8080
 python server/main.py     # start MCP server directly
 ```
 
+## Hooks
+
+```
+hooks/statusline_bridge.sh        reads Claude Code JSON from stdin, POSTs to /api/statusline, outputs status line to terminal
+hooks/setup_statusline_bridge.sh  installs bridge to ~/.claude/statusline_bridge.sh; adds statusLine config to ~/.claude/settings.json (idempotent)
+hooks/remove_statusline_bridge.sh removes statusLine config from settings.json; deletes bridge script
+```
+
+## trace.sh Menu
+
+| # | Option |
+|---|---|
+| 1 | Install TRACE |
+| 2 | Add project |
+| 3 | Update TRACE |
+| 4 | Remove project |
+| 5 | Uninstall TRACE |
+| 6 | Exit |
+| 7 | Setup status line bridge |
+| 8 | Remove status line bridge |
+
 ## Dashboard Sections
 
 Order (top to bottom):
@@ -89,7 +110,7 @@ GET  /api/activity             – activity stats and 52-week heatmap
 GET  /api/efficiency           ?project= &period= – actual vs. baseline cost
 GET  /api/tokenizer_ratio      – ratio of current model tokens vs. baseline
 POST /api/live/clear
-POST /api/statusline           – real-time update from status line bridge
+POST /api/statusline           – receives status line data from bridge; updates live session context_window_pct and cost in real-time
 POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd, baseline_model
 GET  /api/tips                 ?project_name=
 GET  /api/new_session/{project}  ?dry_run=
