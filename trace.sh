@@ -218,8 +218,10 @@ mode_fresh_install() {
   ok "TRACE installed successfully"
   echo ""
   echo "  Dashboard: http://localhost:8080"
-  echo "  Restart Claude Desktop to activate the MCP server"
   echo "  Next: run 'bash trace.sh add <path>' to register a project"
+  echo ""
+  echo "  Optional: Enable MCP server for intelligent session handoff"
+  echo "    → bash trace.sh → Option 9 (Setup MCP server)"
   echo ""
 }
 
@@ -513,6 +515,99 @@ mode_remove_statusline() {
   echo ""
 }
 
+# ── Option 9 – Setup MCP server ───────────────────────────────────────────────
+mode_setup_mcp() {
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo -e "${BOLD} Option 9 – Setup MCP server${RESET}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+
+  local claude_desktop_config="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+  local config_dir
+  config_dir="$(dirname "$claude_desktop_config")"
+
+  if [[ ! -d "$config_dir" ]]; then
+    err "Claude Desktop config directory not found: $config_dir
+  Install Claude Desktop first, then re-run this option."
+  fi
+
+  step "Adding TRACE MCP server to Claude Desktop config..."
+  CLAUDE_DESKTOP_CONFIG="$claude_desktop_config" \
+  TRACE_SERVER_PATH="$SCRIPT_DIR/server/main.py" \
+  python3 -c "
+import json, os
+path = os.environ['CLAUDE_DESKTOP_CONFIG']
+server_path = os.environ['TRACE_SERVER_PATH']
+
+if os.path.exists(path):
+    with open(path, 'r') as f:
+        config = json.load(f)
+else:
+    config = {}
+
+config.setdefault('mcpServers', {})
+if 'trace' in config['mcpServers']:
+    print('ALREADY')
+else:
+    config['mcpServers']['trace'] = {
+        'command': 'python3',
+        'args': [server_path],
+    }
+    with open(path, 'w') as f:
+        json.dump(config, f, indent=2)
+    print('ADDED')
+" | {
+    read -r status
+    case "$status" in
+      ADDED)    ok "MCP server added. Restart Claude Desktop to activate." ;;
+      ALREADY)  ok "MCP server already configured." ;;
+      *)        err "Failed to update Claude Desktop config" ;;
+    esac
+  }
+  echo ""
+}
+
+# ── Option 10 – Remove MCP server ─────────────────────────────────────────────
+mode_remove_mcp() {
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo -e "${BOLD} Option 10 – Remove MCP server${RESET}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+  echo ""
+
+  local claude_desktop_config="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+
+  if [[ ! -f "$claude_desktop_config" ]]; then
+    warn "MCP server not found in config."
+    echo ""
+    return 0
+  fi
+
+  step "Removing TRACE MCP server from Claude Desktop config..."
+  CLAUDE_DESKTOP_CONFIG="$claude_desktop_config" python3 -c "
+import json, os
+path = os.environ['CLAUDE_DESKTOP_CONFIG']
+with open(path, 'r') as f:
+    config = json.load(f)
+if 'mcpServers' in config and 'trace' in config['mcpServers']:
+    del config['mcpServers']['trace']
+    with open(path, 'w') as f:
+        json.dump(config, f, indent=2)
+    print('REMOVED')
+else:
+    print('MISSING')
+" | {
+    read -r status
+    case "$status" in
+      REMOVED)  ok "MCP server removed. Restart Claude Desktop." ;;
+      MISSING)  warn "MCP server not found in config." ;;
+      *)        err "Failed to update Claude Desktop config" ;;
+    esac
+  }
+  echo ""
+}
+
 # ── Main menu ─────────────────────────────────────────────────────────────────
 show_menu() {
   local default=1
@@ -530,6 +625,8 @@ show_menu() {
     "6  Exit"
     "7  Setup status line bridge   real-time context updates"
     "8  Remove status line bridge"
+    "9  Setup MCP server      intelligent session handoff"
+    "10 Remove MCP server"
   )
 
   local i
@@ -587,6 +684,16 @@ show_menu() {
       echo -e "  ${BOLD}Removes the status line bridge script and settings.json entry${RESET}"
       mode_remove_statusline
       ;;
+    9)
+      echo ""
+      echo -e "  ${BOLD}Adds TRACE MCP server to Claude Desktop config${RESET}"
+      mode_setup_mcp
+      ;;
+    10)
+      echo ""
+      echo -e "  ${BOLD}Removes TRACE MCP server from Claude Desktop config${RESET}"
+      mode_remove_mcp
+      ;;
     *)
       err "Invalid choice: $choice"
       ;;
@@ -601,18 +708,21 @@ clear
 show_header
 
 case "$SUBCMD" in
-  "")         show_menu ;;
-  install)    mode_fresh_install ;;
-  add)        mode_add_project "$SUBCMD_PATH" ;;
-  remove)     mode_remove_project "$SUBCMD_PATH" ;;
-  update)     mode_update ;;
-  uninstall)  mode_uninstall ;;
+  "")           show_menu ;;
+  install)      mode_fresh_install ;;
+  add)          mode_add_project "$SUBCMD_PATH" ;;
+  remove)       mode_remove_project "$SUBCMD_PATH" ;;
+  update)       mode_update ;;
+  uninstall)    mode_uninstall ;;
+  setup-mcp)    mode_setup_mcp ;;
+  remove-mcp)   mode_remove_mcp ;;
   *)
     err "Unknown command: '$SUBCMD'
-  Usage: bash trace.sh [install|add|remove|update|uninstall] [path]
+  Usage: bash trace.sh [install|add|remove|update|uninstall|setup-mcp|remove-mcp] [path]
   Examples:
     bash trace.sh add ~/projects/myapp
     bash trace.sh remove ~/projects/myapp
-    bash trace.sh update"
+    bash trace.sh update
+    bash trace.sh setup-mcp"
     ;;
 esac

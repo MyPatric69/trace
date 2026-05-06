@@ -37,12 +37,16 @@ pass the path as an argument or are prompted to enter it interactively.
 
 | # | Option | What it does |
 |---|---|---|
-| 1 | Install TRACE | Sets up TRACE from scratch – hooks, dashboard, tokenizer check |
+| 1 | Install TRACE | Sets up TRACE from scratch – hooks, dashboard, tokenizer check (MCP not included) |
 | 2 | Add project | Prompts for a project path, then registers it and installs the git hook |
 | 3 | Update TRACE | `git pull` + `pip install` + reload LaunchAgents – user data untouched |
 | 4 | Remove project | Prompts for a project path, then removes its hook and unregisters it |
 | 5 | Uninstall TRACE | Removes all LaunchAgents, MCP entry, `~/.trace/` – asks for confirmation |
 | 6 | Exit | — |
+| 7 | Setup status line bridge | Real-time context/cost in your terminal |
+| 8 | Remove status line bridge | Removes the status line bridge |
+| 9 | Setup MCP server | Adds TRACE MCP server to Claude Desktop config (optional) |
+| 10 | Remove MCP server | Removes TRACE MCP server from Claude Desktop config |
 
 **Project validation** – paths must contain `CLAUDE.md` or `.git`.
 Tab completion is available when entering a path interactively.
@@ -122,6 +126,12 @@ Core principle: local-heavy, API-light. All heavy computation runs locally. The 
 
 ## Installation
 
+> **MCP server is optional.** Core TRACE features – hooks, dashboard,
+> notifications, status line bridge – work entirely without the MCP server.
+> The MCP layer only adds intelligent session handoff (`new_session()`,
+> `check_drift()`, `get_costs()`, ...) for users running Claude Desktop.
+> See [MCP server (optional)](#mcp-server-optional) below for setup.
+
 **Step 1 – Clone the repo:**
 
 ```bash
@@ -177,37 +187,11 @@ Without this step, the live session panel and session cost tracking will not wor
 
 > **Note:** If `~/.claude/settings.json` does not exist yet, the script creates it automatically. If it already exists, the hooks are added without overwriting existing settings.
 
-**Step 4 – Add TRACE to your MCP config:**
+**Step 4 – (Optional) Enable the MCP server:**
 
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "trace": {
-      "command": "python3",
-      "args": ["/path/to/trace/server/main.py"]
-    }
-  }
-}
-```
-
-Restart Claude Code after saving.
-
-> **Using Claude Code without Claude Desktop?**
->
-> If you only use Claude Code in the terminal (not the
-> Claude Desktop app), skip Step 4 entirely.
-> The `claude_desktop_config.json` is only needed for
-> Claude Desktop integration.
->
-> For Claude Code (terminal), the hooks installed in
-> Step 3.6 are sufficient for full TRACE functionality:
-> live session tracking, cost logging, and session health.
->
-> You can still use TRACE MCP tools directly from Claude
-> Code by adding TRACE to your project's
-> `.claude/settings.json` or via `claude --mcp-config`.
+Skip this step if you don't use Claude Desktop or don't need the
+session-handoff MCP tools. See [MCP server (optional)](#mcp-server-optional)
+below for the one-liner setup.
 
 **Step 5 – Register your first project:**
 
@@ -224,6 +208,59 @@ store.add_project('my-project', '/path/to/project', 'Description')
 > ```python
 > python3 -c "from engine.store import TraceStore; print([p['name'] for p in TraceStore.default().list_projects()])"
 > ```
+
+---
+
+## MCP server (optional)
+
+The MCP server is a convenience layer on top of TRACE, **not a requirement**.
+Everything else – the post-commit hook, dashboard, macOS notifications,
+session health, and the status line bridge – works without it.
+
+**What the MCP server adds:**
+
+| Tool | Purpose |
+|---|---|
+| `new_session` | Compressed handoff prompt for session reset |
+| `check_drift` | Reports `AI_CONTEXT.md` staleness vs. recent commits |
+| `update_context` | Syncs `AI_CONTEXT.md` from git history |
+| `get_costs` | Cost summary per project and period |
+| `log_session` | Manual session logging |
+| `get_tips` | Cost optimisation recommendations |
+
+**When to enable it:**
+- You use Claude Desktop and want one-shot access to TRACE tools from any chat.
+- You want `new_session()` available as an MCP tool (otherwise call the API
+  endpoint or open the dashboard handoff link).
+
+**When to skip it:**
+- You only use Claude Code in the terminal – the hooks already give you live
+  session tracking, cost logging, and health. Add TRACE per project via
+  `.claude/settings.json` or `claude --mcp-config` if you want the tools there.
+- You don't run Claude Desktop at all.
+
+**Setup** (`trace.sh` → Option 9):
+
+```bash
+bash trace.sh           # → option 9: Setup MCP server
+# or directly:
+bash trace.sh setup-mcp
+```
+
+This adds a `trace` entry to
+`~/Library/Application Support/Claude/claude_desktop_config.json`
+pointing at `server/main.py` from the cloned repo. The action is idempotent –
+running it twice prints `MCP server already configured.`
+
+Restart Claude Desktop after setup.
+
+**Remove** (`trace.sh` → Option 10):
+
+```bash
+bash trace.sh           # → option 10: Remove MCP server
+# or directly:
+bash trace.sh remove-mcp
+```
 
 ---
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project context
 
-TRACE is an MCP server (Python / FastMCP) that provides token cost tracking and context intelligence for AI-assisted development.
+TRACE provides token cost tracking and context intelligence for AI-assisted development. Core features (hooks, dashboard, notifications, status line bridge) work standalone. The MCP server (Python / FastMCP) is an optional convenience layer for Claude Desktop users that exposes `new_session`, `check_drift`, `update_context`, `get_costs`, `log_session`, and `get_tips`.
 
 ## Working directory
 
@@ -68,7 +68,7 @@ hooks/remove_statusline_bridge.sh removes statusLine config from settings.json; 
 
 | # | Option |
 |---|---|
-| 1 | Install TRACE |
+| 1 | Install TRACE (MCP server NOT installed automatically) |
 | 2 | Add project |
 | 3 | Update TRACE |
 | 4 | Remove project |
@@ -76,6 +76,8 @@ hooks/remove_statusline_bridge.sh removes statusLine config from settings.json; 
 | 6 | Exit |
 | 7 | Setup status line bridge |
 | 8 | Remove status line bridge |
+| 9 | Setup MCP server (optional – Claude Desktop only) |
+| 10 | Remove MCP server |
 
 ## Dashboard Sections
 

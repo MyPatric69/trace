@@ -19,12 +19,15 @@
 
 ## What TRACE does
 
-TRACE is an MCP server that integrates into AI development environments (Claude Code, Cursor, Codex). It provides two core capabilities:
+TRACE provides two core capabilities for AI development environments (Claude Code, Cursor, Codex):
 
 1. **Token cost tracking** – logs and aggregates API token consumption per project and session
 2. **Context intelligence** – keeps `AI_CONTEXT.md` automatically current via git hook integration
 
-Heavy computation runs locally (zero API cost). The MCP layer returns only compressed results.
+Heavy computation runs locally (zero API cost). The MCP layer is an **optional**
+convenience surface for Claude Desktop users; the core (hooks, dashboard,
+notifications, status line bridge) works without it. Enable MCP via `trace.sh`
+Option 9 when needed.
 
 ---
 
@@ -228,6 +231,13 @@ WS   /ws
 - `dashboard/server.py` – `StatuslineRequest` accepts `session_duration_ms`, `api_duration_ms`, `lines_added`, `lines_removed`, `project_dir`; handler stores them in the live session file (update: only when non-zero to avoid regressing data; create: always); `project_dir` used as fallback for project detection when `cwd`-based lookup returns nothing
 - `dashboard/index.html` – `fmtDuration(ms)` helper (ms → `Xm` / `Xh Ym` / `Xh`); single-session live panel shows DURATION row below context bar when duration > 0 (`2h 15m (API: 23m)`) and CHANGES row when lines > 0 (`+142 / -38` in teal/red); `.live-stat-row` CSS class added
 
+**MCP setup decoupled from install (no new tests – manual verification):**
+- `trace.sh` `mode_fresh_install` no longer mentions Claude Desktop / MCP. Success message points users to `Option 9 (Setup MCP server)` for optional handoff tooling.
+- `mode_setup_mcp` (Option 9) – idempotently inserts a `trace` entry into `~/Library/Application Support/Claude/claude_desktop_config.json` with `command=python3` and `args=[<repo>/server/main.py]`; prints `✅ MCP server added. Restart Claude Desktop to activate.` or `✅ MCP server already configured.` on second run.
+- `mode_remove_mcp` (Option 10) – removes the `trace` entry; prints `✅ MCP server removed. Restart Claude Desktop.` or `⚠️ MCP server not found in config.` when absent.
+- New subcommands: `bash trace.sh setup-mcp` / `bash trace.sh remove-mcp`.
+- README "MCP server (optional)" section documents when to enable, when to skip, and the setup/remove commands. Old Step 4 in Installation now points at this section instead of inlining the JSON edit.
+
 **Status line bridge (original – 4 tests):**
 Provides real-time context window updates sourced directly from the Claude Code status line API — not estimated from transcript parsing. Fills the gap during long tool calls where the Stop hook does not fire until the full turn completes. Terminal output: `[model] project | CTX: X% | $cost | ● TRACE`. CTX% is the percentage of Claude Code's 200k context window used; value is official, not estimated.
 - `hooks/statusline_bridge.sh` – reads Claude Code session JSON from stdin, extracts session_id/cwd/context_window/cost/model with jq, POSTs to `POST /api/statusline` (sync, max-time 1s), outputs `[model] project | CTX: X% | $cost | ● TRACE` (ANSI-colored); `● TRACE` omitted when dashboard unreachable
@@ -290,4 +300,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-06 – Status line bridge extended: git branch in terminal output, duration/lines-changed fields stored and displayed in dashboard live panel (600 tests)
+2026-05-06 – MCP setup decoupled from install: new `trace.sh` Options 9/10 (Setup/Remove MCP server), success message reworded, README "MCP server (optional)" section added.
