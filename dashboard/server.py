@@ -560,6 +560,11 @@ class StatuslineRequest(BaseModel):
     total_output_tokens: int = 0
     cost_usd: float = 0.0
     model: str = "unknown"
+    session_duration_ms: int = 0
+    api_duration_ms: int = 0
+    lines_added: int = 0
+    lines_removed: int = 0
+    project_dir: str = ""
 
 
 @app.post("/api/statusline")
@@ -595,6 +600,14 @@ def api_statusline(req: StatuslineRequest):
                 data["peak_context_tokens"] = max(existing_peak, peak)
                 data["cost_usd"] = req.cost_usd
                 data["updated_at"] = now
+                if req.session_duration_ms:
+                    data["session_duration_ms"] = req.session_duration_ms
+                if req.api_duration_ms:
+                    data["api_duration_ms"] = req.api_duration_ms
+                if req.lines_added:
+                    data["lines_added"] = req.lines_added
+                if req.lines_removed:
+                    data["lines_removed"] = req.lines_removed
                 session_file.write_text(json.dumps(data, indent=2))
             except Exception:
                 pass
@@ -605,8 +618,15 @@ def api_statusline(req: StatuslineRequest):
                 project = tracker.project_name
             except Exception:
                 pass
+            if not project and req.project_dir:
+                try:
+                    tracker = LiveTracker(req.project_dir)
+                    project = tracker.project_name
+                except Exception:
+                    pass
             if not project:
-                project = Path(req.cwd).name if req.cwd else "unknown"
+                cwd_or_dir = req.cwd or req.project_dir
+                project = Path(cwd_or_dir).name if cwd_or_dir else "unknown"
 
             data = {
                 "session_id":          session_id,
@@ -626,6 +646,10 @@ def api_statusline(req: StatuslineRequest):
                 "initializing":        False,
                 "last_byte_offset":    0,
                 "updated_at":          now,
+                "session_duration_ms": req.session_duration_ms,
+                "api_duration_ms":     req.api_duration_ms,
+                "lines_added":         req.lines_added,
+                "lines_removed":       req.lines_removed,
             }
             session_file.write_text(json.dumps(data, indent=2))
     except Exception:

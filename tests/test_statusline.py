@@ -158,3 +158,82 @@ def test_statusline_project_detection_from_cwd(client, live_dir, monkeypatch, tm
 
     data = json.loads((live_dir / f"{session_id}.json").read_text())
     assert data["project"] == "alpha"
+
+
+def test_statusline_stores_session_duration_ms(client, live_dir, monkeypatch):
+    """session_duration_ms and api_duration_ms are stored when creating a new session."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "dur-test-001"
+    res = client.post("/api/statusline", json={
+        "session_id":          session_id,
+        "cwd":                 "/projects/myproject",
+        "session_duration_ms": 8_100_000,
+        "api_duration_ms":     1_380_000,
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["session_duration_ms"] == 8_100_000
+    assert data["api_duration_ms"] == 1_380_000
+
+
+def test_statusline_stores_lines_added_and_removed(client, live_dir, monkeypatch):
+    """lines_added and lines_removed are stored in the session file."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "lines-test-001"
+    res = client.post("/api/statusline", json={
+        "session_id":    session_id,
+        "cwd":           "/projects/myproject",
+        "lines_added":   142,
+        "lines_removed": 38,
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["lines_added"] == 142
+    assert data["lines_removed"] == 38
+
+
+def test_statusline_project_dir_fallback(client, live_dir, monkeypatch, tmp_store):
+    """project_dir is used as fallback when cwd is empty and no session exists."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+
+    session_id = "projdir-fallback-001"
+    res = client.post("/api/statusline", json={
+        "session_id":  session_id,
+        "cwd":         "",
+        "project_dir": "/projects/alpha",
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["project"] == "alpha"
+
+
+def _fmt_duration(ms: int):
+    """Mirror of the JS fmtDuration helper – used to verify the formatting logic."""
+    if not ms:
+        return None
+    minutes = round(ms / 60_000)
+    if minutes >= 60:
+        h, m = divmod(minutes, 60)
+        return f"{h}h {m}m" if m else f"{h}h"
+    return f"{minutes}m"
+
+
+def test_duration_format_ms_to_human_readable():
+    assert _fmt_duration(0) is None
+    assert _fmt_duration(60_000) == "1m"
+    assert _fmt_duration(30 * 60_000) == "30m"
+    assert _fmt_duration(60 * 60_000) == "1h"
+    assert _fmt_duration(90 * 60_000) == "1h 30m"
+    assert _fmt_duration(135 * 60_000) == "2h 15m"
+    assert _fmt_duration(120 * 60_000) == "2h"

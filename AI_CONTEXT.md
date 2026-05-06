@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All phases complete – 596/596 tests green ✓
+**Status:** All phases complete – 600/600 tests green ✓
 
 ---
 
@@ -122,7 +122,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**596/596 tests green ✓ (2026-05-04)**
+**600/600 tests green ✓ (2026-05-06)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -223,7 +223,12 @@ WS   /ws
 **Config cleanup:**
 - `models:` block: GPT models removed (TRACE is Claude-only); 7 Claude models reordered: sonnet-4-6 (default), sonnet-4-7, sonnet-4-5, opus-4-7, opus-4-6, opus-4-5, haiku-4-5
 
-**Status line bridge (complete – 4 tests):**
+**Status line bridge extended (complete – 8 tests):**
+- `hooks/statusline_bridge.sh` – extracts `cost.total_duration_ms`, `cost.total_api_duration_ms`, `cost.total_lines_added`, `cost.total_lines_removed`, `workspace.project_dir` and includes them in the `POST /api/statusline` payload; git branch inserted between project name and CTX% in terminal output (`[model] project | branch | CTX: X% | $cost | ● TRACE`); branch truncated to 20 chars with `...` if longer; silently omitted when not in a git repo
+- `dashboard/server.py` – `StatuslineRequest` accepts `session_duration_ms`, `api_duration_ms`, `lines_added`, `lines_removed`, `project_dir`; handler stores them in the live session file (update: only when non-zero to avoid regressing data; create: always); `project_dir` used as fallback for project detection when `cwd`-based lookup returns nothing
+- `dashboard/index.html` – `fmtDuration(ms)` helper (ms → `Xm` / `Xh Ym` / `Xh`); single-session live panel shows DURATION row below context bar when duration > 0 (`2h 15m (API: 23m)`) and CHANGES row when lines > 0 (`+142 / -38` in teal/red); `.live-stat-row` CSS class added
+
+**Status line bridge (original – 4 tests):**
 Provides real-time context window updates sourced directly from the Claude Code status line API — not estimated from transcript parsing. Fills the gap during long tool calls where the Stop hook does not fire until the full turn completes. Terminal output: `[model] project | CTX: X% | $cost | ● TRACE`. CTX% is the percentage of Claude Code's 200k context window used; value is official, not estimated.
 - `hooks/statusline_bridge.sh` – reads Claude Code session JSON from stdin, extracts session_id/cwd/context_window/cost/model with jq, POSTs to `POST /api/statusline` (sync, max-time 1s), outputs `[model] project | CTX: X% | $cost | ● TRACE` (ANSI-colored); `● TRACE` omitted when dashboard unreachable
 - `hooks/setup_statusline_bridge.sh` – copies bridge to `~/.claude/statusline_bridge.sh`, adds `statusLine: {type: command, command: ...}` to `~/.claude/settings.json` (merges, idempotent)
@@ -285,4 +290,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-04 – Docs updated: status line bridge documented in README, CLAUDE.md, AI_CONTEXT.md
+2026-05-06 – Status line bridge extended: git branch in terminal output, duration/lines-changed fields stored and displayed in dashboard live panel (600 tests)

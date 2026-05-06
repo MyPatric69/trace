@@ -35,6 +35,11 @@ TOTAL_IN="$(printf '%s' "$INPUT" | jq -r '.context_window.total_input_tokens // 
 TOTAL_OUT="$(printf '%s' "$INPUT" | jq -r '.context_window.total_output_tokens // 0')"
 COST="$(printf '%s' "$INPUT" | jq -r '.cost.total_cost_usd // 0')"
 MODEL_ID="$(printf '%s' "$INPUT" | jq -r '.model.id // "unknown"')"
+DURATION_MS="$(printf '%s' "$INPUT" | jq -r '.cost.total_duration_ms // 0')"
+API_DURATION_MS="$(printf '%s' "$INPUT" | jq -r '.cost.total_api_duration_ms // 0')"
+LINES_ADDED="$(printf '%s' "$INPUT" | jq -r '.cost.total_lines_added // 0')"
+LINES_REMOVED="$(printf '%s' "$INPUT" | jq -r '.cost.total_lines_removed // 0')"
+PROJECT_DIR="$(printf '%s' "$INPUT" | jq -r '.workspace.project_dir // ""')"
 
 # ── Derived display values ────────────────────────────────────────────────────
 # Short model name: claude-sonnet-4-6-20251022 → sonnet-4-6
@@ -42,6 +47,11 @@ MODEL_SHORT="$(printf '%s' "$MODEL_ID" | sed 's/^claude-//' | sed 's/-[0-9]\{8\}
 
 PROJECT="$(basename "$CWD")"
 [[ -z "$PROJECT" ]] && PROJECT="unknown"
+
+BRANCH="$(git -C "$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+if [ ${#BRANCH} -gt 20 ]; then BRANCH="${BRANCH:0:20}..."; fi
+BRANCH_SEG=""
+[ -n "$BRANCH" ] && BRANCH_SEG="$BRANCH | "
 
 COST_FMT="$(printf '$%.2f' "$COST" 2>/dev/null || printf '$0.00')"
 CTX_INT="$(printf '%.0f' "$USED_PCT" 2>/dev/null || printf '0')"
@@ -72,6 +82,11 @@ PAYLOAD="$(jq -cn \
     --argjson total_output_tokens         "${TOTAL_OUT:-0}" \
     --argjson cost_usd                    "${COST:-0}" \
     --arg     model                       "$MODEL_ID" \
+    --argjson session_duration_ms         "${DURATION_MS:-0}" \
+    --argjson api_duration_ms             "${API_DURATION_MS:-0}" \
+    --argjson lines_added                 "${LINES_ADDED:-0}" \
+    --argjson lines_removed               "${LINES_REMOVED:-0}" \
+    --arg     project_dir                 "$PROJECT_DIR" \
     '{session_id:$session_id,cwd:$cwd,
       context_window_pct:$context_window_pct,
       context_window_size:$context_window_size,
@@ -82,7 +97,12 @@ PAYLOAD="$(jq -cn \
       total_input_tokens:$total_input_tokens,
       total_output_tokens:$total_output_tokens,
       cost_usd:$cost_usd,
-      model:$model}' 2>/dev/null || printf '{}'
+      model:$model,
+      session_duration_ms:$session_duration_ms,
+      api_duration_ms:$api_duration_ms,
+      lines_added:$lines_added,
+      lines_removed:$lines_removed,
+      project_dir:$project_dir}' 2>/dev/null || printf '{}'
 )"
 
 # ── POST to dashboard (synchronous, max 1 s – connection refused exits fast) ──
@@ -96,9 +116,9 @@ fi
 
 # ── Output status line ────────────────────────────────────────────────────────
 if [ "$TRACE_ACTIVE" = true ]; then
-    printf "[%s] %s | CTX: ${CTX_COLOR}%s%%${RESET} | %s | ${TEAL}● TRACE${RESET}\n" \
-        "$MODEL_SHORT" "$PROJECT" "$CTX_INT" "$COST_FMT"
+    printf "[%s] %s | %sCTX: ${CTX_COLOR}%s%%${RESET} | %s | ${TEAL}● TRACE${RESET}\n" \
+        "$MODEL_SHORT" "$PROJECT" "$BRANCH_SEG" "$CTX_INT" "$COST_FMT"
 else
-    printf "[%s] %s | CTX: ${CTX_COLOR}%s%%${RESET} | %s\n" \
-        "$MODEL_SHORT" "$PROJECT" "$CTX_INT" "$COST_FMT"
+    printf "[%s] %s | %sCTX: ${CTX_COLOR}%s%%${RESET} | %s\n" \
+        "$MODEL_SHORT" "$PROJECT" "$BRANCH_SEG" "$CTX_INT" "$COST_FMT"
 fi

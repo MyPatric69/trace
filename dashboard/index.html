@@ -992,6 +992,19 @@
     .ctx-fill.amber { background: var(--amber); }
     .ctx-fill.red   { background: var(--red); }
 
+    /* ── Live stat rows (duration, changes) ── */
+    .live-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-family: var(--mono);
+      font-size: 0.5625rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-top: 0.45rem;
+    }
+
     /* ── Activity Section ── */
     .act-stat-row {
       display: flex;
@@ -1266,6 +1279,15 @@
   const num = n  => n.toLocaleString();
   const usd = v  => '$' + v.toFixed(4);
   const toK = n  => n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);
+  function fmtDuration(ms) {
+    if (!ms) return null;
+    const min = Math.round(ms / 60000);
+    if (min >= 60) {
+      const h = Math.floor(min / 60), m = min % 60;
+      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    }
+    return `${min}m`;
+  }
 
   // Adaptive cost display: avoid showing $0.0000 for cheap models
   function calcCost(v) {
@@ -1790,6 +1812,24 @@
              </div>`
           : '';
 
+        const durTotal = fmtDuration(s.session_duration_ms);
+        const durApi   = fmtDuration(s.api_duration_ms);
+        const durRow   = durTotal
+          ? `<div class="live-stat-row">
+               <span>Duration</span>
+               <span>${durTotal}${durApi ? ' <span style="opacity:.65">(API: ' + durApi + ')</span>' : ''}</span>
+             </div>`
+          : '';
+
+        const lAdded   = s.lines_added   || 0;
+        const lRemoved = s.lines_removed || 0;
+        const linesRow = (lAdded > 0 || lRemoved > 0)
+          ? `<div class="live-stat-row">
+               <span>Changes</span>
+               <span><span style="color:var(--teal)">+${lAdded}</span> / <span style="color:var(--red)">-${lRemoved}</span></span>
+             </div>`
+          : '';
+
         body.innerHTML = `
           <div class="live-metrics">
             <div class="live-metric">
@@ -1810,7 +1850,7 @@
             </div>
             <div class="live-health ${healthCls}">${healthLbl}</div>
           </div>
-          ${ctxBar}`;
+          ${ctxBar}${durRow}${linesRow}`;
       } else {
         // Multiple sessions – compact list view
         const activeCount = d.sessions.filter(s => !s.stale).length;
