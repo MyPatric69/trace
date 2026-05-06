@@ -125,7 +125,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**600/600 tests green ✓ (2026-05-06)**
+**602/602 tests green ✓ (2026-05-06)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -231,6 +231,12 @@ WS   /ws
 - `dashboard/server.py` – `StatuslineRequest` accepts `session_duration_ms`, `api_duration_ms`, `lines_added`, `lines_removed`, `project_dir`; handler stores them in the live session file (update: only when non-zero to avoid regressing data; create: always); `project_dir` used as fallback for project detection when `cwd`-based lookup returns nothing
 - `dashboard/index.html` – `fmtDuration(ms)` helper (ms → `Xm` / `Xh Ym` / `Xh`); single-session live panel shows DURATION row below context bar when duration > 0 (`2h 15m (API: 23m)`) and CHANGES row when lines > 0 (`+142 / -38` in teal/red); `.live-stat-row` CSS class added
 
+**Auto AI_CONTEXT.md refresh on SessionEnd (complete – 2 new tests):**
+- `engine/doc_synthesizer.py` – new `DocSynthesizer.update_if_stale()` method encapsulates the drift-check + section-update orchestration that previously lived inline in `hook_runner.run()`. Returns `True` when `AI_CONTEXT.md` was rewritten, `False` when no work was needed; never raises.
+- `engine/hook_runner.py` – `run()` now delegates to `synth.update_if_stale()`; behaviour for the post-commit hook is unchanged.
+- `engine/session_logger.py` – `run()` calls `DocSynthesizer(cwd).update_if_stale()` after the session has been logged and the live file cleared. Failures are caught and logged; the SessionEnd hook never propagates synthesizer errors.
+- `tests/test_session_logger.py` – `test_run_invokes_doc_synthesizer_after_logging` verifies `update_if_stale` is called and the session is still persisted; `test_run_logs_session_even_when_doc_synthesizer_raises` verifies a synthesizer crash is swallowed.
+
 **MCP setup decoupled from install (no new tests – manual verification):**
 - `trace.sh` `mode_fresh_install` no longer mentions Claude Desktop / MCP. Success message points users to `Option 9 (Setup MCP server)` for optional handoff tooling.
 - `mode_setup_mcp` (Option 9) – idempotently inserts a `trace` entry into `~/Library/Application Support/Claude/claude_desktop_config.json` with `command=python3` and `args=[<repo>/server/main.py]`; prints `✅ MCP server added. Restart Claude Desktop to activate.` or `✅ MCP server already configured.` on second run.
@@ -300,4 +306,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-06 – MCP setup decoupled from install: new `trace.sh` Options 9/10 (Setup/Remove MCP server), success message reworded, README "MCP server (optional)" section added.
+2026-05-06 – AI_CONTEXT.md auto-refresh wired into SessionEnd hook via new `DocSynthesizer.update_if_stale()`; `hook_runner.run()` now delegates to the same method (DRY). 602/602 tests green.

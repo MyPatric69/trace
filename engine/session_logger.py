@@ -169,6 +169,16 @@ def run() -> None:
     except Exception as exc:
         _log.error("Failed to clear live session: %s", exc)
 
+    # Refresh AI_CONTEXT.md if the session landed on top of new doc-relevant
+    # commits. Mirrors the post-commit hook so sessions ending without a
+    # subsequent commit still keep the context file current.
+    try:
+        from engine.doc_synthesizer import DocSynthesizer
+        synth = DocSynthesizer(cwd, config_path=str(store.config_path))
+        synth.update_if_stale()
+    except Exception as exc:
+        _log.error("Failed to update AI_CONTEXT.md for %s: %s", cwd, exc)
+
 
 if __name__ == "__main__":
     run()

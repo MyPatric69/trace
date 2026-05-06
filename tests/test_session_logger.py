@@ -321,3 +321,64 @@ def test_run_exits_silently_on_invalid_stdin(tmp_store, monkeypatch):
     monkeypatch.setattr(sys, "stdin", io.StringIO("not valid json"))
 
     run()  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# DocSynthesizer integration
+# ---------------------------------------------------------------------------
+
+def test_run_invokes_doc_synthesizer_after_logging(tmp_path, tmp_store, monkeypatch):
+    """After a successful session log, DocSynthesizer.update_if_stale fires."""
+    import engine.doc_synthesizer as ds_mod
+
+    monkeypatch.setattr(sl_module, "_store", lambda: tmp_store)
+    tmp_store.add_project("synth-project", str(tmp_path), "Test")
+
+    calls = []
+
+    class FakeSynth:
+        def __init__(self, project_path, config_path=None):
+            calls.append(("init", project_path, config_path))
+        def update_if_stale(self):
+            calls.append(("update_if_stale",))
+            return False
+
+    monkeypatch.setattr(ds_mod, "DocSynthesizer", FakeSynth)
+
+    stdin_data = _make_run_input(tmp_path, [
+        _assistant_turn("req_1", input_tokens=10, output_tokens=5),
+    ], str(tmp_path))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
+
+    run()
+
+    assert ("update_if_stale",) in calls
+    init_calls = [c for c in calls if c[0] == "init"]
+    assert init_calls and init_calls[0][1] == str(tmp_path)
+    # Session must still be persisted.
+    assert tmp_store.get_sessions("synth-project")
+
+
+def test_run_logs_session_even_when_doc_synthesizer_raises(tmp_path, tmp_store, monkeypatch):
+    """A DocSynthesizer failure must not break session logging."""
+    import engine.doc_synthesizer as ds_mod
+
+    monkeypatch.setattr(sl_module, "_store", lambda: tmp_store)
+    tmp_store.add_project("crash-synth-project", str(tmp_path), "Test")
+
+    class CrashingSynth:
+        def __init__(self, *a, **kw):
+            pass
+        def update_if_stale(self):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(ds_mod, "DocSynthesizer", CrashingSynth)
+
+    stdin_data = _make_run_input(tmp_path, [
+        _assistant_turn("req_1", input_tokens=10, output_tokens=5),
+    ], str(tmp_path))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(stdin_data))
+
+    run()  # must not raise
+
+    assert tmp_store.get_sessions("crash-synth-project")

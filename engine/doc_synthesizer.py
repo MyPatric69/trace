@@ -173,6 +173,47 @@ class DocSynthesizer:
     # Section updater
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # High-level orchestration
+    # ------------------------------------------------------------------
+
+    _STALE_DAYS = 2
+
+    def update_if_stale(self) -> bool:
+        """Refresh AI_CONTEXT.md when drift is detected.
+
+        Used by both the post-commit hook and the SessionEnd hook so that any
+        session that lands on top of new doc-relevant commits also bumps the
+        context file. Returns True if the file was updated, False otherwise.
+        Never raises – callers can wrap in their own try/except for logging.
+        """
+        last_hash = self.get_last_synced()
+        if last_hash is None:
+            all_commits = list(self.watcher.repo.iter_commits())
+            last_hash = all_commits[-1].hexsha if all_commits else ""
+
+        if not last_hash:
+            return False  # empty repo
+
+        drift = self.check_drift(last_hash)
+        if not drift["is_stale"]:
+            return False
+
+        age_days = self.get_context_age_days()
+        force_by_age = age_days is not None and age_days > self._STALE_DAYS
+
+        if not drift["doc_relevant_changes"] and not force_by_age:
+            return False
+
+        today = date.today().isoformat()
+        self.apply_section_update(
+            "Last updated",
+            f"{today} – Auto-synced {drift['commits_behind']} commit(s) "
+            f"to {drift['current_hash']}",
+        )
+        self.update_last_synced(drift["current_hash"])
+        return True
+
     def apply_section_update(self, section: str, new_content: str) -> bool:
         """Replace the body of a ## section in AI_CONTEXT.md with new_content.
 

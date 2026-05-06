@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from datetime import date
 from pathlib import Path
 
 # Ensure TRACE root is importable when invoked directly by the git hook
@@ -26,48 +25,19 @@ logging.basicConfig(
 )
 _log = logging.getLogger(__name__)
 
-_STALE_DAYS = 2
-
 
 def run(project_path: str) -> None:
     """Check for drift and update AI_CONTEXT.md if needed.
 
-    Synthesis runs when either:
-      - there are doc-relevant file changes since last sync, OR
-      - AI_CONTEXT.md is older than _STALE_DAYS days (staleness fallback)
+    Delegates to DocSynthesizer.update_if_stale(), which fires when either
+    doc-relevant files changed since last sync or AI_CONTEXT.md is older than
+    the staleness threshold. Never raises – the post-commit hook must not
+    block a commit.
     """
     try:
         store = TraceStore.default()
         synth = DocSynthesizer(project_path, config_path=str(store.config_path))
-
-        # Determine baseline – use .trace_sync or fall back to oldest commit
-        last_hash = synth.get_last_synced()
-        if last_hash is None:
-            all_commits = list(synth.watcher.repo.iter_commits())
-            last_hash = all_commits[-1].hexsha if all_commits else ""
-
-        if not last_hash:
-            return  # empty repo
-
-        drift = synth.check_drift(last_hash)
-
-        if not drift["is_stale"]:
-            return  # already up to date
-
-        age_days = synth.get_context_age_days()
-        force_by_age = age_days is not None and age_days > _STALE_DAYS
-
-        if not drift["doc_relevant_changes"] and not force_by_age:
-            return  # no meaningful changes and context is fresh
-
-        today = date.today().isoformat()
-        synth.apply_section_update(
-            "Last updated",
-            f"{today} – Auto-synced {drift['commits_behind']} commit(s) "
-            f"to {drift['current_hash']}",
-        )
-        synth.update_last_synced(drift["current_hash"])
-
+        synth.update_if_stale()
     except Exception:
         pass  # never block a commit
 
