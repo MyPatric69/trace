@@ -62,7 +62,14 @@ python server/main.py     # start MCP server directly
 hooks/statusline_bridge.sh        reads Claude Code JSON from stdin, POSTs to /api/statusline, outputs status line to terminal
 hooks/setup_statusline_bridge.sh  installs bridge to ~/.claude/statusline_bridge.sh; adds statusLine config to ~/.claude/settings.json (idempotent)
 hooks/remove_statusline_bridge.sh removes statusLine config from settings.json; deletes bridge script
+hooks/post-commit                 git post-commit → engine/hook_runner.run() → DocSynthesizer.update_if_stale()
 ```
+
+**Hook → AI_CONTEXT.md refresh chain:**
+- **post-commit hook** → `engine/hook_runner.run()` → `DocSynthesizer.update_if_stale()`
+- **SessionEnd hook** → `engine/session_logger.run()` → `add_session()` → `DocSynthesizer.update_if_stale()`
+
+Both paths share the same logic: rewrite `AI_CONTEXT.md` only when there are doc-relevant changes since `.trace_sync`, or when `AI_CONTEXT.md` is older than 2 days (`DocSynthesizer._STALE_DAYS`). Synthesizer failures are caught and logged – they never break the commit or the session log.
 
 ## trace.sh Menu
 

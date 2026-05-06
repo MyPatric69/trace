@@ -306,4 +306,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-06 – AI_CONTEXT.md auto-refresh wired into SessionEnd hook via new `DocSynthesizer.update_if_stale()`; `hook_runner.run()` now delegates to the same method (DRY). 602/602 tests green.
+2026-05-06 – Documented auto AI_CONTEXT.md refresh on SessionEnd in README ("Context intelligence" + "Expected behaviour") and CLAUDE.md (hook → refresh chain). 602/602 tests green.

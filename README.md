@@ -67,7 +67,14 @@ See [Installation](#installation) below for manual setup and advanced options.
 
 **Token cost tracking.** Every AI session is logged with model, input tokens, output tokens, and calculated cost. TRACE aggregates this per project and period, surfaces budget alerts when monthly spend approaches the configured limit, and returns actionable optimisation tips when sessions run expensive.
 
-**Context intelligence.** A post-commit hook watches every git commit and updates `AI_CONTEXT.md` automatically when doc-relevant files change. TRACE detects when the context file has drifted from the actual codebase, generates compressed handoff prompts so new sessions start fully oriented, and recommends session resets before token costs accelerate.
+**Context intelligence.** Two hooks keep `AI_CONTEXT.md` automatically current:
+the post-commit hook fires after every git commit, and the SessionEnd hook fires
+after every Claude Code session. Both delegate to
+`DocSynthesizer.update_if_stale()`, which only rewrites the file when
+doc-relevant files have changed since the last sync — or as a fallback when
+`AI_CONTEXT.md` is older than 2 days. TRACE also detects drift on demand,
+generates compressed handoff prompts so new sessions start fully oriented, and
+recommends session resets before token costs accelerate.
 
 ---
 
@@ -602,7 +609,19 @@ new_session project="my-project"
 
 ## Expected behaviour
 
-> **Note:** After every commit, TRACE automatically updates `AI_CONTEXT.md` via the post-commit hook. This is expected behaviour – not a bug. Stage and commit the change as part of your workflow:
+> **Note:** TRACE automatically refreshes `AI_CONTEXT.md` in two situations,
+> both expected behaviour – not a bug:
+>
+> 1. **After every git commit** – via the post-commit hook.
+> 2. **After every Claude Code session** – via the SessionEnd hook
+>    (`engine/session_logger.py` calls `DocSynthesizer.update_if_stale()`
+>    once the session has been logged).
+>
+> Both paths share the same logic: `AI_CONTEXT.md` is rewritten only when
+> doc-relevant files changed since the last sync, with a fallback that forces
+> an update when the file is older than 2 days. No manual trigger is needed.
+>
+> Stage and commit the resulting change as part of your normal workflow:
 >
 > ```bash
 > git add AI_CONTEXT.md
