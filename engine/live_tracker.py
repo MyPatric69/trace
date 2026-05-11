@@ -309,32 +309,17 @@ class LiveTracker:
         except Exception:
             pass
 
-        # Health based on effective context consumption (cache_read excluded –
-        # it re-counts cached context on every request and would inflate the total
-        # to millions of tokens for a session that never exceeded 200K).
-        health = "green"
+        # Context window utilization % – peak single-turn context load divided by
+        # the model's context window size. This is the quality signal that drives
+        # health state and notifications: cumulative tokens are a cost metric,
+        # context_window_pct is when "start a new thread" actually matters.
         health_store = None
-        try:
-            health_store = self._store or _get_default_store()
-            if health_store is not None:
-                health_cfg = health_store.config.get("session_health", {})
-                warn_tokens = health_cfg.get("warn_tokens", 80_000)
-                critical_tokens = health_cfg.get("critical_tokens", 150_000)
-                total = input_tokens + cache_creation_tokens + output_tokens
-                if total >= critical_tokens:
-                    health = "red"
-                elif total >= warn_tokens:
-                    health = "yellow"
-        except Exception:
-            pass
-
-        # Context window utilization % – peak single-turn input_tokens / model context window
         context_window_size = 200_000
         context_window_pct  = 0.0
         try:
-            cw_store = health_store or self._store or _get_default_store()
-            if cw_store is not None and peak_context_tokens > 0:
-                cw_cfg = cw_store.config.get("context_windows") or {}
+            health_store = self._store or _get_default_store()
+            if health_store is not None and peak_context_tokens > 0:
+                cw_cfg = health_store.config.get("context_windows") or {}
                 for prefix, size in cw_cfg.items():
                     if model.startswith(prefix):
                         context_window_size = int(size)
@@ -342,6 +327,20 @@ class LiveTracker:
                 context_window_pct = round(
                     peak_context_tokens / context_window_size * 100, 1
                 )
+        except Exception:
+            pass
+
+        # Health derived from context_window_pct (not cumulative tokens).
+        health = "green"
+        try:
+            if health_store is not None:
+                health_cfg = health_store.config.get("session_health", {})
+                warn_pct     = float(health_cfg.get("warn_context_pct", 60))
+                critical_pct = float(health_cfg.get("critical_context_pct", 85))
+                if context_window_pct >= critical_pct:
+                    health = "red"
+                elif context_window_pct >= warn_pct:
+                    health = "yellow"
         except Exception:
             pass
 
@@ -356,7 +355,7 @@ class LiveTracker:
                 from engine.notifier import notify as _notify
                 _notify(
                     _HEALTH_STATUS[health],
-                    input_tokens + cache_creation_tokens + output_tokens,
+                    context_window_pct,
                     self.project_name or "unknown",
                     health_store.config,
                 )

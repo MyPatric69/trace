@@ -22,8 +22,8 @@ _TITLES = {
     "reset": "TRACE Critical",
 }
 _MESSAGES = {
-    "warn":  "Session at {tokens:,} tokens \u2013 prepare new thread",
-    "reset": "Thread reset recommended ({tokens:,} tokens)",
+    "warn":  "Context window at {pct:.0f}% \u2013 prepare new thread",
+    "reset": "Thread reset recommended (context window {pct:.0f}%)",
 }
 _SOUND_KEYS = {
     "warn":  "sound_warn",
@@ -35,15 +35,15 @@ _SOUND_DEFAULTS = {
 }
 
 
-def notify(status: str, tokens: int, project: str, config: dict) -> None:
-    """Fire a cross-platform notification for a health-state escalation.
+def notify(status: str, context_pct: float, project: str, config: dict) -> None:
+    """Fire a cross-platform notification for a context-window health escalation.
 
     Parameters
     ----------
-    status  : "warn" | "reset"
-    tokens  : effective session token count at the time of the alert
-    project : registered project name
-    config  : full trace config dict (reads ``notifications`` block)
+    status      : "warn" | "reset"
+    context_pct : context window utilization at the time of the alert (0-100)
+    project     : registered project name
+    config      : full trace config dict (reads ``notifications`` block)
     """
     if not project or project.lower() == "unknown":
         return
@@ -56,7 +56,7 @@ def notify(status: str, tokens: int, project: str, config: dict) -> None:
         return
 
     title   = _TITLES[status]
-    message = _MESSAGES[status].format(tokens=tokens)
+    message = _MESSAGES[status].format(pct=context_pct)
     body    = f"Project: {project}\n{message}"
 
     _send_notification(title, body)

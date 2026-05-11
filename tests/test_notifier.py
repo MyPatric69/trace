@@ -35,7 +35,17 @@ _MODEL_PRICES = {
     },
 }
 
-_SESSION_HEALTH_CFG = {"warn_tokens": 1_000, "critical_tokens": 2_000}
+_SESSION_HEALTH_CFG = {
+    "warn_tokens": 1_000,
+    "critical_tokens": 2_000,
+    "warn_context_pct": 60,
+    "critical_context_pct": 85,
+}
+
+# Default Claude Code context window – tests use a turn of N tokens to hit pct N/200_000 * 100.
+# warn at 60% needs 120_000 single-turn tokens; critical at 85% needs 170_000.
+_WARN_TURN_TOKENS     = 120_000
+_CRITICAL_TURN_TOKENS = 170_000
 
 
 # ---------------------------------------------------------------------------
@@ -164,15 +174,15 @@ class TestNotifyEnglishText:
         _, body = captured[0]
         assert "Thread reset recommended" in body
 
-    def test_body_contains_token_count_english_format(self):
+    def test_body_contains_context_pct(self):
         from engine.notifier import notify
         captured: list[tuple] = []
         with patch("engine.notifier._send_notification",
                    side_effect=lambda t, m: captured.append((t, m))), \
              patch("engine.notifier._play_sound"):
-            notify("warn", 90_000, "proj", _ENABLED_CONFIG)
+            notify("warn", 65.0, "proj", _ENABLED_CONFIG)
         _, body = captured[0]
-        assert "90,000" in body
+        assert "65%" in body
 
 
 # ---------------------------------------------------------------------------
@@ -322,15 +332,15 @@ class TestNotifySend:
         title, _ = captured[0]
         assert title == "TRACE Critical"
 
-    def test_notify_body_contains_token_count(self):
+    def test_notify_body_contains_context_pct(self):
         from engine.notifier import notify
         captured: list[tuple] = []
         with patch("engine.notifier._send_notification",
                    side_effect=lambda t, m: captured.append((t, m))), \
              patch("engine.notifier._play_sound"):
-            notify("reset", 160_000, "proj", _ENABLED_CONFIG)
+            notify("reset", 88.0, "proj", _ENABLED_CONFIG)
         _, body = captured[0]
-        assert "160,000" in body
+        assert "88%" in body
 
 
 # ---------------------------------------------------------------------------
@@ -488,9 +498,9 @@ def _assistant_turn(request_id: str, input_tokens: int = 0, output_tokens: int =
 
 class TestLiveTrackerNotifications:
     def test_ok_to_warn_fires_notify(self, tmp_path, patched_env):
-        """Crossing warn threshold triggers notify('warn', ...)."""
+        """Crossing warn_context_pct triggers notify('warn', ...)."""
         transcript = _write_transcript(tmp_path, [
-            _assistant_turn("r1", input_tokens=1_200),  # > warn_tokens=1000
+            _assistant_turn("r1", input_tokens=_WARN_TURN_TOKENS),  # 60% of 200k window
         ])
         notify_calls: list[tuple] = []
         with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
@@ -501,7 +511,7 @@ class TestLiveTrackerNotifications:
     def test_ok_to_reset_fires_notify_reset(self, tmp_path, patched_env):
         """Jumping straight from ok to critical fires notify('reset', ...)."""
         transcript = _write_transcript(tmp_path, [
-            _assistant_turn("r1", input_tokens=2_100),  # > critical_tokens=2000
+            _assistant_turn("r1", input_tokens=_CRITICAL_TURN_TOKENS),  # 85% of 200k window
         ])
         notify_calls: list[tuple] = []
         with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
@@ -510,16 +520,20 @@ class TestLiveTrackerNotifications:
         assert notify_calls[0][0] == "reset"
 
     def test_warn_to_reset_fires_notify(self, tmp_path, patched_env):
-        """Escalating from warn→reset triggers another notification."""
+        """Escalating from warn→reset triggers another notification.
+
+        The peak_context is the max single-turn (input + cache_creation + cache_read),
+        so the second turn must itself exceed the critical threshold.
+        """
         transcript = _write_transcript(tmp_path, [
-            _assistant_turn("r1", input_tokens=1_200),
+            _assistant_turn("r1", input_tokens=_WARN_TURN_TOKENS),
         ])
         with patch("engine.notifier.notify"):
             LiveTracker(None).update(str(transcript), str(tmp_path))
 
         transcript.write_text(
-            json.dumps(_assistant_turn("r1", input_tokens=1_200)) + "\n" +
-            json.dumps(_assistant_turn("r2", input_tokens=1_200)) + "\n"
+            json.dumps(_assistant_turn("r1", input_tokens=_WARN_TURN_TOKENS)) + "\n" +
+            json.dumps(_assistant_turn("r2", input_tokens=_CRITICAL_TURN_TOKENS)) + "\n"
         )
         notify_calls: list[tuple] = []
         with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
@@ -540,13 +554,13 @@ class TestLiveTrackerNotifications:
     def test_no_duplicate_notification_same_status(self, tmp_path, patched_env):
         """Staying in warn zone on repeated calls: notify fires only once."""
         transcript = _write_transcript(tmp_path, [
-            _assistant_turn("r1", input_tokens=1_200),
+            _assistant_turn("r1", input_tokens=_WARN_TURN_TOKENS),
         ])
         notify_calls: list[tuple] = []
         with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
             LiveTracker(None).update(str(transcript), str(tmp_path))
         transcript.write_text(
-            json.dumps(_assistant_turn("r1", input_tokens=1_200)) + "\n" +
+            json.dumps(_assistant_turn("r1", input_tokens=_WARN_TURN_TOKENS)) + "\n" +
             json.dumps(_assistant_turn("r2", input_tokens=200)) + "\n"
         )
         with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
@@ -663,3 +677,116 @@ def test_api_status_notifications_default_true_when_block_missing(tmp_path, monk
     data = client.get("/api/status").json()
     assert data["notifications_enabled"] is True
     assert data["notifications_sound"]   is True
+
+
+# ---------------------------------------------------------------------------
+# Context-window-percentage triggered notifications (refactor: 2026-05-11)
+# Cumulative tokens are a cost metric; context_window_pct is the quality signal
+# that drives notifications and the "start a new thread" handoff prompt.
+# ---------------------------------------------------------------------------
+
+class TestContextPctNotifications:
+    def test_notify_fires_when_context_pct_crosses_warn(self, tmp_path, patched_env):
+        """A single turn that pushes peak_context to >= warn_context_pct fires 'warn'."""
+        transcript = _write_transcript(tmp_path, [
+            _assistant_turn("r1", input_tokens=_WARN_TURN_TOKENS),  # 60% of 200k window
+        ])
+        notify_calls: list[tuple] = []
+        with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
+            LiveTracker(None).update(str(transcript), str(tmp_path))
+        assert len(notify_calls) == 1
+        assert notify_calls[0][0] == "warn"
+        # second positional arg is now the context_pct, not cumulative tokens
+        assert notify_calls[0][1] >= 60
+
+    def test_notify_fires_when_context_pct_crosses_critical(self, tmp_path, patched_env):
+        """A single turn that pushes peak_context to >= critical_context_pct fires 'reset'."""
+        transcript = _write_transcript(tmp_path, [
+            _assistant_turn("r1", input_tokens=_CRITICAL_TURN_TOKENS),  # 85% of 200k window
+        ])
+        notify_calls: list[tuple] = []
+        with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
+            LiveTracker(None).update(str(transcript), str(tmp_path))
+        assert len(notify_calls) == 1
+        assert notify_calls[0][0] == "reset"
+        assert notify_calls[0][1] >= 85
+
+    def test_notify_does_not_fire_from_cumulative_tokens_alone(self, tmp_path, patched_env):
+        """Many small turns that accumulate above warn_tokens but never push a single turn
+        above warn_context_pct must NOT fire any notification."""
+        # 30 turns of 5_000 tokens each = 150_000 cumulative (far above warn_tokens=1000)
+        # but each turn's peak_context = 5_000 = 2.5% of 200k window → green
+        turns = [
+            _assistant_turn(f"r{i}", input_tokens=5_000, output_tokens=100)
+            for i in range(30)
+        ]
+        transcript = _write_transcript(tmp_path, turns)
+        notify_calls: list[tuple] = []
+        with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
+            result = LiveTracker(None).update(str(transcript), str(tmp_path))
+
+        # Cumulative tokens are far above the warn_tokens=1000 cost threshold …
+        assert result["input_tokens"] >= 150_000
+        # … but peak_context_pct stays well under warn_context_pct=60 …
+        assert result["context_window_pct"] < 60
+        # … so notify() must not fire.
+        assert notify_calls == []
+        assert result["health"] == "green"
+
+
+# ---------------------------------------------------------------------------
+# Dashboard – /api/status and POST /api/settings expose context_pct thresholds
+# ---------------------------------------------------------------------------
+
+class TestContextPctSettings:
+    def test_api_status_returns_context_pct_thresholds(self, settings_home):
+        from fastapi.testclient import TestClient
+        from dashboard.server import app
+
+        client = TestClient(app)
+        data = client.get("/api/status").json()
+        assert "warn_context_pct" in data
+        assert "critical_context_pct" in data
+        # Defaults from engine/config._USER_DEFAULTS
+        assert data["warn_context_pct"] == 60
+        assert data["critical_context_pct"] == 85
+
+    def test_post_settings_saves_context_pct(self, settings_home):
+        from fastapi.testclient import TestClient
+        from dashboard.server import app
+
+        client = TestClient(app)
+        res = client.post(
+            "/api/settings",
+            json={"warn_context_pct": 55, "critical_context_pct": 80},
+        )
+        assert res.status_code == 200
+
+        saved = yaml.safe_load((settings_home / "user_config.yaml").read_text())
+        assert saved["session_health"]["warn_context_pct"] == 55
+        assert saved["session_health"]["critical_context_pct"] == 80
+
+    def test_post_settings_rejects_warn_pct_above_critical(self, settings_home):
+        from fastapi.testclient import TestClient
+        from dashboard.server import app
+
+        client = TestClient(app)
+        res = client.post(
+            "/api/settings",
+            json={"warn_context_pct": 90, "critical_context_pct": 80},
+        )
+        assert res.status_code == 400
+
+    def test_post_settings_rejects_warn_pct_out_of_range(self, settings_home):
+        from fastapi.testclient import TestClient
+        from dashboard.server import app
+
+        client = TestClient(app)
+        assert client.post(
+            "/api/settings",
+            json={"warn_context_pct": 0, "critical_context_pct": 85},
+        ).status_code == 400
+        assert client.post(
+            "/api/settings",
+            json={"warn_context_pct": 100, "critical_context_pct": 85},
+        ).status_code == 400

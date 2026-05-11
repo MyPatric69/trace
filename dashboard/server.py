@@ -243,6 +243,8 @@ def api_status():
         "notifications_sound": notif_cfg.get("sound", True),
         "warn_tokens": health_cfg.get("warn_tokens", 80_000),
         "critical_tokens": health_cfg.get("critical_tokens", 150_000),
+        "warn_context_pct": health_cfg.get("warn_context_pct", 60),
+        "critical_context_pct": health_cfg.get("critical_context_pct", 85),
         "baseline_model": comparison_cfg.get("baseline_model", "claude-sonnet-4-6"),
     }
 
@@ -680,6 +682,8 @@ class SettingsRequest(BaseModel):
     notifications_sound: bool | None = None
     warn_tokens: int | None = None
     critical_tokens: int | None = None
+    warn_context_pct: int | None = None
+    critical_context_pct: int | None = None
     monthly_budget_usd: float | None = None
     baseline_model: str | None = None
 
@@ -705,6 +709,31 @@ def api_settings_update(req: SettingsRequest):
             health["warn_tokens"] = req.warn_tokens
         if req.critical_tokens is not None:
             health["critical_tokens"] = req.critical_tokens
+    if req.warn_context_pct is not None or req.critical_context_pct is not None:
+        health = config.setdefault("session_health", {})
+        eff_warn = (
+            req.warn_context_pct
+            if req.warn_context_pct is not None
+            else health.get("warn_context_pct", 60)
+        )
+        eff_crit = (
+            req.critical_context_pct
+            if req.critical_context_pct is not None
+            else health.get("critical_context_pct", 85)
+        )
+        if eff_warn <= 0 or eff_warn >= 100:
+            raise HTTPException(status_code=400, detail="warn_context_pct must be between 1 and 99")
+        if eff_crit <= 0 or eff_crit > 100:
+            raise HTTPException(status_code=400, detail="critical_context_pct must be between 1 and 100")
+        if eff_warn >= eff_crit:
+            raise HTTPException(
+                status_code=400,
+                detail="warn_context_pct must be < critical_context_pct",
+            )
+        if req.warn_context_pct is not None:
+            health["warn_context_pct"] = req.warn_context_pct
+        if req.critical_context_pct is not None:
+            health["critical_context_pct"] = req.critical_context_pct
     if req.monthly_budget_usd is not None:
         if req.monthly_budget_usd <= 0:
             raise HTTPException(status_code=400, detail="monthly_budget_usd must be > 0")

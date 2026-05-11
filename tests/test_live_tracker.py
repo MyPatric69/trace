@@ -27,7 +27,13 @@ _MODEL_PRICES = {
 _SESSION_HEALTH_CFG = {
     "warn_tokens": 1_000,
     "critical_tokens": 2_000,
+    "warn_context_pct": 60,
+    "critical_context_pct": 85,
 }
+
+# Default context window = 200_000. Single-turn token amounts that hit each threshold:
+_WARN_TURN_TOKENS     = 120_000   # 60% of 200k
+_CRITICAL_TURN_TOKENS = 170_000   # 85% of 200k
 
 
 @pytest.fixture
@@ -199,7 +205,7 @@ def test_update_cost_includes_cache_creation(tmp_path, patched_tracker):
 # ---------------------------------------------------------------------------
 
 def test_update_health_green_below_warn(tmp_path, patched_tracker):
-    # warn_tokens = 1000, total = 100 + 50 = 150  → green
+    # peak_context = 100 → pct = 0.05% → green
     transcript = _write_transcript(tmp_path, [
         _assistant_turn("r1", input_tokens=100, output_tokens=50),
     ])
@@ -208,36 +214,36 @@ def test_update_health_green_below_warn(tmp_path, patched_tracker):
 
 
 def test_update_health_yellow_above_warn_threshold(tmp_path, patched_tracker):
-    # warn_tokens = 1000, total = 700 + 400 = 1100  → yellow
+    # peak_context = 130_000 → pct = 65% → yellow
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("r1", input_tokens=700, output_tokens=400),
+        _assistant_turn("r1", input_tokens=130_000, output_tokens=400),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
     assert result["health"] == "yellow"
 
 
 def test_update_health_red_above_critical_threshold(tmp_path, patched_tracker):
-    # critical_tokens = 2000, total = 1500 + 600 = 2100  → red
+    # peak_context = 180_000 → pct = 90% → red
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("r1", input_tokens=1500, output_tokens=600),
+        _assistant_turn("r1", input_tokens=180_000, output_tokens=600),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
     assert result["health"] == "red"
 
 
 def test_update_health_exactly_at_warn(tmp_path, patched_tracker):
-    # exactly at warn_tokens = 1000  → yellow
+    # peak_context = 120_000 → pct = 60.0% → yellow (threshold inclusive)
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("r1", input_tokens=600, output_tokens=400),
+        _assistant_turn("r1", input_tokens=_WARN_TURN_TOKENS, output_tokens=400),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
     assert result["health"] == "yellow"
 
 
 def test_update_health_exactly_at_critical(tmp_path, patched_tracker):
-    # exactly at critical_tokens = 2000  → red
+    # peak_context = 170_000 → pct = 85.0% → red (threshold inclusive)
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("r1", input_tokens=1200, output_tokens=800),
+        _assistant_turn("r1", input_tokens=_CRITICAL_TURN_TOKENS, output_tokens=800),
     ])
     result = LiveTracker(None).update(str(transcript), str(tmp_path))
     assert result["health"] == "red"
@@ -510,42 +516,39 @@ def test_update_no_sleep_on_second_call_with_zero_new_tokens(tmp_path, patched_t
 # ---------------------------------------------------------------------------
 
 def test_update_writes_last_health_on_warning(tmp_path, patched_tracker, last_health_path):
-    """last_health.json is written when session enters warning state (yellow)."""
-    # 1500 input + 0 cache_creation + 0 output = 1500 total
-    # Threshold: warn_tokens=1000 → health=yellow → status=warn
+    """last_health.json is written when context_pct crosses warn threshold (yellow)."""
+    # peak_context = 130_000 → pct = 65% → yellow → status=warn
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("r1", input_tokens=1500, output_tokens=100),
+        _assistant_turn("r1", input_tokens=130_000, output_tokens=100),
     ])
     LiveTracker(None).update(str(transcript), str(tmp_path))
 
     assert last_health_path.exists()
     data = json.loads(last_health_path.read_text())
     assert data["status"] == "warn"
-    assert data["tokens"] == 1600  # 1500 input + 0 cache_creation + 100 output
+    assert data["tokens"] == 130_100  # 130_000 input + 0 cache_creation + 100 output
     assert data["project"] == "unknown"
     assert "session_id" in data
     assert "updated_at" in data
 
 
 def test_update_writes_last_health_on_critical(tmp_path, patched_tracker, last_health_path):
-    """last_health.json is written when session enters critical state (red)."""
-    # 2100 input + 0 cache_creation + 0 output = 2100 total
-    # Threshold: critical_tokens=2000 → health=red → status=reset
+    """last_health.json is written when context_pct crosses critical threshold (red)."""
+    # peak_context = 180_000 → pct = 90% → red → status=reset
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("r1", input_tokens=2100, output_tokens=50),
+        _assistant_turn("r1", input_tokens=180_000, output_tokens=50),
     ])
     LiveTracker(None).update(str(transcript), str(tmp_path))
 
     assert last_health_path.exists()
     data = json.loads(last_health_path.read_text())
     assert data["status"] == "reset"
-    assert data["tokens"] == 2150  # 2100 input + 0 cache_creation + 50 output
+    assert data["tokens"] == 180_050  # 180_000 input + 0 cache_creation + 50 output
 
 
 def test_update_writes_last_health_on_green(tmp_path, patched_tracker, last_health_path):
     """last_health.json IS written even when session is healthy (green)."""
-    # 500 input + 0 cache_creation + 50 output = 550 total
-    # Threshold: warn_tokens=1000 → health=green → status=ok
+    # peak_context = 500 → pct = 0.25% → green → status=ok
     transcript = _write_transcript(tmp_path, [
         _assistant_turn("r1", input_tokens=500, output_tokens=50),
     ])
@@ -559,10 +562,10 @@ def test_update_writes_last_health_on_green(tmp_path, patched_tracker, last_heal
 
 def test_update_overwrites_last_health_when_new_session_is_green(tmp_path, patched_tracker, last_health_path):
     """last_health.json is overwritten (not deleted) when a new session starts green."""
-    # First session – red
+    # First session – red (peak_context = 180_000 → 90%)
     transcript_a = tmp_path / "session-aaa.jsonl"
     transcript_a.write_text(
-        json.dumps(_assistant_turn("r1", input_tokens=2500, output_tokens=100)) + "\n"
+        json.dumps(_assistant_turn("r1", input_tokens=180_000, output_tokens=100)) + "\n"
     )
     LiveTracker(None).update(str(transcript_a), str(tmp_path))
     assert last_health_path.exists()
@@ -586,9 +589,9 @@ def test_update_overwrites_last_health_when_new_session_is_green(tmp_path, patch
 
 def test_clear_deletes_last_health(tmp_path, patched_tracker, last_health_path):
     """LiveTracker.clear() removes both live_session.json and last_health.json."""
-    # Create a session with warning state
+    # Create a session with warning state (peak_context = 130_000 → 65% → yellow)
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("r1", input_tokens=1500, output_tokens=100),
+        _assistant_turn("r1", input_tokens=130_000, output_tokens=100),
     ])
     LiveTracker(None).update(str(transcript), str(tmp_path))
     assert last_health_path.exists()
@@ -603,9 +606,9 @@ def test_clear_deletes_last_health(tmp_path, patched_tracker, last_health_path):
 
 def test_get_last_health_returns_data_when_exists(tmp_path, patched_tracker, last_health_path):
     """get_last_health() returns the persisted health snapshot."""
-    # Create a session with warning state
+    # Create a session with warning state (peak_context = 130_000 → 65% → yellow)
     transcript = _write_transcript(tmp_path, [
-        _assistant_turn("r1", input_tokens=1500, output_tokens=100),
+        _assistant_turn("r1", input_tokens=130_000, output_tokens=100),
     ])
     LiveTracker(None).update(str(transcript), str(tmp_path))
 
@@ -613,7 +616,7 @@ def test_get_last_health_returns_data_when_exists(tmp_path, patched_tracker, las
     health = tracker.get_last_health()
     assert health is not None
     assert health["status"] == "warn"
-    assert health["tokens"] == 1600
+    assert health["tokens"] == 130_100
 
 
 def test_get_last_health_returns_none_when_missing(tmp_path, patched_tracker, last_health_path):

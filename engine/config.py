@@ -32,7 +32,12 @@ _USER_KEYS: frozenset[str] = frozenset({
 })
 
 _USER_DEFAULTS: dict = {
-    "session_health": {"warn_tokens": 120_000, "critical_tokens": 200_000},
+    "session_health": {
+        "warn_tokens": 120_000,
+        "critical_tokens": 200_000,
+        "warn_context_pct": 60,
+        "critical_context_pct": 85,
+    },
     "notifications":  {"enabled": True, "sound": True},
     "budgets":        {"default_monthly_usd": 125.0, "alert_threshold_pct": 80},
     "comparison":     {"baseline_model": "claude-sonnet-4-6"},

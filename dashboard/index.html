@@ -234,18 +234,6 @@
       border-radius: 4px;
       overflow: hidden;
     }
-    .health-thresholds {
-      position: relative;
-      height: 1.1rem;
-      margin-top: 0.3rem;
-    }
-    .health-threshold {
-      position: absolute;
-      font-family: var(--mono);
-      font-size: 0.5625rem;
-      color: var(--muted);
-      white-space: nowrap;
-    }
     /* explicit height:8px instead of height:100% — avoids percentage-
        height resolution to 0 when the parent height is computed lazily */
     .health-fill {
@@ -282,6 +270,13 @@
       background: var(--disabled-bg);
       pointer-events: none;
       color: var(--disabled-text);
+    }
+    .health-note {
+      margin-top: 0.5rem;
+      font-family: var(--mono);
+      font-size: 0.6875rem;
+      color: var(--muted);
+      letter-spacing: 0.02em;
     }
 
     /* ── Two-column ── */
@@ -1102,17 +1097,34 @@
           </label>
         </div>
         <div class="pop-divider"></div>
-        <!-- Health thresholds -->
-        <div class="pop-section-label" style="font-size:0.6563rem;">Session health thresholds</div>
+        <!-- Context window thresholds (primary health signal) -->
+        <div class="pop-section-label" style="font-size:0.6563rem;">Context window thresholds</div>
         <div class="pop-row">
-          <span class="pop-label">Warning at</span>
+          <span class="pop-label">Warn at context window</span>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-warn-context-pct" class="threshold-input" placeholder="60">
+            <span class="pop-unit">%</span>
+          </div>
+        </div>
+        <div class="pop-row">
+          <span class="pop-label">Critical at context window</span>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-critical-context-pct" class="threshold-input" placeholder="85">
+            <span class="pop-unit">%</span>
+          </div>
+        </div>
+        <div class="pop-divider"></div>
+        <!-- Session cost thresholds (cumulative tokens) -->
+        <div class="pop-section-label" style="font-size:0.6563rem;">Session cost thresholds</div>
+        <div class="pop-row">
+          <span class="pop-label">Cost warning at</span>
           <div style="display:flex;align-items:center;gap:4px;">
             <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-warn-tokens" class="threshold-input" placeholder="80000">
             <span class="pop-unit">tokens</span>
           </div>
         </div>
         <div class="pop-row">
-          <span class="pop-label">Critical at</span>
+          <span class="pop-label">Cost critical at</span>
           <div style="display:flex;align-items:center;gap:4px;">
             <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-critical-tokens" class="threshold-input" placeholder="150000">
             <span class="pop-unit">tokens</span>
@@ -1192,26 +1204,19 @@
     </div>
   </div>
 
-  <!-- 3 · Session health bar -->
+  <!-- 3 · Session cost bar -->
   <div class="health-card">
-    <div class="card-title">Session Health</div>
+    <div class="card-title">Session Cost</div>
     <div class="health-row" id="health-row">
       <div class="health-bar-wrap">
         <div class="health-bar">
           <div class="health-fill" id="health-fill" style="width:0%"></div>
         </div>
-        <div class="health-thresholds" id="health-thresholds">
-          <span class="health-threshold" style="left:0%">0</span>
-          <span class="health-threshold" id="health-warn-label" style="left:60%">warn at 30k</span>
-          <span class="health-threshold" style="left:100%;transform:translateX(-100%)">reset at 50k</span>
-        </div>
       </div>
       <div class="health-tokens" id="health-label">0 tokens</div>
     </div>
     <div class="health-summary" id="health-summary" style="display:none"></div>
-    <a class="handoff-link disabled" id="handoff-link" href="#" target="_blank">
-      Request new_session() handoff →
-    </a>
+    <div class="health-note">Cost tracker – see Context Window for quality signal</div>
   </div>
 
   <!-- 4 · Drift + Tips -->
@@ -1299,7 +1304,12 @@
 
   let selectedProject = localStorage.getItem('trace_selected_project') || '';
   let selectedDate = '';  // empty = today (default)
-  let cfg = { monthly_budget_usd: 20, alert_threshold_pct: 80 };
+  let cfg = {
+    monthly_budget_usd:   20,
+    alert_threshold_pct:  80,
+    warn_context_pct:     60,
+    critical_context_pct: 85,
+  };
   let allProjects = [];
 
   async function api(path) {
@@ -1430,8 +1440,10 @@
       api('/api/status'),
       api('/api/tokenize/models').catch(() => []),
     ]);
-    cfg.monthly_budget_usd  = s.monthly_budget_usd;
-    cfg.alert_threshold_pct = s.alert_threshold_pct;
+    cfg.monthly_budget_usd   = s.monthly_budget_usd;
+    cfg.alert_threshold_pct  = s.alert_threshold_pct;
+    if (s.warn_context_pct     != null) cfg.warn_context_pct     = s.warn_context_pct;
+    if (s.critical_context_pct != null) cfg.critical_context_pct = s.critical_context_pct;
     const sel = $('baseline-model-select');
     if (sel && models.length) {
       sel.innerHTML = [...models].sort((a, b) => a.id.localeCompare(b.id)).map(m =>
@@ -1450,12 +1462,16 @@
     if (notifSound)   notifSound.checked   = data.notifications_sound   !== false;
     updateSoundRowState();
 
-    const warnInput   = $('health-warn-tokens');
-    const critInput   = $('health-critical-tokens');
-    const budgetInput = $('monthly-budget-usd');
-    if (warnInput && data.warn_tokens != null)         warnInput.value   = data.warn_tokens;
-    if (critInput && data.critical_tokens != null)     critInput.value   = data.critical_tokens;
-    if (budgetInput && data.monthly_budget_usd != null) budgetInput.value = data.monthly_budget_usd;
+    const warnInput      = $('health-warn-tokens');
+    const critInput      = $('health-critical-tokens');
+    const warnCtxInput   = $('health-warn-context-pct');
+    const critCtxInput   = $('health-critical-context-pct');
+    const budgetInput    = $('monthly-budget-usd');
+    if (warnInput && data.warn_tokens != null)             warnInput.value    = data.warn_tokens;
+    if (critInput && data.critical_tokens != null)         critInput.value    = data.critical_tokens;
+    if (warnCtxInput && data.warn_context_pct != null)     warnCtxInput.value = data.warn_context_pct;
+    if (critCtxInput && data.critical_context_pct != null) critCtxInput.value = data.critical_context_pct;
+    if (budgetInput && data.monthly_budget_usd != null)    budgetInput.value  = data.monthly_budget_usd;
   }
 
   function updateSoundRowState() {
@@ -1501,23 +1517,31 @@
   }
 
   async function saveAllSettings() {
-    const warnInput    = $('health-warn-tokens');
-    const critInput    = $('health-critical-tokens');
-    const budgetInput  = $('monthly-budget-usd');
-    const baselineSel  = $('baseline-model-select');
-    const msg          = $('settings-save-msg');
+    const warnInput      = $('health-warn-tokens');
+    const critInput      = $('health-critical-tokens');
+    const warnCtxInput   = $('health-warn-context-pct');
+    const critCtxInput   = $('health-critical-context-pct');
+    const budgetInput    = $('monthly-budget-usd');
+    const baselineSel    = $('baseline-model-select');
+    const msg            = $('settings-save-msg');
 
-    const warn   = parseInt((warnInput   || {}).value, 10);
-    const crit   = parseInt((critInput   || {}).value, 10);
-    const budget = parseFloat((budgetInput || {}).value);
+    const warn    = parseInt((warnInput    || {}).value, 10);
+    const crit    = parseInt((critInput    || {}).value, 10);
+    const warnCtx = parseInt((warnCtxInput || {}).value, 10);
+    const critCtx = parseInt((critCtxInput || {}).value, 10);
+    const budget  = parseFloat((budgetInput || {}).value);
 
     const showErr = text => {
       if (msg) { msg.textContent = text; msg.style.color = 'var(--red)'; }
     };
 
     if (isNaN(warn) || isNaN(crit)) { showErr('Please enter a valid number'); return; }
-    if (warn <= 0) { showErr('Warning must be > 0'); return; }
-    if (warn >= crit) { showErr('Warning must be < Critical'); return; }
+    if (warn <= 0) { showErr('Cost warning must be > 0'); return; }
+    if (warn >= crit) { showErr('Cost warning must be < Cost critical'); return; }
+    if (isNaN(warnCtx) || isNaN(critCtx)) { showErr('Please enter context window %'); return; }
+    if (warnCtx <= 0 || warnCtx >= 100) { showErr('Context warn % must be 1–99'); return; }
+    if (critCtx <= 0 || critCtx > 100)  { showErr('Context critical % must be 1–100'); return; }
+    if (warnCtx >= critCtx) { showErr('Context warn % must be < Context critical %'); return; }
     if (!isNaN(budget) && budget <= 0) { showErr('Budget must be > 0'); return; }
 
     if (msg) msg.textContent = '';
@@ -1525,8 +1549,10 @@
       const payload = {
         notifications_enabled: !!($('notif-enabled') && $('notif-enabled').checked),
         notifications_sound:   !!($('notif-sound')   && $('notif-sound').checked),
-        warn_tokens:     warn,
-        critical_tokens: crit,
+        warn_tokens:          warn,
+        critical_tokens:      crit,
+        warn_context_pct:     warnCtx,
+        critical_context_pct: critCtx,
       };
       if (!isNaN(budget)) payload.monthly_budget_usd = budget;
       if (baselineSel && baselineSel.value) payload.baseline_model = baselineSel.value;
@@ -1540,6 +1566,8 @@
         throw new Error(d.detail || 'Save failed.');
       }
       if (!isNaN(budget)) cfg.monthly_budget_usd = budget;
+      cfg.warn_context_pct     = warnCtx;
+      cfg.critical_context_pct = critCtx;
       if (msg) {
         msg.textContent = 'Saved';
         msg.style.color = 'var(--teal)';
@@ -1605,12 +1633,9 @@
       $('m-budget').className       = 'metric-value ' + (pct >= cfg.alert_threshold_pct ? 'red' : pct >= cfg.alert_threshold_pct * 0.75 ? 'amber' : 'teal');
       $('m-budget-sub').textContent = '$' + spent.toFixed(2) + ' / $' + budget.toFixed(2);
 
-      // Session health bar – hidden for historical dates
+      // Session cost bar – hidden for historical dates
       $('health-row').style.display     = 'none';
       $('health-summary').style.display = 'none';
-      const link = $('handoff-link');
-      link.href      = '#';
-      link.className = 'handoff-link disabled';
 
       return;
     }
@@ -1646,15 +1671,12 @@
     $('m-budget').className       = 'metric-value ' + (pct >= cfg.alert_threshold_pct ? 'red' : pct >= cfg.alert_threshold_pct * 0.75 ? 'amber' : 'teal');
     $('m-budget-sub').textContent = '$' + spent.toFixed(2) + ' / $' + budget.toFixed(2);
 
-    // Session health bar – shown only when a specific project is selected.
+    // Session cost bar – shown only when a specific project is selected.
     // In the all-projects view the per-session thresholds don't apply to the
     // combined token total, so we hide the bar and show a summary line instead.
-    const link = $('handoff-link');
     if (!proj) {
       $('health-row').style.display     = 'none';
       $('health-summary').style.display = '';
-      link.href      = '#';
-      link.className = 'handoff-link disabled';
 
       // Count projects that logged at least one session today (parallel, silent)
       let activeProjects = 0;
@@ -1676,13 +1698,9 @@
         + tt + ' turn' + (tt !== 1 ? 's' : '') + ' today across '
         + ap + ' active project' + (ap !== 1 ? 's' : '');
     } else {
-      // Handoff link is always useful when a project is selected.
-      link.href      = '/api/new_session/' + encodeURIComponent(proj) + '?dry_run=true';
-      link.className = 'handoff-link';
-
-      // Health bar shows live session tokens only (not the daily total).
+      // Cost bar shows live session tokens only (not the daily total).
       // /api/today already carries live_* fields for the selected project.
-      // Fetch last_health from /api/live to display persisted warnings after session ends.
+      // Fetch last_health from /api/live to display the post-session bar.
       const liveParams = proj ? '?project=' + encodeURIComponent(proj) : '';
       const liveSep    = liveParams ? '&' : '?';
       let lastHealth = null;
@@ -1691,63 +1709,28 @@
         lastHealth = liveData.last_health || null;
       } catch (e) { /* silent */ }
 
+      const warnAt  = tokens.warn_at;
+      const resetAt = tokens.reset_at;
+      const renderCostBar = (total, turnCount) => {
+        const fill = $('health-fill');
+        fill.style.width = Math.min(total / resetAt * 100, 100) + '%';
+        fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
+        $('health-label').textContent = 'Turn ' + turnCount + ' · ' + num(total) + ' / ' + num(resetAt) + ' tokens';
+        $('health-row').style.display     = '';
+        $('health-summary').style.display = 'none';
+      };
+
       if (!today.live_active) {
-        // No active session – show health bar whenever last_health exists (any status)
         if (lastHealth) {
-          const warnAt  = tokens.warn_at;
-          const resetAt = tokens.reset_at;
-          const total   = lastHealth.tokens;
-          const barPct  = Math.min(total / resetAt * 100, 100);
-          const fill    = $('health-fill');
-          fill.style.width = barPct + '%';
-
-          let fillClass   = 'health-fill';
-          let statusLabel = 'Session ended';
-          if (lastHealth.status === 'reset') {
-            fillClass  += ' red';
-            statusLabel = 'Session ended (was red)';
-          } else if (lastHealth.status === 'warn') {
-            fillClass  += ' amber';
-            statusLabel = 'Session ended (was yellow)';
-          }
-          // ok: no extra class → teal/green (default health-fill color)
-          fill.className = fillClass;
-          const lastTurns = lastHealth.turns || 0;
-          $('health-label').textContent = 'Turn ' + lastTurns + ' · ' + num(total) + ' tokens – ' + statusLabel;
-
-          const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
-          $('health-warn-label').style.left      = warnPct + '%';
-          $('health-warn-label').style.transform = 'translateX(-50%)';
-          $('health-warn-label').textContent     = 'warn at ' + toK(warnAt);
-          $('health-thresholds').lastElementChild.textContent = 'reset at ' + toK(resetAt);
-
-          $('health-row').style.display     = '';
-          $('health-summary').style.display = 'none';
+          renderCostBar(lastHealth.tokens, lastHealth.turns || 0);
         } else {
-          // No last_health at all – no session has ever run
           $('health-row').style.display     = 'none';
           $('health-summary').style.display = '';
           $('health-summary').textContent   = 'No active session';
         }
       } else {
-        const warnAt  = tokens.warn_at;
-        const resetAt = tokens.reset_at;
-        const total   = (today.live_input_tokens || 0) + (today.live_cache_creation_tokens || 0);
-        const liveTurns = today.turns_total || 0;
-        const barPct  = Math.min(total / resetAt * 100, 100);
-        const fill    = $('health-fill');
-        fill.style.width = barPct + '%';
-        fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
-        $('health-label').textContent = 'Turn ' + liveTurns + ' · ' + num(total) + ' / ' + num(resetAt) + ' tokens';
-
-        const warnPct = resetAt > 0 ? Math.min(warnAt / resetAt * 100, 100) : 60;
-        $('health-warn-label').style.left      = warnPct + '%';
-        $('health-warn-label').style.transform = 'translateX(-50%)';
-        $('health-warn-label').textContent     = 'warn at ' + toK(warnAt);
-        $('health-thresholds').lastElementChild.textContent = 'reset at ' + toK(resetAt);
-
-        $('health-row').style.display     = '';
-        $('health-summary').style.display = 'none';
+        const total = (today.live_input_tokens || 0) + (today.live_cache_creation_tokens || 0);
+        renderCostBar(total, today.turns_total || 0);
       }
     }
   }
@@ -1798,10 +1781,15 @@
                         : s.health === 'warn'  ? 'Warning'
                         :                        'OK';
 
+        const warnCtxPct = cfg.warn_context_pct     || 60;
+        const critCtxPct = cfg.critical_context_pct || 85;
         const ctxPct  = s.context_window_pct || 0;
-        const ctxCls  = ctxPct >= 85 ? 'red' : ctxPct >= 60 ? 'amber' : '';
+        const ctxCls  = ctxPct >= critCtxPct ? 'red' : ctxPct >= warnCtxPct ? 'amber' : '';
         const peakK   = s.peak_context_tokens  ? Math.round(s.peak_context_tokens  / 1000) : 0;
         const windowK = s.context_window_size  ? Math.round(s.context_window_size  / 1000) : 200;
+        const handoffPart = (ctxPct >= warnCtxPct && s.project && s.project !== 'unknown')
+          ? `<a class="handoff-link" href="/api/new_session/${encodeURIComponent(s.project)}?dry_run=true" target="_blank">Request new_session() handoff →</a>`
+          : '';
         const ctxBar  = peakK > 0
           ? `<div class="ctx-bar-wrap">
                <div class="ctx-bar-header">
@@ -1809,6 +1797,7 @@
                  <span>${peakK}k / ${windowK}k (${ctxPct}%)</span>
                </div>
                <div class="ctx-bar"><div class="ctx-fill ${ctxCls}" style="width:${Math.min(ctxPct,100)}%"></div></div>
+               ${handoffPart}
              </div>`
           : '';
 

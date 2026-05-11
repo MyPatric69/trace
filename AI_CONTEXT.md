@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All phases complete – 600/600 tests green ✓
+**Status:** All phases complete – 609/609 tests green ✓
 
 ---
 
@@ -125,7 +125,7 @@ trace/
 
 ## Current phase: All phases complete
 
-**602/602 tests green ✓ (2026-05-06)**
+**609/609 tests green ✓ (2026-05-11)**
 
 **Phase 1 (complete – 24 tests):**
 - `trace_config.yaml` – project registry, model prices, session thresholds, budgets
@@ -293,9 +293,17 @@ Provides real-time context window updates sourced directly from the Claude Code 
 
 ## Next steps
 
-No open items – all phases and feature expansions complete. Tests green.
+Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engine/session_logger.py
 
 ---
+
+**Notifications driven by context-window % (complete – 7 new tests, 2026-05-11):**
+- `engine/notifier.py` – `notify(status, context_pct, project, config)` now takes the context-window percentage as its second positional argument; message text is `"Context window at {pct}% – prepare new thread"` / `"Thread reset recommended (context window {pct}%)"`. Token-based messages and the previous `tokens` parameter are gone.
+- `engine/live_tracker.py` – `context_window_pct` is now computed *before* `health`; health colour and `notify()` are driven by `warn_context_pct` (default 60) / `critical_context_pct` (default 85) instead of `warn_tokens` / `critical_tokens`. Many small turns that accumulate cumulative tokens above `warn_tokens` no longer fire notifications when peak single-turn context stays below the % threshold.
+- `trace_config.yaml` + `engine/config._USER_DEFAULTS` – `session_health` block gains `warn_context_pct: 60` and `critical_context_pct: 85`; `warn_tokens` / `critical_tokens` remain as **cost** thresholds for the dashboard cost bar.
+- `dashboard/server.py` – `GET /api/status` includes `warn_context_pct` + `critical_context_pct`; `POST /api/settings` accepts both (range checks: 1–99 for warn, 1–100 for critical, warn < critical). `SettingsRequest` extended with the two integer fields.
+- `dashboard/index.html` – section 3 renamed **Session Health → Session Cost**; threshold marker labels removed; explanatory note `"Cost tracker – see Context Window for quality signal"` added; cost-bar colour now derived purely from cumulative tokens vs. `warn_tokens` / `critical_tokens`, no longer from `last_health.status`. The `Request new_session() handoff →` link moved from the cost card into the Live Session **Context Window** bar and is rendered only when `context_window_pct >= warn_context_pct`. Settings popover gained a **Context window thresholds** section (Warn % / Critical %, used as primary quality signal) and the existing token inputs are now labelled **Session cost thresholds**.
+- Test suite reorganised: `TestLiveTrackerNotifications` token amounts updated to actually cross 60 % / 85 % of the 200 k window; new `TestContextPctNotifications` (3 tests) covers the warn/critical/no-fire-on-cost paths; new `TestContextPctSettings` (4 tests) covers `/api/status` exposure and `/api/settings` persistence + validation.
 
 **Stale session persistence (complete – 18 new tests):**
 - `engine/live_tracker.py` – `get_all_active()` now includes stale sessions with `"stale": True` (previously filtered out); `get_live()` still filters stale for callers that want only fresh sessions
@@ -306,4 +314,4 @@ No open items – all phases and feature expansions complete. Tests green.
 
 ## Last updated
 
-2026-05-06 – Documented auto AI_CONTEXT.md refresh on SessionEnd in README ("Context intelligence" + "Expected behaviour") and CLAUDE.md (hook → refresh chain). 602/602 tests green.
+2026-05-11 – Refactored health signal: notifications + handoff prompt now driven by `context_window_pct` (warn 60 % / critical 85 %); cumulative tokens are reframed as "Session Cost" only.
