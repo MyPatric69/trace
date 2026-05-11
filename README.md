@@ -295,6 +295,10 @@ on first run. The old file is left in place untouched.
 
 ```yaml
 session_health:
+  # Quality signal – drives notifications + Request new_session() handoff button.
+  warn_context_pct: 60
+  critical_context_pct: 85
+  # Cost signal – drives only the Session Cost bar in the dashboard.
   warn_tokens: 120000
   critical_tokens: 200000
 notifications:
@@ -480,12 +484,25 @@ Click the ⚙ Settings button in the dashboard header to configure:
 - Enable/disable macOS notifications when health thresholds are crossed
 - Enable/disable sound (Tink at warning, Funk at critical)
 
-**Session health thresholds**
+**Context window thresholds** (quality signal)
 
-Adjust when the session health indicator turns yellow or red.
-Three presets are available – or enter custom values:
+These percentages drive the **Context Window** bar in the Live Session panel,
+the macOS notifications, and the **Request new_session() handoff →** button.
+The percentage is taken from the Claude Code status line — it is the official
+context window load, not an estimate.
 
-| Preset | Warning at | Critical at | For |
+| Field | Default | Effect |
+|---|---|---|
+| Warn at context window | 60 % | Bar turns amber; warning notification fires once |
+| Critical at context window | 85 % | Bar turns red; reset notification fires once; handoff button appears |
+
+**Session cost thresholds** (cost signal)
+
+These token amounts drive the **Session Cost** bar only — they no longer
+fire notifications and no longer gate the handoff button. Three presets
+or custom values:
+
+| Preset | Cost warning at | Cost critical at | For |
 |---|---|---|---|
 | Economy | 50,000 tokens | 100,000 tokens | Cost-conscious workflows |
 | Standard | 80,000 tokens | 150,000 tokens | Default – recommended |
@@ -500,21 +517,29 @@ Default: $20.00. Saved immediately to `~/.trace/user_config.yaml`.
 All settings are saved immediately to `~/.trace/user_config.yaml` and
 are never overwritten by `git pull`.
 
-> **Note:** The session health bar is only visible when a specific
+> **Note:** The Session Cost bar is only visible when a specific
 > project is selected. Select your project from the dropdown in the
-> header to see the health indicator for that project's active session.
+> header to see the cost indicator for that project's active session.
+> The Context Window bar is always shown for any active session.
 
-### Session health thresholds
+### Session health & cost thresholds
 
-**Session health thresholds** are configured via the ⚙ Settings
-popover in the dashboard header (see [Settings](#settings) above).
-For power users, values can also be edited directly in
+TRACE separates two signals:
+
+- **Context window %** – the *quality* signal. Drives notifications and the
+  Request new_session() handoff button. Defaults: warn 60 %, critical 85 %.
+- **Session cost tokens** – a pure *cost* visualisation. Drives only the
+  Session Cost bar in the dashboard.
+
+Configure via the ⚙ Settings popover or directly in
 `~/.trace/user_config.yaml`:
 
 ```yaml
 session_health:
-  warn_tokens: 80000     # yellow warning
-  critical_tokens: 150000  # red critical
+  warn_context_pct: 60     # amber – warning notification fires
+  critical_context_pct: 85 # red   – reset notification + handoff button
+  warn_tokens: 80000       # Session Cost bar turns amber
+  critical_tokens: 150000  # Session Cost bar turns red
 ```
 
 ### Token Calculator – API keys for exact counts

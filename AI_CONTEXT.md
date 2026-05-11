@@ -314,4 +314,4 @@ Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engi
 
 ## Last updated
 
-2026-05-11 – Refactored health signal: notifications + handoff prompt now driven by `context_window_pct` (warn 60 % / critical 85 %); cumulative tokens are reframed as "Session Cost" only.
+2026-05-11 – Auto-synced 1 commit(s) to 65866be
