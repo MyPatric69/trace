@@ -295,10 +295,12 @@ on first run. The old file is left in place untouched.
 
 ```yaml
 session_health:
-  # Quality signal – drives notifications + Request new_session() handoff button.
+  # Quality signal – drives notifications, the Context Window bar colour,
+  # and the Request new_session() handoff button.
   warn_context_pct: 60
   critical_context_pct: 85
-  # Cost signal – drives only the Session Cost bar in the dashboard.
+  # Legacy cost-signal keys; kept for backward compatibility. No longer
+  # drive any UI element since the Session Cost panel was removed.
   warn_tokens: 120000
   critical_tokens: 200000
 notifications:
@@ -430,20 +432,20 @@ Shows live token usage, costs, drift status, and recommendations for all project
 | # | Section | What it shows |
 |---|---|---|
 | 1 | Metrics cards | Input / cache / output tokens, session cost, monthly budget % |
-| 2 | Live Session | Real-time token counts and cost; shows "paused X min ago" when inactive for >5 min; context window utilization bar showing peak context load vs. model window size |
-| 3 | Session Health | Health bar + threshold markers; handoff link |
-| 4 | Context Drift + Recommendations | Drift status per project; smart cost tips |
-| 5 | Activity | Sessions, streaks, avg. cost/session, 52-week heatmap |
+| 2 | Live Session | Real-time token counts, cost, context window utilization bar, duration, changes, and a Tokens row (`{total} total · Turn N`); shows "paused X min ago" when inactive for >5 min |
+| 3 | Context Drift + Recommendations | Drift status per project; smart cost tips |
+| 4 | Activity | Sessions, streaks, avg. cost/session, 52-week heatmap |
+| 5 | Cost Efficiency | Actual cost vs. baseline-model cost; tokenizer ratio warning when applicable |
 | 6 | Provider & Model Usage | Provider badges per project + model cost bars (last 7 days) |
 | 7 | MCP Servers | Registered MCP servers and token-overhead estimate |
 | 8 | Token Calculator | Estimate cost before sending a prompt |
 
 **Live Session panel explained:**
-- **Context window utilization bar** – shows the highest single-turn context load as a percentage of the model's context window. Calculated as `max(input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` across all turns — this reflects the actual tokens loaded into the model for that API call, including cached context. A session that is 80% cached will still show a realistic utilization here.
+- **Context Window bar** – shows the highest single-turn context load as a percentage of the model's context window. Calculated as `max(input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` across all turns — this reflects the actual tokens loaded into the model for that API call, including cached context. A session that is 80% cached will still show a realistic utilization here. Bar turns amber at `warn_context_pct` (default 60 %) and red at `critical_context_pct` (default 85 %); the **Request new_session() handoff →** link appears once the warn threshold is crossed.
   - *Without status line bridge:* updates only when the Stop hook fires (once per completed turn).
   - *With status line bridge:* updates after every assistant message, including during long tool calls. Values sourced directly from Claude Code — not estimated.
+- **Tokens row** – cumulative session tokens (`input + cache_creation + output`, cache reads excluded to avoid inflating totals) and the current turn count. Shown as a muted info row below Changes.
 - **"Paused X min ago"** – a session is marked stale after 5 minutes of inactivity. The live data is preserved so the panel doesn't disappear mid-session; the label clarifies that no new turns are being tracked.
-- **Context Window bar vs. Session Health bar** – Session Health turns yellow/red based on cumulative token spend across all turns (used for handoff recommendations); Context Window shows the peak single-turn load (used to gauge how full the model's context was at peak usage).
 
 **Activity metrics explained:**
 - **Sessions** – number of Claude Code sessions started
@@ -496,18 +498,6 @@ context window load, not an estimate.
 | Warn at context window | 60 % | Bar turns amber; warning notification fires once |
 | Critical at context window | 85 % | Bar turns red; reset notification fires once; handoff button appears |
 
-**Session cost thresholds** (cost signal)
-
-These token amounts drive the **Session Cost** bar only — they no longer
-fire notifications and no longer gate the handoff button. Three presets
-or custom values:
-
-| Preset | Cost warning at | Cost critical at | For |
-|---|---|---|---|
-| Economy | 50,000 tokens | 100,000 tokens | Cost-conscious workflows |
-| Standard | 80,000 tokens | 150,000 tokens | Default – recommended |
-| Intensive | 120,000 tokens | 200,000 tokens | Large projects / long sessions |
-
 **Monthly Budget**
 
 Set your monthly spending target in USD. The Monthly Budget card in the metrics row shows current month spend as a percentage of this target. Turns amber at 80%, red at 100%.
@@ -517,29 +507,20 @@ Default: $20.00. Saved immediately to `~/.trace/user_config.yaml`.
 All settings are saved immediately to `~/.trace/user_config.yaml` and
 are never overwritten by `git pull`.
 
-> **Note:** The Session Cost bar is only visible when a specific
-> project is selected. Select your project from the dropdown in the
-> header to see the cost indicator for that project's active session.
-> The Context Window bar is always shown for any active session.
+### Context window thresholds
 
-### Session health & cost thresholds
-
-TRACE separates two signals:
-
-- **Context window %** – the *quality* signal. Drives notifications and the
-  Request new_session() handoff button. Defaults: warn 60 %, critical 85 %.
-- **Session cost tokens** – a pure *cost* visualisation. Drives only the
-  Session Cost bar in the dashboard.
+TRACE uses a single health signal: the **context window percentage**, taken
+directly from the Claude Code status line. It drives notifications, the
+Context Window bar colour, and the **Request new_session() handoff →**
+button.
 
 Configure via the ⚙ Settings popover or directly in
 `~/.trace/user_config.yaml`:
 
 ```yaml
 session_health:
-  warn_context_pct: 60     # amber – warning notification fires
-  critical_context_pct: 85 # red   – reset notification + handoff button
-  warn_tokens: 80000       # Session Cost bar turns amber
-  critical_tokens: 150000  # Session Cost bar turns red
+  warn_context_pct: 60     # amber – warning notification fires; handoff link appears
+  critical_context_pct: 85 # red   – reset notification fires
 ```
 
 ### Token Calculator – API keys for exact counts

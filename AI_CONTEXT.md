@@ -321,4 +321,4 @@ Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engi
 
 ## Last updated
 
-2026-05-12 – Session Cost panel removed; live session tokens row added; 606 tests green
+2026-05-12 – Auto-synced 1 commit(s) to 1d65772
