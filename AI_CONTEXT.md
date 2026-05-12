@@ -323,8 +323,14 @@ Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engi
 - Side effects: the Tokens value (`{n} total · Turn N`) and the API qualifier `(API: …)` now render in mixed case as produced by JS — previously the row-level `text-transform:uppercase` forced them to ALL CAPS, which obscured the digits and the lowercase "total"/"Turn" wording.
 - No backend or test changes required; the markup change is purely additive (new class names alongside the existing structure) and all 606 tests stay green.
 
+**Token Calculator panel removed (complete – 2026-05-12, 606 tests green):**
+- `dashboard/index.html` – the bottom "Token Calculator" panel (section 8) is gone: model dropdown, textarea, output rows, context-window bar, and approximation hint. All `.calc-*` CSS rules (`.calc-controls`, `.calc-model-select`, `.calc-textarea`, `.calc-output`, `.calc-placeholder`, `.calc-row[-label|-value]`, `.calc-badge[.exact|.approx]`, `.calc-ctx-row|-label|-bar-track|-bar-fill[.amber|.red]|-pct`, `.calc-hint`) and the JS helpers (`calcCost`, `_calcTimer`, `_ctxWindow`, `loadTokenizerModels`, `runTokenize`, `onCalcInput`, `initTokenizer`, plus the `initTokenizer()` call in `init()`) deleted.
+- `dashboard/server.py` – **untouched**: the `GET /api/tokenize/models` endpoint and `POST /api/tokenize` handler stay because `loadStatus()` still fetches `/api/tokenize/models` to populate the Settings popover's Baseline-model dropdown. Backend tests in `tests/test_tokenize.py` continue to exercise both endpoints — no test removed.
+- `README.md` – Token Calculator row dropped from the dashboard sections table (the list is now sections 1–7) and the `### Token Calculator – API keys for exact counts` subsection (Anthropic / OpenAI API-key setup, Keychain snippet, estimate-mode hint) removed entirely.
+- No tests referenced the calculator UI, so the suite stays at 606 green tests.
+
 ---
 
 ## Last updated
 
-2026-05-12 – Live Session info rows aligned left (label + value side by side); 606 tests green
+2026-05-12 – Token Calculator panel removed; 606 tests green

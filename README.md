@@ -438,7 +438,6 @@ Shows live token usage, costs, drift status, and recommendations for all project
 | 5 | Cost Efficiency | Actual cost vs. baseline-model cost; tokenizer ratio warning when applicable |
 | 6 | Provider & Model Usage | Provider badges per project + model cost bars (last 7 days) |
 | 7 | MCP Servers | Registered MCP servers and token-overhead estimate |
-| 8 | Token Calculator | Estimate cost before sending a prompt |
 
 **Live Session panel explained:**
 - **Context Window bar** – shows the highest single-turn context load as a percentage of the model's context window. Calculated as `max(input_tokens + cache_creation_input_tokens + cache_read_input_tokens)` across all turns — this reflects the actual tokens loaded into the model for that API call, including cached context. A session that is 80% cached will still show a realistic utilization here. Bar turns amber at `warn_context_pct` (default 60 %) and red at `critical_context_pct` (default 85 %); the **Request new_session() handoff →** link appears once the warn threshold is crossed.
@@ -522,37 +521,6 @@ session_health:
   warn_context_pct: 60     # amber – warning notification fires; handoff link appears
   critical_context_pct: 85 # red   – reset notification fires
 ```
-
-### Token Calculator – API keys for exact counts
-
-The Token Calculator shows exact token counts when the relevant API key is available:
-
-| Model family | Required key | Without key |
-|---|---|---|
-| Claude models | `ANTHROPIC_API_KEY` | ~estimate |
-| GPT models | `OPENAI_API_KEY` | ~estimate |
-| Other models | n/a | ~estimate |
-
-The `ANTHROPIC_API_KEY` is already required for Claude Code and is available automatically if you use TRACE with Claude Code. No extra setup needed for Claude models.
-
-For GPT models, set `OPENAI_API_KEY` in your environment:
-
-```bash
-export OPENAI_API_KEY=your-key-here
-```
-
-Or store securely in macOS Keychain:
-
-```bash
-security add-generic-password -a "$USER" \
-  -s "OPENAI_API_KEY" -w "your-key-here"
-
-# Add to ~/.zshrc:
-export OPENAI_API_KEY=$(security find-generic-password \
-  -a "$USER" -s "OPENAI_API_KEY" -w 2>/dev/null)
-```
-
-The dashboard shows an amber badge with a hint when running in estimate mode.
 
 ---
 
