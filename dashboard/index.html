@@ -882,13 +882,9 @@
     }
     .ctx-bar-header {
       display: flex;
-      justify-content: space-between;
-      align-items: baseline;
+      align-items: center;
+      gap: 12px;
       font-family: var(--mono);
-      font-size: 0.5625rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
       margin-bottom: 0.3rem;
     }
     .ctx-bar {
@@ -909,17 +905,25 @@
     .ctx-fill.amber { background: var(--amber); }
     .ctx-fill.red   { background: var(--red); }
 
-    /* ── Live stat rows (duration, changes) ── */
+    /* ── Live stat rows (context window, duration, changes, tokens) ── */
     .live-stat-row {
       display: flex;
-      justify-content: space-between;
-      align-items: baseline;
+      align-items: center;
+      gap: 12px;
       font-family: var(--mono);
-      font-size: 0.5625rem;
+      margin-top: 0.45rem;
+    }
+    .live-stat-label,
+    .ctx-bar-header > .live-stat-label {
+      font-size: 0.6875rem;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.07em;
-      margin-top: 0.45rem;
+    }
+    .live-stat-value,
+    .ctx-bar-header > .live-stat-value {
+      font-size: 0.75rem;
+      color: var(--text);
     }
 
     /* ── Activity Section ── */
@@ -1588,8 +1592,8 @@
         const ctxBar  = peakK > 0
           ? `<div class="ctx-bar-wrap">
                <div class="ctx-bar-header">
-                 <span>Context Window</span>
-                 <span>${peakK}k / ${windowK}k (${ctxPct}%)</span>
+                 <span class="live-stat-label">Context Window</span>
+                 <span class="live-stat-value">${peakK}k / ${windowK}k (${ctxPct}%)</span>
                </div>
                <div class="ctx-bar"><div class="ctx-fill ${ctxCls}" style="width:${Math.min(ctxPct,100)}%"></div></div>
                ${handoffPart}
@@ -1600,8 +1604,8 @@
         const durApi   = fmtDuration(s.api_duration_ms);
         const durRow   = durTotal
           ? `<div class="live-stat-row">
-               <span>Duration</span>
-               <span>${durTotal}${durApi ? ' <span style="opacity:.65">(API: ' + durApi + ')</span>' : ''}</span>
+               <span class="live-stat-label">Duration</span>
+               <span class="live-stat-value">${durTotal}${durApi ? ' <span style="opacity:.65">(API: ' + durApi + ')</span>' : ''}</span>
              </div>`
           : '';
 
@@ -1609,8 +1613,8 @@
         const lRemoved = s.lines_removed || 0;
         const linesRow = (lAdded > 0 || lRemoved > 0)
           ? `<div class="live-stat-row">
-               <span>Changes</span>
-               <span><span style="color:var(--teal)">+${lAdded}</span> / <span style="color:var(--red)">-${lRemoved}</span></span>
+               <span class="live-stat-label">Changes</span>
+               <span class="live-stat-value"><span style="color:var(--teal)">+${lAdded}</span> / <span style="color:var(--red)">-${lRemoved}</span></span>
              </div>`
           : '';
 
@@ -1619,8 +1623,8 @@
                             + (s.output_tokens || 0);
         const tokensRow = sessionTokens > 0
           ? `<div class="live-stat-row">
-               <span>Tokens</span>
-               <span>${num(sessionTokens)} total · Turn ${s.turns}</span>
+               <span class="live-stat-label">Tokens</span>
+               <span class="live-stat-value">${num(sessionTokens)} total · Turn ${s.turns}</span>
              </div>`
           : '';
 

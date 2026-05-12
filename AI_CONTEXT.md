@@ -317,8 +317,14 @@ Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engi
 - `dashboard/server.py` – `GET /api/status` no longer returns `warn_tokens` / `critical_tokens`. Config keys are still preserved in `user_config.yaml` and `POST /api/settings` continues to accept them for backward compatibility, but no UI element consumes them anymore.
 - Tests: `test_api_status_returns_threshold_fields` flipped to `test_api_status_omits_session_cost_thresholds`; parametrized `test_api_settings_preset_values_valid` removed (3 cases) — the presets it covered are no longer in the UI. `tests/FRONTEND_TESTS.md` Test 11 (manual Session Health Bar iframe check) removed. Backend POST-settings tests for warn/critical tokens kept intact.
 
+**Live Session info rows – label/value left-aligned (complete – 2026-05-12, 606 tests green, no test changes):**
+- `dashboard/index.html` – `.ctx-bar-header` and `.live-stat-row` switched from `display:flex; justify-content:space-between` (which produced a large gap on wide viewports) to `display:flex; align-items:center; gap:12px`. Row-level `font-size`, `text-transform:uppercase`, `letter-spacing` and `color:var(--muted)` moved off the rows themselves and onto two new child classes: `.live-stat-label` (11 px / 0.6875rem, muted, uppercase, letter-spacing 0.07em) and `.live-stat-value` (12 px / 0.75rem, normal `var(--text)` colour, no transform).
+- Live-panel JS templates – each of the four info rows (Context Window, Duration, Changes, Tokens) now wraps the label span in `class="live-stat-label"` and the value span in `class="live-stat-value"`. Inner colour spans inside the Changes value (`+lines` teal, `-lines` red) and the muted `(API: …)` qualifier in the Duration value are preserved.
+- Side effects: the Tokens value (`{n} total · Turn N`) and the API qualifier `(API: …)` now render in mixed case as produced by JS — previously the row-level `text-transform:uppercase` forced them to ALL CAPS, which obscured the digits and the lowercase "total"/"Turn" wording.
+- No backend or test changes required; the markup change is purely additive (new class names alongside the existing structure) and all 606 tests stay green.
+
 ---
 
 ## Last updated
 
-2026-05-12 – Auto-synced 1 commit(s) to 1d65772
+2026-05-12 – Live Session info rows aligned left (label + value side by side); 606 tests green
