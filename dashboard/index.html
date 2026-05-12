@@ -197,13 +197,6 @@
     .metric-value.amber { color: var(--amber); }
     .metric-value.red   { color: var(--red); }
 
-    /* ── Session Health Bar ── */
-    .health-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 1rem 1.25rem;
-    }
     .card-title {
       font-family: var(--mono);
       font-size: 0.6563rem;
@@ -212,47 +205,6 @@
       text-transform: uppercase;
       letter-spacing: 0.09em;
       margin-bottom: 0.75rem;
-    }
-    /* health-row is block so the bar always has full container width
-       in iframe contexts where flex-child width can collapse to 0 */
-    .health-row {
-      display: block;
-      min-height: 2.5rem;
-    }
-    /* no position:relative / flex:1 — just a full-width block */
-    .health-bar-wrap {
-      display: block;
-      width: 100%;
-    }
-    /* explicit display:block + width:100% so the bar fills its
-       container even inside a sandboxed iframe */
-    .health-bar {
-      display: block;
-      width: 100%;
-      height: 8px;
-      background: var(--border);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    /* explicit height:8px instead of height:100% — avoids percentage-
-       height resolution to 0 when the parent height is computed lazily */
-    .health-fill {
-      display: block;
-      height: 8px;
-      border-radius: 4px;
-      transition: width 0.5s ease, background-color 0.3s;
-      background: var(--teal);
-    }
-    .health-fill.amber { background: var(--amber); }
-    .health-fill.red   { background: var(--red); }
-    /* token label now sits below the bar in block flow */
-    .health-tokens {
-      display: block;
-      font-family: var(--mono);
-      font-size: 0.75rem;
-      color: var(--muted);
-      white-space: nowrap;
-      margin-top: 0.4rem;
     }
     .handoff-link {
       display: inline-block;
@@ -270,13 +222,6 @@
       background: var(--disabled-bg);
       pointer-events: none;
       color: var(--disabled-text);
-    }
-    .health-note {
-      margin-top: 0.5rem;
-      font-family: var(--mono);
-      font-size: 0.6875rem;
-      color: var(--muted);
-      letter-spacing: 0.02em;
     }
 
     /* ── Two-column ── */
@@ -672,14 +617,6 @@
       font-weight: 600;
     }
 
-    /* ── Session Health summary (all-projects view) ── */
-    .health-summary {
-      font-family: var(--mono);
-      font-size: 0.8125rem;
-      color: var(--muted);
-      padding: 0.25rem 0;
-    }
-
     /* ── MCP Servers panel ── */
     .mcp-summary {
       font-family: var(--mono);
@@ -751,19 +688,6 @@
       text-align: right;
     }
     .threshold-input:focus { outline: none; border-color: var(--teal); }
-    .settings-preset-btn {
-      font-family: var(--mono);
-      font-size: 0.6563rem;
-      padding: 0.25rem 0.6rem;
-      background: var(--body-bg);
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      color: var(--muted);
-      cursor: pointer;
-      white-space: nowrap;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    .settings-preset-btn:hover { border-color: var(--teal); color: var(--teal); }
     .settings-save-btn {
       font-family: var(--mono);
       font-size: 0.75rem;
@@ -950,8 +874,6 @@
       min-height: 1.1em;
       margin-top: 0.375rem;
     }
-    .settings-preset-btn--default { border-color: var(--teal); color: var(--teal); }
-
     /* ── Context Window Bar (live session panel) ── */
     .ctx-bar-wrap {
       margin-top: 0.75rem;
@@ -1097,7 +1019,7 @@
           </label>
         </div>
         <div class="pop-divider"></div>
-        <!-- Context window thresholds (primary health signal) -->
+        <!-- Context window thresholds -->
         <div class="pop-section-label" style="font-size:0.6563rem;">Context window thresholds</div>
         <div class="pop-row">
           <span class="pop-label">Warn at context window</span>
@@ -1112,28 +1034,6 @@
             <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-critical-context-pct" class="threshold-input" placeholder="85">
             <span class="pop-unit">%</span>
           </div>
-        </div>
-        <div class="pop-divider"></div>
-        <!-- Session cost thresholds (cumulative tokens) -->
-        <div class="pop-section-label" style="font-size:0.6563rem;">Session cost thresholds</div>
-        <div class="pop-row">
-          <span class="pop-label">Cost warning at</span>
-          <div style="display:flex;align-items:center;gap:4px;">
-            <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-warn-tokens" class="threshold-input" placeholder="80000">
-            <span class="pop-unit">tokens</span>
-          </div>
-        </div>
-        <div class="pop-row">
-          <span class="pop-label">Cost critical at</span>
-          <div style="display:flex;align-items:center;gap:4px;">
-            <input type="text" inputmode="numeric" pattern="[0-9]*" id="health-critical-tokens" class="threshold-input" placeholder="150000">
-            <span class="pop-unit">tokens</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 4px;">
-          <button class="settings-preset-btn" onclick="applyHealthPreset(50000,100000,this)">Economy 50k/100k</button>
-          <button class="settings-preset-btn settings-preset-btn--default" onclick="applyHealthPreset(80000,150000,this)">Standard 80k/150k</button>
-          <button class="settings-preset-btn" onclick="applyHealthPreset(120000,200000,this)">Intensive 120k/200k</button>
         </div>
         <div class="pop-divider"></div>
         <!-- Monthly budget -->
@@ -1204,22 +1104,7 @@
     </div>
   </div>
 
-  <!-- 3 · Session cost bar -->
-  <div class="health-card">
-    <div class="card-title">Session Cost</div>
-    <div class="health-row" id="health-row">
-      <div class="health-bar-wrap">
-        <div class="health-bar">
-          <div class="health-fill" id="health-fill" style="width:0%"></div>
-        </div>
-      </div>
-      <div class="health-tokens" id="health-label">0 tokens</div>
-    </div>
-    <div class="health-summary" id="health-summary" style="display:none"></div>
-    <div class="health-note">Cost tracker – see Context Window for quality signal</div>
-  </div>
-
-  <!-- 4 · Drift + Tips -->
+  <!-- 3 · Drift + Tips -->
   <div class="two-col">
     <div class="panel">
       <div class="card-title">Context Drift</div>
@@ -1231,27 +1116,27 @@
     </div>
   </div>
 
-  <!-- 5 · Activity -->
+  <!-- 4 · Activity -->
   <div class="panel" id="activity-card">
     <div class="card-title">Activity</div>
     <div id="activity-stats"><div class="empty">Loading…</div></div>
     <div id="activity-heatmap"></div>
   </div>
 
-  <!-- 6 · Cost Efficiency -->
+  <!-- 5 · Cost Efficiency -->
   <div class="panel" id="efficiency-card">
     <div class="card-title">Cost Efficiency</div>
     <div id="efficiency-content"><div class="empty">Loading…</div></div>
     <div id="tokenizer-ratio-row"></div>
   </div>
 
-  <!-- 7 · Provider & Model Usage -->
+  <!-- 6 · Provider & Model Usage -->
   <div class="panel" id="provider-models-card">
     <div class="card-title">Provider &amp; Model Usage</div>
     <div id="provider-models-list"><div class="empty">Loading…</div></div>
   </div>
 
-  <!-- 8 · MCP Servers -->
+  <!-- 7 · MCP Servers -->
   <div class="panel">
     <div class="card-title">MCP Servers</div>
     <div class="mcp-summary" id="mcp-summary">Loading…</div>
@@ -1462,13 +1347,9 @@
     if (notifSound)   notifSound.checked   = data.notifications_sound   !== false;
     updateSoundRowState();
 
-    const warnInput      = $('health-warn-tokens');
-    const critInput      = $('health-critical-tokens');
     const warnCtxInput   = $('health-warn-context-pct');
     const critCtxInput   = $('health-critical-context-pct');
     const budgetInput    = $('monthly-budget-usd');
-    if (warnInput && data.warn_tokens != null)             warnInput.value    = data.warn_tokens;
-    if (critInput && data.critical_tokens != null)         critInput.value    = data.critical_tokens;
     if (warnCtxInput && data.warn_context_pct != null)     warnCtxInput.value = data.warn_context_pct;
     if (critCtxInput && data.critical_context_pct != null) critCtxInput.value = data.critical_context_pct;
     if (budgetInput && data.monthly_budget_usd != null)    budgetInput.value  = data.monthly_budget_usd;
@@ -1498,15 +1379,6 @@
     }
   }
 
-  function applyHealthPreset(warn, crit, btn) {
-    const warnInput = $('health-warn-tokens');
-    const critInput = $('health-critical-tokens');
-    if (warnInput) warnInput.value = warn;
-    if (critInput) critInput.value = crit;
-    document.querySelectorAll('.settings-preset-btn').forEach(b => b.classList.remove('settings-preset-btn--default'));
-    if (btn) btn.classList.add('settings-preset-btn--default');
-  }
-
   function toggleSettingsPopover() {
     const popover = $('settings-popover');
     const btn     = $('settings-btn');
@@ -1517,16 +1389,12 @@
   }
 
   async function saveAllSettings() {
-    const warnInput      = $('health-warn-tokens');
-    const critInput      = $('health-critical-tokens');
     const warnCtxInput   = $('health-warn-context-pct');
     const critCtxInput   = $('health-critical-context-pct');
     const budgetInput    = $('monthly-budget-usd');
     const baselineSel    = $('baseline-model-select');
     const msg            = $('settings-save-msg');
 
-    const warn    = parseInt((warnInput    || {}).value, 10);
-    const crit    = parseInt((critInput    || {}).value, 10);
     const warnCtx = parseInt((warnCtxInput || {}).value, 10);
     const critCtx = parseInt((critCtxInput || {}).value, 10);
     const budget  = parseFloat((budgetInput || {}).value);
@@ -1535,9 +1403,6 @@
       if (msg) { msg.textContent = text; msg.style.color = 'var(--red)'; }
     };
 
-    if (isNaN(warn) || isNaN(crit)) { showErr('Please enter a valid number'); return; }
-    if (warn <= 0) { showErr('Cost warning must be > 0'); return; }
-    if (warn >= crit) { showErr('Cost warning must be < Cost critical'); return; }
     if (isNaN(warnCtx) || isNaN(critCtx)) { showErr('Please enter context window %'); return; }
     if (warnCtx <= 0 || warnCtx >= 100) { showErr('Context warn % must be 1–99'); return; }
     if (critCtx <= 0 || critCtx > 100)  { showErr('Context critical % must be 1–100'); return; }
@@ -1549,8 +1414,6 @@
       const payload = {
         notifications_enabled: !!($('notif-enabled') && $('notif-enabled').checked),
         notifications_sound:   !!($('notif-sound')   && $('notif-sound').checked),
-        warn_tokens:          warn,
-        critical_tokens:      crit,
         warn_context_pct:     warnCtx,
         critical_context_pct: critCtx,
       };
@@ -1573,8 +1436,8 @@
         msg.style.color = 'var(--teal)';
         setTimeout(() => { if (msg) msg.textContent = ''; }, 2000);
       }
-      loadMetrics();     // refresh health bar + budget card with new values
-      loadEfficiency();  // refresh efficiency section with new baseline
+      loadMetrics();
+      loadEfficiency();
     } catch (e) {
       showErr(e.message || 'Save failed');
     }
@@ -1633,17 +1496,12 @@
       $('m-budget').className       = 'metric-value ' + (pct >= cfg.alert_threshold_pct ? 'red' : pct >= cfg.alert_threshold_pct * 0.75 ? 'amber' : 'teal');
       $('m-budget-sub').textContent = '$' + spent.toFixed(2) + ' / $' + budget.toFixed(2);
 
-      // Session cost bar – hidden for historical dates
-      $('health-row').style.display     = 'none';
-      $('health-summary').style.display = 'none';
-
       return;
     }
 
     // Default: today view with live session support
-    const [today, tokens, month] = await Promise.all([
+    const [today, month] = await Promise.all([
       api('/api/today' + pParam),
-      api('/api/tokens?period=today' + (proj ? `&project=${encodeURIComponent(proj)}` : '')),
       api('/api/costs' + (proj ? `/${encodeURIComponent(proj)}` : '') + '?period=month'),
     ]);
 
@@ -1670,69 +1528,6 @@
     $('m-budget').textContent     = pctStr;
     $('m-budget').className       = 'metric-value ' + (pct >= cfg.alert_threshold_pct ? 'red' : pct >= cfg.alert_threshold_pct * 0.75 ? 'amber' : 'teal');
     $('m-budget-sub').textContent = '$' + spent.toFixed(2) + ' / $' + budget.toFixed(2);
-
-    // Session cost bar – shown only when a specific project is selected.
-    // In the all-projects view the per-session thresholds don't apply to the
-    // combined token total, so we hide the bar and show a summary line instead.
-    if (!proj) {
-      $('health-row').style.display     = 'none';
-      $('health-summary').style.display = '';
-
-      // Count projects that logged at least one session today (parallel, silent)
-      let activeProjects = 0;
-      try {
-        const counts = await Promise.all(
-          allProjects.map(p =>
-            api('/api/costs/' + encodeURIComponent(p.name) + '?period=today')
-              .catch(() => ({ session_count: 0 }))
-          )
-        );
-        activeProjects = counts.filter(c => (c.session_count || 0) > 0).length;
-      } catch (e) { /* silent */ }
-
-      const sc = today.session_count || 0;
-      const tt = today.turns_total || 0;
-      const ap = activeProjects;
-      $('health-summary').textContent =
-        sc + ' session' + (sc !== 1 ? 's' : '') + ' · '
-        + tt + ' turn' + (tt !== 1 ? 's' : '') + ' today across '
-        + ap + ' active project' + (ap !== 1 ? 's' : '');
-    } else {
-      // Cost bar shows live session tokens only (not the daily total).
-      // /api/today already carries live_* fields for the selected project.
-      // Fetch last_health from /api/live to display the post-session bar.
-      const liveParams = proj ? '?project=' + encodeURIComponent(proj) : '';
-      const liveSep    = liveParams ? '&' : '?';
-      let lastHealth = null;
-      try {
-        const liveData = await api('/api/live' + liveParams + liveSep + 't=' + Date.now());
-        lastHealth = liveData.last_health || null;
-      } catch (e) { /* silent */ }
-
-      const warnAt  = tokens.warn_at;
-      const resetAt = tokens.reset_at;
-      const renderCostBar = (total, turnCount) => {
-        const fill = $('health-fill');
-        fill.style.width = Math.min(total / resetAt * 100, 100) + '%';
-        fill.className   = 'health-fill' + (total >= resetAt ? ' red' : total >= warnAt ? ' amber' : '');
-        $('health-label').textContent = 'Turn ' + turnCount + ' · ' + num(total) + ' / ' + num(resetAt) + ' tokens';
-        $('health-row').style.display     = '';
-        $('health-summary').style.display = 'none';
-      };
-
-      if (!today.live_active) {
-        if (lastHealth) {
-          renderCostBar(lastHealth.tokens, lastHealth.turns || 0);
-        } else {
-          $('health-row').style.display     = 'none';
-          $('health-summary').style.display = '';
-          $('health-summary').textContent   = 'No active session';
-        }
-      } else {
-        const total = (today.live_input_tokens || 0) + (today.live_cache_creation_tokens || 0);
-        renderCostBar(total, today.turns_total || 0);
-      }
-    }
   }
 
   // ── Live session panel ────────────────────────────────────────────────────
@@ -1819,6 +1614,16 @@
              </div>`
           : '';
 
+        const sessionTokens = (s.input_tokens || 0)
+                            + (s.cache_creation_tokens || 0)
+                            + (s.output_tokens || 0);
+        const tokensRow = sessionTokens > 0
+          ? `<div class="live-stat-row">
+               <span>Tokens</span>
+               <span>${num(sessionTokens)} total · Turn ${s.turns}</span>
+             </div>`
+          : '';
+
         body.innerHTML = `
           <div class="live-metrics">
             <div class="live-metric">
@@ -1839,7 +1644,7 @@
             </div>
             <div class="live-health ${healthCls}">${healthLbl}</div>
           </div>
-          ${ctxBar}${durRow}${linesRow}`;
+          ${ctxBar}${durRow}${linesRow}${tokensRow}`;
       } else {
         // Multiple sessions – compact list view
         const activeCount = d.sessions.filter(s => !s.stale).length;

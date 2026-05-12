@@ -668,12 +668,10 @@ def test_api_live_project_filter_last_health(client, monkeypatch):
 # GET /api/status – health threshold fields
 # ---------------------------------------------------------------------------
 
-def test_api_status_returns_threshold_fields(client):
+def test_api_status_omits_session_cost_thresholds(client):
     data = client.get("/api/status").json()
-    assert "warn_tokens" in data
-    assert "critical_tokens" in data
-    assert data["warn_tokens"] == 80_000
-    assert data["critical_tokens"] == 150_000
+    assert "warn_tokens" not in data
+    assert "critical_tokens" not in data
 
 
 # ---------------------------------------------------------------------------
@@ -730,17 +728,6 @@ def test_api_settings_validation_warn_greater_than_critical_returns_400(client, 
 
     res = client.post("/api/settings", json={"warn_tokens": 200_000, "critical_tokens": 100_000})
     assert res.status_code == 400
-
-
-@pytest.mark.parametrize("warn,critical", [
-    (50_000, 100_000),   # Sparsam
-    (80_000, 150_000),   # Standard
-    (120_000, 200_000),  # Intensiv
-])
-def test_api_settings_preset_values_valid(warn, critical):
-    """All dashboard presets must satisfy warn > 0 and warn < critical."""
-    assert warn > 0
-    assert warn < critical
 
 
 def test_api_status_returns_monthly_budget_usd(client):

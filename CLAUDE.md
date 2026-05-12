@@ -33,7 +33,7 @@ trace_config.yaml           Single source of truth: db path, model prices, budge
 
 ## Current Phase
 
-**All phases complete – 609 tests green.**
+**All phases complete – 606 tests green.**
 Dashboard stable: stale session indicator ("paused X min ago", 5-min threshold),
 context window utilization bar (peak = max(input + cache_creation + cache_read) per turn),
 day picker, provider badges, persistent health indicator, enriched handoff prompt,
@@ -42,8 +42,9 @@ activity stats, 52-week heatmap, monthly budget tracking, cost efficiency panel.
 **Health signal:** notifications and the `Request new_session()` handoff button are driven by
 `context_window_pct` (defaults: warn 60 %, critical 85 %) – the quality signal sourced
 from the Claude Code status line. Cumulative tokens (`warn_tokens` / `critical_tokens`)
-remain in `session_health` but are now a pure cost signal: they only colour the
-**Session Cost** bar in the dashboard.
+remain in `session_health` config for backward compat but no longer drive any UI –
+the dedicated **Session Cost** panel was removed; cumulative session tokens are now
+shown as a muted info row inside the **Live Session** panel.
 
 ## Runtime Rules
 
@@ -97,10 +98,10 @@ Both paths share the same logic: rewrite `AI_CONTEXT.md` only when there are doc
 Order (top to bottom):
 
 1. Metrics cards – input / cache / output tokens, session cost, monthly budget %
-2. Live Session – real-time token counts for the active session
-3. Session Cost – cumulative-token bar (colour from `warn_tokens` / `critical_tokens`); explanatory note pointing to Context Window as the quality signal. Handoff link now lives inside the Live Session Context Window bar, shown when `context_window_pct >= warn_context_pct`.
-4. Context Drift + Recommendations – drift status per project; smart cost tips
-5. Activity – sessions, streaks, avg. cost/session, 52-week heatmap
+2. Live Session – real-time token counts for the active session, including a Tokens row (`{total} total · Turn N`) below Changes. Handoff link lives inside the Context Window bar, shown when `context_window_pct >= warn_context_pct`.
+3. Context Drift + Recommendations – drift status per project; smart cost tips
+4. Activity – sessions, streaks, avg. cost/session, 52-week heatmap
+5. Cost Efficiency – actual vs. baseline-model cost
 6. Provider & Model Usage – provider badges + model cost bars, merged section
 7. MCP Servers – registered servers + token-overhead estimate
 8. Token Calculator – estimate cost before sending a prompt
@@ -108,7 +109,7 @@ Order (top to bottom):
 ## API Endpoints
 
 ```
-GET  /api/status               – health, warn_tokens, critical_tokens, warn_context_pct, critical_context_pct, monthly_budget_usd, baseline_model
+GET  /api/status               – health, warn_context_pct, critical_context_pct, monthly_budget_usd, baseline_model
 GET  /api/projects
 GET  /api/costs                ?period=
 GET  /api/costs/{project}      ?period=

@@ -310,8 +310,15 @@ Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engi
 - `dashboard/server.py` – `api_today()` filters stale sessions from live totals to avoid double-counting
 - `dashboard/index.html` – Live Session panel shows "paused X min ago" label next to project name for stale sessions; multi-session view summarises "N active, M paused sessions"; `pausedLabel()` helper computes minutes/hours since `updated_at`; `.live-paused` CSS class added
 
+**Session Cost panel removed, tokens folded into Live Session row (complete – 2026-05-12, 606 tests green):**
+- `dashboard/index.html` – section 3 (the entire **Session Cost** card with cumulative-token bar, threshold labels, and "Cost tracker" note) deleted; remaining sections renumbered 3–7. All `.health-card` / `.health-row` / `.health-bar` / `.health-bar-wrap` / `.health-fill` / `.health-tokens` / `.health-note` / `.health-summary` CSS removed; matching JS (`renderCostBar`, `loadMetrics` cost-bar branches, the `/api/tokens` fetch used only for `warn_at`/`reset_at`) removed.
+- Live Session panel now shows a single muted secondary row below `Changes`: `Tokens · {input + cache_creation + output} total · Turn N`. Rendered only when the session has logged tokens (`sessionTokens > 0`).
+- Settings popover – **Session cost thresholds** section (warn/critical token inputs + Economy/Standard/Intensive preset buttons) removed; `applyHealthPreset()` and the `.settings-preset-btn` / `.settings-preset-btn--default` CSS gone. `loadSettings()` and `saveAllSettings()` no longer touch `warn_tokens` / `critical_tokens`. Context window thresholds remain.
+- `dashboard/server.py` – `GET /api/status` no longer returns `warn_tokens` / `critical_tokens`. Config keys are still preserved in `user_config.yaml` and `POST /api/settings` continues to accept them for backward compatibility, but no UI element consumes them anymore.
+- Tests: `test_api_status_returns_threshold_fields` flipped to `test_api_status_omits_session_cost_thresholds`; parametrized `test_api_settings_preset_values_valid` removed (3 cases) — the presets it covered are no longer in the UI. `tests/FRONTEND_TESTS.md` Test 11 (manual Session Health Bar iframe check) removed. Backend POST-settings tests for warn/critical tokens kept intact.
+
 ---
 
 ## Last updated
 
-2026-05-11 – Auto-synced 1 commit(s) to 65866be
+2026-05-12 – Session Cost panel removed; live session tokens row added; 606 tests green

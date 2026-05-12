@@ -241,8 +241,6 @@ def api_status():
         "alert_threshold_pct": budgets.get("alert_threshold_pct", 80),
         "notifications_enabled": notif_cfg.get("enabled", True),
         "notifications_sound": notif_cfg.get("sound", True),
-        "warn_tokens": health_cfg.get("warn_tokens", 80_000),
-        "critical_tokens": health_cfg.get("critical_tokens", 150_000),
         "warn_context_pct": health_cfg.get("warn_context_pct", 60),
         "critical_context_pct": health_cfg.get("critical_context_pct", 85),
         "baseline_model": comparison_cfg.get("baseline_model", "claude-sonnet-4-6"),
