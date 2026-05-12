@@ -329,8 +329,17 @@ Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engi
 - `README.md` – Token Calculator row dropped from the dashboard sections table (the list is now sections 1–7) and the `### Token Calculator – API keys for exact counts` subsection (Anthropic / OpenAI API-key setup, Keychain snippet, estimate-mode hint) removed entirely.
 - No tests referenced the calculator UI, so the suite stays at 606 green tests.
 
+**Dead-code cleanup in engine/ and dashboard/server.py (complete – 2026-05-12, 606 tests green):**
+- Scanned with `ruff check --select F,E501` and `vulture`. The full ruff/pyflakes report came back to three findings (F401 / F541), all addressed; `--select F841,F811,F823` (unused locals, redefinitions, undefined names) reports clean. Most vulture hits were 60 %-confidence false positives — FastAPI route handlers registered via `@app.get/.post/.websocket(...)` decorators, plus class methods exercised only by tests — verified by grepping callers across `engine/`, `server/`, `dashboard/`, `tests/`, and `hooks/`.
+- `engine/store.py` – removed `import shutil` (never referenced) and the orphan `get_sessions_with_projects()` method (~34 lines): defined in Phase 4 but never wired up to any caller or test. The historical AI_CONTEXT.md entry for Phase 4 that mentions this method is now stale — leaving it as a note rather than rewriting history.
+- `engine/providers/anthropic.py` – removed `import subprocess` (never referenced).
+- `engine/providers/vertexai.py` – stripped extraneous `f` prefix on the Cloud Billing Budgets URL literal that contained no placeholders (F541).
+- `engine/config.py` – removed the `USER_CONFIG_PATH = TRACE_HOME / "user_config.yaml"` class attribute on `TraceConfig` (never read; the constructor uses `self._user_path` everywhere) and the `get_user_setting()` method (never called anywhere — `save_user_setting()` kept since `tests/test_config.py` exercises it).
+- No commented-out blocks of real code were found in the scanned files (`grep -rEn "^\s*#\s*(def |class |from |import )"` returned empty).
+- After each file edit, ran the relevant focused test module; the final `pytest tests/ -v` finished at 606 / 606 passed.
+
 ---
 
 ## Last updated
 
-2026-05-12 – Token Calculator panel removed; 606 tests green
+2026-05-12 – Dead-code cleanup in engine/* and dashboard/server.py; 606 tests green

@@ -62,7 +62,6 @@ class TraceConfig:
     """
 
     _REPO_ROOT = Path(__file__).parents[1]
-    USER_CONFIG_PATH = TRACE_HOME / "user_config.yaml"
 
     def __init__(
         self,
@@ -169,10 +168,6 @@ class TraceConfig:
         return models.get(model) or next(
             (v for k, v in models.items() if model.startswith(k)), None
         )
-
-    def get_user_setting(self, key: str, default=None):
-        """Return a top-level user setting by key."""
-        return self.user_config.get(key, default)
 
     def save_user_setting(self, key: str, value) -> None:
         """Persist a single top-level user setting and rebuild merged."""

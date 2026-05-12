@@ -131,7 +131,7 @@ class VertexAIProvider(AbstractProvider):
 
             # Cloud Billing API – get budget information
             req = urllib.request.Request(
-                f"https://billingbudgets.googleapis.com/v1/billingAccounts/-/budgets",
+                "https://billingbudgets.googleapis.com/v1/billingAccounts/-/budgets",
                 headers={"Authorization": f"Bearer {token}"},
             )
             with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:

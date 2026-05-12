@@ -1,4 +1,3 @@
-import shutil
 import sqlite3
 from pathlib import Path
 from datetime import date, datetime
@@ -335,41 +334,6 @@ class TraceStore:
 
             rows = conn.execute(
                 f"SELECT * FROM sessions {where} ORDER BY created_at DESC LIMIT ?",
-                params,
-            ).fetchall()
-            return [dict(r) for r in rows]
-
-    def get_sessions_with_projects(
-        self,
-        project_name: str | None = None,
-        limit: int = 100,
-        since_date: str | None = None,
-    ) -> list[dict]:
-        """Returns sessions joined with project name, optionally filtered."""
-        with self._connect() as conn:
-            conditions: list[str] = []
-            params: list = []
-
-            if project_name is not None:
-                project = self.get_project(project_name)
-                if project is None:
-                    return []
-                conditions.append("s.project_id = ?")
-                params.append(project["id"])
-
-            if since_date is not None:
-                conditions.append("s.date >= ?")
-                params.append(since_date)
-
-            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-            params.append(limit)
-
-            rows = conn.execute(
-                f"""SELECT s.*, p.name AS project_name
-                    FROM sessions s
-                    JOIN projects p ON p.id = s.project_id
-                    {where}
-                    ORDER BY s.created_at DESC LIMIT ?""",
                 params,
             ).fetchall()
             return [dict(r) for r in rows]
