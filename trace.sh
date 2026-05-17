@@ -168,6 +168,22 @@ sys.path.insert(0, '$SCRIPT_DIR')
 from engine.store import TraceStore
 store = TraceStore.default()
 store.init_db()
+
+conflicts = store.check_parent_conflicts('$path')
+if conflicts:
+    names = ', '.join(p['name'] for p in conflicts)
+    print(f'  ⚠️  Warning: the following already-registered projects are')
+    print(f'     subdirectories of \`$path\`:')
+    for p in conflicts:
+        print(f'       • {p[\"name\"]}  ({p[\"path\"]})')
+    print(f'     Registering this path will shadow them in live-session')
+    print(f'     detection. Consider registering each project individually')
+    print(f'     instead of the parent directory.')
+    answer = input('  Continue anyway? [y/N] ').strip().lower()
+    if answer != 'y':
+        print('  Registration cancelled.')
+        sys.exit(0)
+
 try:
     store.add_project('$name', '$path', '')
     print('  Registered: $name')

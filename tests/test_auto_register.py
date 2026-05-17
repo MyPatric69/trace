@@ -25,7 +25,7 @@ def ar_env(tmp_path, tmp_store: TraceStore, monkeypatch):
 def test_register_if_unknown_returns_correct_structure(ar_env):
     tmp_path, _ = ar_env
     result = register_if_unknown(str(tmp_path))
-    for key in ("registered", "project_name", "project_path", "message"):
+    for key in ("registered", "project_name", "project_path", "message", "conflicts"):
         assert key in result, f"missing key: {key}"
 
 
@@ -84,6 +84,51 @@ def test_register_if_unknown_idempotent_second_call(ar_env, monkeypatch):
     assert result1["registered"] is True
     assert result2["registered"] is False
     assert len(store.list_projects()) == 1
+
+
+# ---------------------------------------------------------------------------
+# register_if_unknown – parent conflict detection
+# ---------------------------------------------------------------------------
+
+def test_register_if_unknown_warns_when_path_is_parent_of_existing(ar_env, monkeypatch):
+    tmp_path, store = ar_env
+    parent = tmp_path / "workspace"
+    child = parent / "alpha"
+    parent.mkdir(); child.mkdir()
+
+    store.add_project("alpha", str(child))
+    monkeypatch.setattr(ar_module, "_detect_project_name", lambda p: "workspace")
+
+    result = register_if_unknown(str(parent))
+
+    assert result["registered"] is True
+    assert len(result["conflicts"]) == 1
+    assert result["conflicts"][0]["name"] == "alpha"
+    assert "WARNING" in result["message"]
+    assert "alpha" in result["message"]
+
+
+def test_register_if_unknown_no_conflicts_when_leaf(ar_env, monkeypatch):
+    tmp_path, _ = ar_env
+    monkeypatch.setattr(ar_module, "_detect_project_name", lambda p: "leaf")
+
+    result = register_if_unknown(str(tmp_path))
+
+    assert result["registered"] is True
+    assert result["conflicts"] == []
+    assert "WARNING" not in result["message"]
+
+
+def test_register_if_unknown_conflicts_key_present_when_skipped(ar_env, monkeypatch):
+    tmp_path, store = ar_env
+    name = tmp_path.name
+    monkeypatch.setattr(ar_module, "_detect_project_name", lambda p: name)
+    store.add_project(name, str(tmp_path))
+
+    result = register_if_unknown(str(tmp_path))
+
+    assert result["registered"] is False
+    assert "conflicts" in result
 
 
 # ---------------------------------------------------------------------------

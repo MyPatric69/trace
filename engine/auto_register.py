@@ -60,7 +60,10 @@ def register_if_unknown(project_path: str) -> dict:
             "project_name": name,
             "project_path": resolved,
             "message": f"Project '{name}' already registered.",
+            "conflicts": [],
         }
+
+    conflicts = store.check_parent_conflicts(resolved)
 
     try:
         store.add_project(name, resolved)
@@ -70,13 +73,23 @@ def register_if_unknown(project_path: str) -> dict:
             "project_name": name,
             "project_path": resolved,
             "message": f"Registration failed: {exc}",
+            "conflicts": [],
         }
+
+    msg = f"Project '{name}' registered at {resolved}."
+    if conflicts:
+        shadowed = ", ".join(p["name"] for p in conflicts)
+        msg += (
+            f" WARNING: this path is a parent of already-registered project(s): "
+            f"{shadowed}. Those projects will be shadowed in live-session detection."
+        )
 
     return {
         "registered": True,
         "project_name": name,
         "project_path": resolved,
-        "message": f"Project '{name}' registered at {resolved}.",
+        "message": msg,
+        "conflicts": conflicts,
     }
 
 

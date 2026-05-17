@@ -147,6 +147,26 @@ class TraceStore:
             )
             return cursor.lastrowid
 
+    def check_parent_conflicts(self, path: str) -> list[dict]:
+        """Return registered projects whose paths are children of *path*.
+
+        If any are returned, registering *path* would cause those projects to
+        be shadowed by the ancestor-match logic in LiveTracker – all their
+        sessions would be attributed to the new entry instead.
+        """
+        resolved = Path(path).resolve()
+        conflicts = []
+        for proj in self.list_projects():
+            proj_resolved = Path(proj["path"]).resolve()
+            if proj_resolved == resolved:
+                continue
+            try:
+                proj_resolved.relative_to(resolved)
+                conflicts.append(proj)
+            except ValueError:
+                pass
+        return conflicts
+
     def get_project(self, name: str) -> dict | None:
         with self._connect() as conn:
             row = conn.execute(

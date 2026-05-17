@@ -241,25 +241,31 @@ class LiveTracker:
                 if store is not None:
                     self._store = store
                     resolved = Path(project_path).resolve()
+                    exact_match: str | None = None
+                    best_ancestor: tuple[int, str] | None = None  # (depth, name)
+                    name_match: str | None = None
                     for proj in store.list_projects():
                         proj_resolved = Path(proj["path"]).resolve()
-                        # 1. Exact match
+                        # 1. Exact match – highest priority, stop immediately
                         if resolved == proj_resolved:
-                            self.project_name = proj["name"]
+                            exact_match = proj["name"]
                             break
-                        # 2. Ancestor match: cwd is inside the registered project path
-                        #    (handles the common case where Claude Code passes the
-                        #    currently-open subdirectory, e.g. /project/app/ui)
+                        # 2. Ancestor match: keep the deepest (most specific) one
                         try:
                             resolved.relative_to(proj_resolved)
-                            self.project_name = proj["name"]
-                            break
+                            depth = len(proj_resolved.parts)
+                            if best_ancestor is None or depth > best_ancestor[0]:
+                                best_ancestor = (depth, proj["name"])
                         except ValueError:
                             pass
                         # 3. Name fallback: last path component matches
-                        if resolved.name == proj_resolved.name:
-                            self.project_name = proj["name"]
-                            break
+                        if name_match is None and resolved.name == proj_resolved.name:
+                            name_match = proj["name"]
+                    self.project_name = (
+                        exact_match
+                        or (best_ancestor[1] if best_ancestor else None)
+                        or name_match
+                    )
             except Exception as exc:
                 _log.error("LiveTracker.__init__ failed for %s: %s", project_path, exc)
 

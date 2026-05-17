@@ -59,6 +59,52 @@ def test_list_projects_returns_all(tmp_store: TraceStore):
 
 
 # ---------------------------------------------------------------------------
+# check_parent_conflicts
+# ---------------------------------------------------------------------------
+
+def test_check_parent_conflicts_detects_child_projects(tmp_store: TraceStore, tmp_path):
+    parent = tmp_path / "workspace"
+    child_a = parent / "alpha"
+    child_b = parent / "beta"
+    parent.mkdir(); child_a.mkdir(); child_b.mkdir()
+
+    tmp_store.add_project("alpha", str(child_a))
+    tmp_store.add_project("beta", str(child_b))
+
+    conflicts = tmp_store.check_parent_conflicts(str(parent))
+    names = {p["name"] for p in conflicts}
+    assert names == {"alpha", "beta"}
+
+
+def test_check_parent_conflicts_ignores_unrelated_projects(tmp_store: TraceStore, tmp_path):
+    workspace = tmp_path / "workspace"
+    other = tmp_path / "other"
+    child = workspace / "alpha"
+    workspace.mkdir(); other.mkdir(); child.mkdir()
+
+    tmp_store.add_project("alpha", str(child))
+    tmp_store.add_project("other", str(other))
+
+    conflicts = tmp_store.check_parent_conflicts(str(workspace))
+    assert len(conflicts) == 1
+    assert conflicts[0]["name"] == "alpha"
+
+
+def test_check_parent_conflicts_returns_empty_for_leaf_project(tmp_store: TraceStore, tmp_path):
+    leaf = tmp_path / "leaf"
+    leaf.mkdir()
+    tmp_store.add_project("leaf", str(leaf))
+
+    conflicts = tmp_store.check_parent_conflicts(str(leaf))
+    assert conflicts == []
+
+
+def test_check_parent_conflicts_returns_empty_when_no_projects(tmp_store: TraceStore, tmp_path):
+    conflicts = tmp_store.check_parent_conflicts(str(tmp_path))
+    assert conflicts == []
+
+
+# ---------------------------------------------------------------------------
 # add_session
 # ---------------------------------------------------------------------------
 
