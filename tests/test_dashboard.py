@@ -736,6 +736,37 @@ def test_api_status_returns_monthly_budget_usd(client):
     assert data["monthly_budget_usd"] == 20.0
 
 
+def test_api_status_returns_billing_mode_default(client):
+    data = client.get("/api/status").json()
+    assert "billing_mode" in data
+    assert data["billing_mode"] == "api"
+
+
+def test_api_settings_saves_billing_mode(client, tmp_path, monkeypatch):
+    config = {"notifications": {}, "billing": {"mode": "api"}}
+    saved = _patch_config(monkeypatch, tmp_path, config)
+
+    res = client.post("/api/settings", json={"billing_mode": "pro"})
+    assert res.status_code == 200
+    assert saved["config"]["billing"]["mode"] == "pro"
+
+
+def test_api_settings_billing_mode_all_valid_values(client, tmp_path, monkeypatch):
+    for mode in ("api", "pro", "max"):
+        config = {"notifications": {}, "billing": {"mode": "api"}}
+        saved = _patch_config(monkeypatch, tmp_path, config)
+        res = client.post("/api/settings", json={"billing_mode": mode})
+        assert res.status_code == 200, f"mode={mode} should be valid"
+        assert saved["config"]["billing"]["mode"] == mode
+
+
+def test_api_settings_billing_mode_invalid_rejected(client, tmp_path, monkeypatch):
+    config = {"notifications": {}, "billing": {"mode": "api"}}
+    _patch_config(monkeypatch, tmp_path, config)
+    res = client.post("/api/settings", json={"billing_mode": "enterprise"})
+    assert res.status_code == 400
+
+
 def test_api_settings_saves_monthly_budget_usd(client, tmp_path, monkeypatch):
     config = {
         "notifications": {"enabled": True, "sound": True},

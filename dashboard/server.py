@@ -231,6 +231,7 @@ def api_status():
     notif_cfg = store.config.get("notifications") or {}
     health_cfg = store.config.get("session_health", {})
     comparison_cfg = store.config.get("comparison", {})
+    billing_cfg = store.config.get("billing", {})
     return {
         "trace_version": cfg.get("version", "0.1.0"),
         "db_path": db_str,
@@ -244,6 +245,7 @@ def api_status():
         "warn_context_pct": health_cfg.get("warn_context_pct", 60),
         "critical_context_pct": health_cfg.get("critical_context_pct", 85),
         "baseline_model": comparison_cfg.get("baseline_model", "claude-sonnet-4-6"),
+        "billing_mode": billing_cfg.get("mode", "api"),
     }
 
 
@@ -675,6 +677,8 @@ def api_live_clear():
 # /api/settings  (notification preferences)
 # ---------------------------------------------------------------------------
 
+_BILLING_MODES = {"api", "pro", "max"}
+
 class SettingsRequest(BaseModel):
     notifications_enabled: bool | None = None
     notifications_sound: bool | None = None
@@ -684,6 +688,7 @@ class SettingsRequest(BaseModel):
     critical_context_pct: int | None = None
     monthly_budget_usd: float | None = None
     baseline_model: str | None = None
+    billing_mode: str | None = None
 
 
 @app.post("/api/settings")
@@ -743,6 +748,11 @@ def api_settings_update(req: SettingsRequest):
             raise HTTPException(status_code=400, detail=f"Unknown model: {req.baseline_model}")
         comparison = config.setdefault("comparison", {})
         comparison["baseline_model"] = req.baseline_model
+    if req.billing_mode is not None:
+        if req.billing_mode not in _BILLING_MODES:
+            raise HTTPException(status_code=400, detail=f"billing_mode must be one of: {sorted(_BILLING_MODES)}")
+        billing = config.setdefault("billing", {})
+        billing["mode"] = req.billing_mode
     _save_and_sync_config(path, config)
     return {"status": "ok"}
 

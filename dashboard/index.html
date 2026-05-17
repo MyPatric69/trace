@@ -72,7 +72,38 @@
       position: sticky;
       top: 0;
       z-index: 100;
+      box-shadow: inset 0 -2px 0 rgba(78,205,196,0.25);
+      transition: box-shadow 0.3s;
     }
+    header[data-mode="pro"] { box-shadow: inset 0 -2px 0 rgba(167,139,250,0.5); }
+    header[data-mode="max"] { box-shadow: inset 0 -2px 0 rgba(255,178,43,0.5); }
+    .license-badge {
+      display: flex; align-items: center; gap: 0.3rem;
+      font-family: var(--mono); font-size: 0.6875rem;
+      letter-spacing: 0.06em; font-weight: 600; text-transform: uppercase;
+      border-radius: 4px; padding: 0.18rem 0.5rem;
+      border: 1px solid; white-space: nowrap; cursor: default;
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .license-badge.mode-api { color: var(--teal);  border-color: rgba(78,205,196,0.35);  background: rgba(78,205,196,0.07); }
+    .license-badge.mode-pro { color: #a78bfa;       border-color: rgba(167,139,250,0.45); background: rgba(167,139,250,0.09); }
+    .license-badge.mode-max { color: var(--amber);  border-color: rgba(255,178,43,0.45);  background: rgba(255,178,43,0.09); }
+    /* License pills in settings popover */
+    .license-pill-group { display: flex; gap: 5px; margin: 4px 0 2px; }
+    .license-pill {
+      flex: 1; background: transparent;
+      border: 1px solid rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.45);
+      border-radius: 4px; padding: 5px 2px;
+      font-size: 0.5625rem; font-family: var(--mono);
+      letter-spacing: 0.04em; cursor: pointer;
+      text-transform: uppercase; font-weight: 600;
+      transition: all 0.15s;
+    }
+    .license-pill:hover { border-color: rgba(255,255,255,0.35); color: rgba(255,255,255,0.7); }
+    .license-pill.active[data-mode="api"] { color: var(--teal);  border-color: var(--teal);  background: rgba(78,205,196,0.1); }
+    .license-pill.active[data-mode="pro"] { color: #a78bfa; border-color: #a78bfa; background: rgba(167,139,250,0.12); }
+    .license-pill.active[data-mode="max"] { color: var(--amber); border-color: var(--amber); background: rgba(255,178,43,0.1); }
     .logo {
       font-family: var(--mono);
       font-size: 0.9375rem;
@@ -196,6 +227,13 @@
     .metric-value.teal  { color: var(--teal); }
     .metric-value.amber { color: var(--amber); }
     .metric-value.red   { color: var(--red); }
+    .est-note {
+      font-size: 0.5625rem; font-family: var(--mono); letter-spacing: 0.05em;
+      margin-top: 3px; display: none;
+    }
+    .est-note.visible { display: block; }
+    .est-note.mode-pro { color: #a78bfa; }
+    .est-note.mode-max { color: var(--amber); }
 
     .card-title {
       font-family: var(--mono);
@@ -890,7 +928,7 @@
 </head>
 <body>
 
-<header>
+<header data-mode="api">
   <div class="logo">TRACE</div>
   <div class="proj-dropdown" id="proj-dropdown">
     <button class="proj-trigger" id="proj-trigger" type="button" onclick="toggleDropdown()">
@@ -903,6 +941,7 @@
     <option value="">All Projects</option>
   </select>
   <div class="header-right">
+    <div class="license-badge mode-api" id="license-badge">◆ API Key</div>
     <div class="mcp-badge"><span class="dot"></span> MCP</div>
     <div class="ws-badge"><span class="dot ws-dot" id="ws-dot"></span> WS</div>
     <div class="provider-badge" id="provider-badge"></div>
@@ -912,6 +951,14 @@
         Settings
       </button>
       <div class="settings-popover" id="settings-popover">
+        <!-- Billing mode -->
+        <div class="pop-section-label">Claude Code License</div>
+        <div class="license-pill-group" id="license-pills">
+          <button class="license-pill" data-mode="api" onclick="setLicenseMode('api')">◆ API Key</button>
+          <button class="license-pill" data-mode="pro" onclick="setLicenseMode('pro')">⚡ Pro</button>
+          <button class="license-pill" data-mode="max" onclick="setLicenseMode('max')">✦ Max</button>
+        </div>
+        <div class="pop-divider"></div>
         <!-- Notifications -->
         <div class="pop-section-label">Settings</div>
         <div class="pop-row">
@@ -993,11 +1040,13 @@
       <div class="metric-label">Session Cost Today</div>
       <div class="metric-value" id="m-cost">–</div>
       <div class="metric-sub" id="m-cost-sub"></div>
+      <div class="est-note" id="cost-est-note">~ API-equivalent estimate</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Monthly Budget</div>
       <div class="metric-value teal" id="m-budget">–</div>
       <div class="metric-sub" id="m-budget-sub"></div>
+      <div class="est-note" id="budget-est-note">~ based on estimated costs</div>
     </div>
   </div>
 
@@ -1084,6 +1133,7 @@
     alert_threshold_pct:  80,
     warn_context_pct:     60,
     critical_context_pct: 85,
+    billing_mode:         'api',
   };
   let allProjects = [];
 
@@ -1219,6 +1269,7 @@
     cfg.alert_threshold_pct  = s.alert_threshold_pct;
     if (s.warn_context_pct     != null) cfg.warn_context_pct     = s.warn_context_pct;
     if (s.critical_context_pct != null) cfg.critical_context_pct = s.critical_context_pct;
+    if (s.billing_mode) applyBillingMode(s.billing_mode);
     const sel = $('baseline-model-select');
     if (sel && models.length) {
       sel.innerHTML = [...models].sort((a, b) => a.id.localeCompare(b.id)).map(m =>
@@ -1226,6 +1277,40 @@
       ).join('');
     }
     loadSettings(s);
+  }
+
+  // ── Billing mode ──────────────────────────────────────────────────────────
+
+  function applyBillingMode(mode) {
+    cfg.billing_mode = mode;
+    const header = document.querySelector('header');
+    if (header) header.dataset.mode = mode;
+    const badge = $('license-badge');
+    if (badge) {
+      const icons  = { api: '◆', pro: '⚡', max: '✦' };
+      const labels = { api: 'API Key', pro: 'Pro', max: 'Max' };
+      badge.className = 'license-badge mode-' + mode;
+      badge.textContent = (icons[mode] || '◆') + ' ' + (labels[mode] || mode.toUpperCase());
+    }
+    const isEst = mode !== 'api';
+    ['cost-est-note', 'budget-est-note'].forEach(id => {
+      const el = $(id);
+      if (el) el.className = 'est-note' + (isEst ? ' visible mode-' + mode : '');
+    });
+    document.querySelectorAll('.license-pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.mode === mode);
+    });
+  }
+
+  async function setLicenseMode(mode) {
+    applyBillingMode(mode);
+    try {
+      await fetch('/api/settings', {
+        method:  'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ billing_mode: mode }),
+      });
+    } catch (e) { /* non-critical */ }
   }
 
   // ── Settings panel ────────────────────────────────────────────────────────

@@ -29,6 +29,7 @@ _USER_KEYS: frozenset[str] = frozenset({
     "budgets",
     "comparison",
     "mcp_servers",
+    "billing",
 })
 
 _USER_DEFAULTS: dict = {
@@ -42,6 +43,7 @@ _USER_DEFAULTS: dict = {
     "budgets":        {"default_monthly_usd": 125.0, "alert_threshold_pct": 80},
     "comparison":     {"baseline_model": "claude-sonnet-4-6"},
     "mcp_servers":    [],
+    "billing":        {"mode": "api"},  # "api" | "pro" | "max"
 }
 
 
