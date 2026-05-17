@@ -351,12 +351,16 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - `dashboard/index.html`:
   - **Header badge** `◆ API Key` / `⚡ Pro` / `✦ Max` in teal / indigo / amber; updates instantly on mode change.
   - **Header accent stripe** – 2 px inset `box-shadow` at bottom of header, color-coded per mode.
-  - **Estimate notes** – `~ API-equivalent estimate` / `~ based on estimated costs` appear under Session Cost Today and Monthly Budget metric cards when mode is Pro or Max.
+  - **Estimate notes** – `~ API-equivalent estimate` / `~ based on estimated costs` shown under Session Cost Today and Monthly Budget **only when mode is Pro or Max**. API Key mode shows no `~` – costs are real (locally parsed from transcript).
   - **Settings popover** – "Claude Code License" pill group at the top with three buttons; saves immediately via `POST /api/settings` (no Save needed).
 - 4 new tests in `tests/test_dashboard.py`.
+
+**Provider badge removed from header (2026-05-17):**
+- The `manual (fallback)` / provider-name header badge has been removed. It was superseded by the license mode badge, which carries the relevant user-facing information. The `loadProvider()` JS function and its `init()` call are gone; the `/api/provider` endpoint remains in the backend (still used by tests and could be useful for debugging).
+- Provider & Model Usage panel (section 6) is unaffected – its per-model provider badges remain.
 
 ---
 
 ## Last updated
 
-2026-05-17 – Manual update: project detection fix, billing mode feature, 617 tests
+2026-05-17 – Provider badge removed; billing mode semantics clarified (617 tests)

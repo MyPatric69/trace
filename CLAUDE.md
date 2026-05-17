@@ -38,7 +38,9 @@ Dashboard stable: stale session indicator ("paused X min ago", 5-min threshold),
 context window utilization bar (peak = max(input + cache_creation + cache_read) per turn),
 day picker, provider badges, persistent health indicator, enriched handoff prompt,
 activity stats, 52-week heatmap, monthly budget tracking, cost efficiency panel,
-Claude Code license mode badge (API Key / Pro / Max).
+Claude Code license mode badge (◆ API Key / ⚡ Pro / ✦ Max).
+`api` mode shows real costs; `pro` / `max` show `~ API-equivalent estimate` on cost cards.
+Header provider badge removed – superseded by the license mode badge.
 
 **Health signal:** notifications and the `Request new_session()` handoff button are driven by
 `context_window_pct` (defaults: warn 60 %, critical 85 %) – the quality signal sourced
