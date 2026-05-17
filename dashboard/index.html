@@ -166,7 +166,7 @@
       align-items: center;
       gap: 1.25rem;
     }
-    .mcp-badge, .ws-badge, .provider-badge {
+    .mcp-badge, .ws-badge {
       display: flex;
       align-items: center;
       gap: 0.375rem;
@@ -174,7 +174,6 @@
       font-size: 0.6875rem;
       color: rgba(255,255,255,0.45);
     }
-    .provider-badge.fallback { color: var(--amber); }
     .dot {
       width: 7px; height: 7px;
       border-radius: 50%;
@@ -944,7 +943,6 @@
     <div class="license-badge mode-api" id="license-badge">◆ API Key</div>
     <div class="mcp-badge"><span class="dot"></span> MCP</div>
     <div class="ws-badge"><span class="dot ws-dot" id="ws-dot"></span> WS</div>
-    <div class="provider-badge" id="provider-badge"></div>
     <div class="settings-wrapper" id="settings-wrapper">
       <button class="settings-btn" id="settings-btn" onclick="toggleSettingsPopover()">
         <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" style="flex-shrink:0;"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
@@ -1420,22 +1418,6 @@
 
   // ── Provider badge ────────────────────────────────────────────────────────
 
-  async function loadProvider() {
-    try {
-      const p    = await api('/api/provider');
-      const badge = $('provider-badge');
-      if (!badge) return;
-      if (p.fallback) {
-        badge.textContent  = 'manual (fallback)';
-        badge.className    = 'provider-badge fallback';
-      } else {
-        badge.textContent  = p.provider;
-        badge.className    = 'provider-badge';
-      }
-    } catch (e) {
-      // non-critical – leave badge empty on error
-    }
-  }
 
   // ── Metric row ────────────────────────────────────────────────────────────
 
@@ -2171,7 +2153,7 @@
 
   async function init() {
     initTheme();
-    await Promise.all([loadStatus(), loadProjects(), loadProvider()]);
+    await Promise.all([loadStatus(), loadProjects()]);
     buildDayPicker();  // build day picker before first data load
     await Promise.all([loadAll(), loadLive()]);
     initMcpPanel();
