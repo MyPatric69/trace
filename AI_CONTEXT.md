@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All phases complete – 609/609 tests green ✓
+**Status:** All phases complete – 617/617 tests green ✓
 
 ---
 
@@ -111,7 +111,7 @@ trace/
 │   ├── manifest_de.html
 │   └── manifest_en.html
 │
-└── tests/                 ← 592 tests, all green
+└── tests/                 ← 617 tests, all green
 
 ~/.trace/
 ├── trace.db               ← single central DB for all projects
@@ -164,7 +164,7 @@ trace/
 
 **Dashboard REST endpoints (current):**
 ```
-GET  /api/status               – includes baseline_model
+GET  /api/status               – includes baseline_model, billing_mode
 GET  /api/projects
 GET  /api/costs                ?period=
 GET  /api/costs/{project}      ?period=
@@ -181,7 +181,7 @@ GET  /api/activity             – activity stats and 52-week heatmap
 GET  /api/efficiency           ?project= &period= – cost vs. baseline model
 POST /api/live/clear
 POST /api/statusline           – real-time update from status line bridge
-POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd, baseline_model
+POST /api/settings             – accepts warn_tokens, critical_tokens, monthly_budget_usd, baseline_model, billing_mode
 GET  /api/tips                 ?project_name=
 GET  /api/new_session/{project}  ?dry_run=
 WS   /ws
@@ -293,7 +293,7 @@ Provides real-time context window updates sourced directly from the Claude Code 
 
 ## Next steps
 
-Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engine/session_logger.py
+Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notifier.py, engine/providers/anthropic.py, engine/providers/vertexai.py (+1 more)
 
 ---
 
@@ -338,8 +338,25 @@ Review recent changes to: engine/doc_synthesizer.py, engine/hook_runner.py, engi
 - No commented-out blocks of real code were found in the scanned files (`grep -rEn "^\s*#\s*(def |class |from |import )"` returned empty).
 - After each file edit, ran the relevant focused test module; the final `pytest tests/ -v` finished at 606 / 606 passed.
 
+**LiveTracker project detection fix (complete – 2026-05-17, 613 tests green):**
+- `engine/live_tracker.py` – ancestor-match logic now selects the **deepest** (most specific) ancestor instead of the first. Prevents a registered parent directory (e.g. `/github`) from shadowing all child projects (`/github/mindtrace`, `/github/trace`, …).
+- `engine/store.py` – new `check_parent_conflicts(path) → list[dict]`: returns all registered projects whose paths are children of `path`. Excludes exact matches. Used as a pre-registration guard.
+- `trace.sh` `register_project()` – calls `check_parent_conflicts` before inserting; shows affected child projects and prompts `[y/N]` if conflicts exist.
+- `engine/auto_register.py` – `register_if_unknown()` return dict gains a `conflicts` key; message includes WARNING text when conflicts are detected (visible in post-commit hook output).
+- 7 new tests (store: 4, auto_register: 3).
+
+**Claude Code license mode indicator (complete – 2026-05-17, 617 tests green):**
+- `engine/config.py` – new `"billing"` user-config key with default `{"mode": "api"}`. Valid values: `"api"` / `"pro"` / `"max"`.
+- `dashboard/server.py` – `GET /api/status` returns `billing_mode`; `POST /api/settings` accepts `billing_mode` (validates against allowed set, 400 otherwise).
+- `dashboard/index.html`:
+  - **Header badge** `◆ API Key` / `⚡ Pro` / `✦ Max` in teal / indigo / amber; updates instantly on mode change.
+  - **Header accent stripe** – 2 px inset `box-shadow` at bottom of header, color-coded per mode.
+  - **Estimate notes** – `~ API-equivalent estimate` / `~ based on estimated costs` appear under Session Cost Today and Monthly Budget metric cards when mode is Pro or Max.
+  - **Settings popover** – "Claude Code License" pill group at the top with three buttons; saves immediately via `POST /api/settings` (no Save needed).
+- 4 new tests in `tests/test_dashboard.py`.
+
 ---
 
 ## Last updated
 
-2026-05-12 – Dead-code cleanup in engine/* and dashboard/server.py; 606 tests green
+2026-05-17 – Manual update: project detection fix, billing mode feature, 617 tests

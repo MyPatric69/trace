@@ -33,11 +33,12 @@ trace_config.yaml           Single source of truth: db path, model prices, budge
 
 ## Current Phase
 
-**All phases complete – 606 tests green.**
+**All phases complete – 617 tests green.**
 Dashboard stable: stale session indicator ("paused X min ago", 5-min threshold),
 context window utilization bar (peak = max(input + cache_creation + cache_read) per turn),
 day picker, provider badges, persistent health indicator, enriched handoff prompt,
-activity stats, 52-week heatmap, monthly budget tracking, cost efficiency panel.
+activity stats, 52-week heatmap, monthly budget tracking, cost efficiency panel,
+Claude Code license mode badge (API Key / Pro / Max).
 
 **Health signal:** notifications and the `Request new_session()` handoff button are driven by
 `context_window_pct` (defaults: warn 60 %, critical 85 %) – the quality signal sourced
@@ -97,19 +98,18 @@ Both paths share the same logic: rewrite `AI_CONTEXT.md` only when there are doc
 
 Order (top to bottom):
 
-1. Metrics cards – input / cache / output tokens, session cost, monthly budget %
+1. Metrics cards – input / cache / output tokens, session cost, monthly budget % · when billing mode is Pro/Max: `~ API-equivalent estimate` note under cost cards
 2. Live Session – real-time token counts for the active session, including a Tokens row (`{total} total · Turn N`) below Changes. Handoff link lives inside the Context Window bar, shown when `context_window_pct >= warn_context_pct`.
 3. Context Drift + Recommendations – drift status per project; smart cost tips
 4. Activity – sessions, streaks, avg. cost/session, 52-week heatmap
 5. Cost Efficiency – actual vs. baseline-model cost
 6. Provider & Model Usage – provider badges + model cost bars, merged section
 7. MCP Servers – registered servers + token-overhead estimate
-8. Token Calculator – estimate cost before sending a prompt
 
 ## API Endpoints
 
 ```
-GET  /api/status               – health, warn_context_pct, critical_context_pct, monthly_budget_usd, baseline_model
+GET  /api/status               – health, warn_context_pct, critical_context_pct, monthly_budget_usd, baseline_model, billing_mode
 GET  /api/projects
 GET  /api/costs                ?period=
 GET  /api/costs/{project}      ?period=
@@ -127,7 +127,7 @@ GET  /api/efficiency           ?project= &period= – actual vs. baseline cost
 GET  /api/tokenizer_ratio      – ratio of current model tokens vs. baseline
 POST /api/live/clear
 POST /api/statusline           – receives status line data from bridge; updates live session context_window_pct and cost in real-time
-POST /api/settings             – accepts warn_tokens, critical_tokens, warn_context_pct, critical_context_pct, monthly_budget_usd, baseline_model
+POST /api/settings             – accepts warn_tokens, critical_tokens, warn_context_pct, critical_context_pct, monthly_budget_usd, baseline_model, billing_mode
 GET  /api/tips                 ?project_name=
 GET  /api/new_session/{project}  ?dry_run=
 WS   /ws
@@ -141,3 +141,6 @@ WS   /ws
 `TraceStore` methods of note:
 - `get_activity_stats(project_id=None)` – returns session counts, streak data
 - `get_heatmap_data(project_id=None)` – returns 52-week activity for heatmap
+- `check_parent_conflicts(path)` – returns registered projects whose paths are children of `path`; used by `trace.sh` and `auto_register` to warn before registering a parent directory
+
+**Project detection (LiveTracker):** uses deepest-ancestor match – if multiple registered projects are ancestors of the session cwd, the most specific (longest path) wins. Prevents parent-directory registrations from shadowing individual project entries.
