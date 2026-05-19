@@ -1,7 +1,6 @@
 #!/bin/bash
-# Wrapper for engine/tokenizer_check.py – resolves ANTHROPIC_API_KEY from
-# macOS Keychain before calling the script, since LaunchAgents don't inherit
-# shell environment variables.
+# Wrapper for engine/tokenizer_check.py – loads credentials from .env since
+# LaunchAgents don't inherit shell environment variables.
 
 export PATH="/Users/patric/.pyenv/shims:/Users/patric/.pyenv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 export PYENV_ROOT="/Users/patric/.pyenv"
@@ -12,20 +11,18 @@ if [ ! -f "$PYTHON" ]; then
   PYTHON=$(which python3)
 fi
 
-# 1. Try the dedicated ANTHROPIC_API_KEY keychain entry
-KEY=$(security find-generic-password -s "ANTHROPIC_API_KEY" -w 2>/dev/null)
-
-# 2. Fall back to the Claude Code keychain entry
-if [ -z "$KEY" ]; then
-  KEY=$(security find-generic-password -s "claude" -a "api_key" -w 2>/dev/null)
+# Load credentials from .env (not committed to git)
+if [ -f "$REPO_DIR/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$REPO_DIR/.env"
+  set +a
 fi
 
-if [ -z "$KEY" ]; then
-  echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") ERROR: ANTHROPIC_API_KEY not found in Keychain." >&2
-  echo "Store it with:" >&2
-  echo "  security add-generic-password -s ANTHROPIC_API_KEY -a anthropic -w sk-ant-..." >&2
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+  echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") ERROR: ANTHROPIC_API_KEY not set." >&2
+  echo "Add it to $REPO_DIR/.env" >&2
   exit 1
 fi
 
-export ANTHROPIC_API_KEY="$KEY"
 exec "$PYTHON" "$REPO_DIR/engine/tokenizer_check.py"
