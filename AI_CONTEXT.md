@@ -359,8 +359,12 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - The `manual (fallback)` / provider-name header badge has been removed. It was superseded by the license mode badge, which carries the relevant user-facing information. The `loadProvider()` JS function and its `init()` call are gone; the `/api/provider` endpoint remains in the backend (still used by tests and could be useful for debugging).
 - Provider & Model Usage panel (section 6) is unaffected – its per-model provider badges remain.
 
+**New Claude model pricing added (2026-08-29, 617 tests green):**
+- `trace_config.yaml` + `~/.trace/trace_config.yaml` – `models:` block gains four entries: `claude-fable-5` (in 0.010 / out 0.050 / cache-create 0.0125 / cache-read 0.001), `claude-opus-5` and `claude-opus-4-8` (both in 0.005 / out 0.025 / cache-create 0.00625 / cache-read 0.0005), `claude-sonnet-5` (in 0.002 / out 0.010 / cache-create 0.0025 / cache-read 0.0002). All values per 1k tokens (USD).
+- Prefix matching in `TraceStore.calculate_cost()` already handles date-suffixed variants; no code changes required.
+
 ---
 
 ## Last updated
 
-2026-05-17 – Provider badge removed; billing mode semantics clarified (617 tests)
+2026-08-29 – Added claude-fable-5, opus-5, opus-4-8, sonnet-5 model pricing (617 tests)

@@ -50,6 +50,26 @@ models:
     output_per_1k: 0.004
     cache_creation_per_1k: 0.001
     cache_read_per_1k: 8.0e-05
+  claude-fable-5:
+    input_per_1k: 0.010
+    output_per_1k: 0.050
+    cache_creation_per_1k: 0.0125
+    cache_read_per_1k: 0.001
+  claude-opus-5:
+    input_per_1k: 0.005
+    output_per_1k: 0.025
+    cache_creation_per_1k: 0.00625
+    cache_read_per_1k: 0.0005
+  claude-opus-4-8:
+    input_per_1k: 0.005
+    output_per_1k: 0.025
+    cache_creation_per_1k: 0.00625
+    cache_read_per_1k: 0.0005
+  claude-sonnet-5:
+    input_per_1k: 0.002
+    output_per_1k: 0.010
+    cache_creation_per_1k: 0.0025
+    cache_read_per_1k: 0.0002
 mcp_servers:
 - name: trace
   estimated_tokens: 300
