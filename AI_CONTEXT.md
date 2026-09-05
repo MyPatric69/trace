@@ -392,8 +392,16 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - `tests/FRONTEND_TESTS.md` – Test 14 documents manual verification of the three rows' show/hide and color behavior (no JS test harness exists in this repo for the dashboard UI).
 - 7 new tests in `tests/test_statusline.py`: storage of all three field groups on both the new-session and existing-session branches, explicit-`False`/cold overwrite semantics for `cache_warm`, all seven fields defaulting to `None` when absent from the payload, and existing values surviving a later tick that omits them.
 
+**Two-line terminal status line (feature – 2026-09-05, 636 tests green):**
+- Terminal output from `hooks/statusline_bridge.sh` split from one line into two for a richer display – no backend/dashboard changes, this is `POST /api/statusline`'s terminal-output sibling only.
+  - Line 1: `[model] 📁 project` + ` | 🌿 branch` (omitted, no dangling separator, when `cwd` isn't a git repo).
+  - Line 2: a 10-block progress bar (`█`/`░`) proportional to `context_window.used_percentage`, rounded to the nearest block (`(pct+5)/10`, clamped 0–10), followed by `{pct}% | {cost} | ⏱ {duration}` and, when the dashboard responded, `| ● TRACE`.
+- Bar/percentage color uses the same adaptive thresholds as `engine/live_tracker.py`'s `effective_context_thresholds()`: windows > 200K (Pro/Max 1M) cap warn/critical at 20%/40%; windows ≤ 200K use 60%/85% – kept in sync manually since this is bash, not a shared import.
+- Duration (`cost.total_duration_ms`) formats as `Xh Ym` once an hour is crossed, `Xm Ys` below that (e.g. `6120000` ms → `1h 42m`).
+- No pytest coverage – this repo has no shell test harness (see `tests/FRONTEND_TESTS.md` for the equivalent manual-verification convention used for JS-only dashboard changes); verified manually by piping sample status-line JSON through the script against an unreachable port to avoid touching the live dashboard.
+
 ---
 
 ## Last updated
 
-2026-09-05 – Re-implemented rate_limits, prompt_cache and PR info from status line
+2026-09-05 – Added two-line terminal status line output

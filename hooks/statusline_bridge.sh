@@ -58,10 +58,21 @@ PROJECT="$(basename "$CWD")"
 BRANCH="$(git -C "$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 if [ ${#BRANCH} -gt 20 ]; then BRANCH="${BRANCH:0:20}..."; fi
 BRANCH_SEG=""
-[ -n "$BRANCH" ] && BRANCH_SEG="$BRANCH | "
+[ -n "$BRANCH" ] && BRANCH_SEG=" | 🌿 $BRANCH"
 
 COST_FMT="$(printf '$%.2f' "$COST" 2>/dev/null || printf '$0.00')"
 CTX_INT="$(printf '%.0f' "$USED_PCT" 2>/dev/null || printf '0')"
+
+# Duration: "XhYm" once an hour is crossed, "XmYs" below that.
+_DUR_SEC=$(( ${DURATION_MS:-0} / 1000 ))
+_DUR_H=$(( _DUR_SEC / 3600 ))
+_DUR_M=$(( (_DUR_SEC % 3600) / 60 ))
+_DUR_S=$(( _DUR_SEC % 60 ))
+if [ "$_DUR_H" -gt 0 ]; then
+    DURATION_FMT="$(printf '%dh %dm' "$_DUR_H" "$_DUR_M")"
+else
+    DURATION_FMT="$(printf '%dm %ds' "$_DUR_M" "$_DUR_S")"
+fi
 
 # ── ANSI colors ───────────────────────────────────────────────────────────────
 TEAL='\033[0;36m'
@@ -70,10 +81,29 @@ YELLOW='\033[0;33m'
 RED='\033[0;31m'
 RESET='\033[0m'
 
-CTX_COLOR="$GREEN"
-if   [ "${CTX_INT:-0}" -ge 85 ] 2>/dev/null; then CTX_COLOR="$RED"
-elif [ "${CTX_INT:-0}" -ge 60 ] 2>/dev/null; then CTX_COLOR="$YELLOW"
+# Adaptive thresholds — mirrors engine/live_tracker.py effective_context_thresholds():
+# windows > 200K (Pro/Max 1M) cap the warn/critical percentages at 20/40 so the
+# same absolute token budget (~200K/~400K) triggers the color change regardless
+# of window size, instead of scaling up with it.
+if [ "${CTX_SIZE:-200000}" -gt 200000 ] 2>/dev/null; then
+    WARN_PCT=20
+    CRIT_PCT=40
+else
+    WARN_PCT=60
+    CRIT_PCT=85
 fi
+
+CTX_COLOR="$GREEN"
+if   [ "${CTX_INT:-0}" -ge "$CRIT_PCT" ] 2>/dev/null; then CTX_COLOR="$RED"
+elif [ "${CTX_INT:-0}" -ge "$WARN_PCT" ] 2>/dev/null; then CTX_COLOR="$YELLOW"
+fi
+
+# 10-block progress bar, filled proportionally to CTX_INT (rounded to nearest block).
+BAR_FILLED=$(( (${CTX_INT:-0} + 5) / 10 ))
+[ "$BAR_FILLED" -lt 0 ] 2>/dev/null && BAR_FILLED=0
+[ "$BAR_FILLED" -gt 10 ] 2>/dev/null && BAR_FILLED=10
+BAR_EMPTY=$((10 - BAR_FILLED))
+CTX_BAR="$(printf '%*s' "$BAR_FILLED" '' | tr ' ' '█')$(printf '%*s' "$BAR_EMPTY" '' | tr ' ' '░')"
 
 # ── Build JSON payload ────────────────────────────────────────────────────────
 PAYLOAD="$(jq -cn \
@@ -135,11 +165,11 @@ if curl -s --max-time 1 -o /dev/null \
     TRACE_ACTIVE=true
 fi
 
-# ── Output status line ────────────────────────────────────────────────────────
+# ── Output status line (two lines) ────────────────────────────────────────────
 if [ "$TRACE_ACTIVE" = true ]; then
-    printf "[%s] %s | %sCTX: ${CTX_COLOR}%s%%${RESET} | %s | ${TEAL}● TRACE${RESET}\n" \
-        "$MODEL_SHORT" "$PROJECT" "$BRANCH_SEG" "$CTX_INT" "$COST_FMT"
+    printf "[%s] 📁 %s%s\n${CTX_COLOR}%s %s%%${RESET} | %s | ⏱ %s | ${TEAL}● TRACE${RESET}\n" \
+        "$MODEL_SHORT" "$PROJECT" "$BRANCH_SEG" "$CTX_BAR" "$CTX_INT" "$COST_FMT" "$DURATION_FMT"
 else
-    printf "[%s] %s | %sCTX: ${CTX_COLOR}%s%%${RESET} | %s\n" \
-        "$MODEL_SHORT" "$PROJECT" "$BRANCH_SEG" "$CTX_INT" "$COST_FMT"
+    printf "[%s] 📁 %s%s\n${CTX_COLOR}%s %s%%${RESET} | %s | ⏱ %s\n" \
+        "$MODEL_SHORT" "$PROJECT" "$BRANCH_SEG" "$CTX_BAR" "$CTX_INT" "$COST_FMT" "$DURATION_FMT"
 fi
