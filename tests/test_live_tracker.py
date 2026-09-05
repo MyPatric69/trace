@@ -772,6 +772,36 @@ def test_context_window_pct_uses_peak_not_cumulative_total(tmp_path, tmp_store, 
     assert result["context_window_pct"] == pytest.approx(50.0)
 
 
+def test_update_carries_forward_context_window_size_from_statusline(tmp_path, patched_tracker):
+    """A context_window_size the statusline bridge already wrote (e.g. 1M for Pro/Max)
+    must survive the next PostToolUse update() call instead of resetting to 200_000."""
+    live_dir = patched_tracker
+    session_id = "carry-forward-001"
+    transcript = tmp_path / f"{session_id}.jsonl"
+    transcript.write_text(json.dumps(_assistant_turn("r1", input_tokens=5000, output_tokens=100)) + "\n")
+
+    (live_dir / f"{session_id}.json").write_text(json.dumps({
+        "session_id":            session_id,
+        "input_tokens":          5000,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens":     0,
+        "output_tokens":         100,
+        "peak_context_tokens":   5000,
+        "context_window_size":   1_000_000,
+        "context_window_pct":    0.5,
+        "model":                 "claude-sonnet-4-6",
+        "turns":                 1,
+        "last_byte_offset":      transcript.stat().st_size,
+        "health":                "green",
+    }))
+
+    with open(transcript, "a") as f:
+        f.write(json.dumps(_assistant_turn("r2", input_tokens=6000, output_tokens=150)) + "\n")
+
+    result = LiveTracker(None).update(str(transcript), str(tmp_path))
+    assert result["context_window_size"] == 1_000_000
+
+
 def test_peak_context_realistic_caching_session(tmp_path, tmp_store, patched_tracker, monkeypatch):
     # Real-world: input_tokens is tiny because most context is cached
     # Turn: input=3, cache_creation=7441, cache_read=10608 → context_load=18052

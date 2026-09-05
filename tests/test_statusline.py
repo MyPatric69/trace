@@ -80,6 +80,7 @@ def test_statusline_updates_existing_session(client, live_dir, monkeypatch):
         "session_id":                  session_id,
         "cwd":                         "/projects/myproject",
         "context_window_pct":          55.0,
+        "context_window_size":         1_000_000,
         "input_tokens":                2000,
         "cache_creation_input_tokens": 0,
         "cache_read_input_tokens":     0,
@@ -92,11 +93,72 @@ def test_statusline_updates_existing_session(client, live_dir, monkeypatch):
 
     data = json.loads((live_dir / f"{session_id}.json").read_text())
     assert data["context_window_pct"] == 55.0
+    assert data["context_window_size"] == 1_000_000
     assert data["cost_usd"] == 0.10
     # Fields not touched by statusline are preserved
     assert data["turns"] == 5
     assert data["project"] == "myproject"
     assert data["input_tokens"] == 1000
+
+
+def test_statusline_context_window_size_defaults_to_200k_when_absent(client, live_dir, monkeypatch):
+    """context_window_size falls back to 200000 when the field is absent from the payload."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "no-window-size-001"
+    res = client.post("/api/statusline", json={
+        "session_id": session_id,
+        "cwd":        "/projects/myproject",
+        "cost_usd":   0.01,
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["context_window_size"] == 200_000
+
+
+def test_statusline_updates_context_window_size_on_1m_window_session(client, live_dir, monkeypatch):
+    """A Pro/Max session's 1M context window size is written into an existing session file."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+
+    session_id = "million-window-001"
+    existing = {
+        "session_id":            session_id,
+        "project":               "myproject",
+        "cwd":                   "/projects/myproject",
+        "input_tokens":          1000,
+        "cache_creation_tokens": 500,
+        "cache_read_tokens":     200,
+        "output_tokens":         300,
+        "peak_context_tokens":   418_000,
+        "context_window_size":   200_000,
+        "context_window_pct":    42.0,
+        "cost_usd":              0.05,
+        "model":                 "claude-sonnet-4-6",
+        "turns":                 5,
+        "health":                "green",
+        "initializing":          False,
+        "last_byte_offset":      12345,
+        "updated_at":            "2026-05-04T10:00:00",
+    }
+    (live_dir / f"{session_id}.json").write_text(json.dumps(existing))
+
+    res = client.post("/api/statusline", json={
+        "session_id":          session_id,
+        "cwd":                 "/projects/myproject",
+        "context_window_pct":  41.8,
+        "context_window_size": 1_000_000,
+        "cost_usd":            0.06,
+        "model":               "claude-sonnet-4-6",
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["context_window_size"] == 1_000_000
+    assert data["context_window_pct"] == 41.8
 
 
 def test_statusline_creates_session_if_missing(client, live_dir, monkeypatch):

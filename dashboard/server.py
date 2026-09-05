@@ -599,6 +599,7 @@ def api_statusline(req: StatuslineRequest):
                 data = json.loads(session_file.read_text())
                 existing_peak = int(data.get("peak_context_tokens", 0))
                 data["context_window_pct"] = req.context_window_pct
+                data["context_window_size"] = req.context_window_size
                 data["peak_context_tokens"] = max(existing_peak, peak)
                 data["cost_usd"] = req.cost_usd
                 data["updated_at"] = now

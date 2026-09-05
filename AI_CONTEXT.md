@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All phases complete – 617/617 tests green ✓
+**Status:** All phases complete – 620/620 tests green ✓
 
 ---
 
@@ -363,8 +363,16 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - `trace_config.yaml` + `~/.trace/trace_config.yaml` – `models:` block gains four entries: `claude-fable-5` (in 0.010 / out 0.050 / cache-create 0.0125 / cache-read 0.001), `claude-opus-5` and `claude-opus-4-8` (both in 0.005 / out 0.025 / cache-create 0.00625 / cache-read 0.0005), `claude-sonnet-5` (in 0.002 / out 0.010 / cache-create 0.0025 / cache-read 0.0002). All values per 1k tokens (USD).
 - Prefix matching in `TraceStore.calculate_cost()` already handles date-suffixed variants; no code changes required.
 
+**Dynamic context_window_size from status line (fix – 2026-09-05, 620 tests green):**
+- Problem: `context_window_size` was effectively pinned to 200 000 even though Claude Pro/Max sessions report a 1 M-token window via the status line, producing wrong percentages (e.g. `418K / 200K (42%)` instead of `418K / 1000K (42%)`).
+- `hooks/statusline_bridge.sh` already extracted `context_window.context_window_size` (falling back to `200000`) and POSTed it as `context_window_size` – no change needed there.
+- `dashboard/server.py` `POST /api/statusline` – the **existing-session** branch of `api_statusline()` updated `context_window_pct`/`peak_context_tokens`/`cost_usd` but never wrote `req.context_window_size` into the live session file, so a real window size sent by the bridge was silently dropped once a session file already existed (which is the common case – the PostToolUse hook usually creates it first). Now sets `data["context_window_size"] = req.context_window_size` on every update.
+- `engine/live_tracker.py` `LiveTracker.update()` – previously reset `context_window_size` to a hardcoded `200_000` on *every* PostToolUse call (only overridden by the never-populated `context_windows` config prefix map), which would immediately overwrite whatever the statusline bridge had just written. Now seeds `context_window_size` from the previous session file (`prev.get("context_window_size", 200_000)`) so a value set by the statusline persists across subsequent tool-call updates; the `context_windows` config match still takes priority when present.
+- `dashboard/index.html` already read `s.context_window_size` (defaulting to 200) for the Live Session Context Window bar (`{peak}k / {window}k ({pct}%)`) – no change needed there.
+- 3 new tests: `tests/test_statusline.py` (`test_statusline_updates_context_window_size_on_1m_window_session`, `test_statusline_context_window_size_defaults_to_200k_when_absent` – plus an assertion added to `test_statusline_updates_existing_session`) and `tests/test_live_tracker.py` (`test_update_carries_forward_context_window_size_from_statusline`).
+
 ---
 
 ## Last updated
 
-2026-08-29 – Added claude-fable-5, opus-5, opus-4-8, sonnet-5 model pricing (617 tests)
+2026-09-05 – Fixed dynamic context_window_size propagation from status line bridge

@@ -319,8 +319,10 @@ class LiveTracker:
         # the model's context window size. This is the quality signal that drives
         # health state and notifications: cumulative tokens are a cost metric,
         # context_window_pct is when "start a new thread" actually matters.
+        # Carry forward a window size the statusline bridge already recorded for this
+        # session (e.g. 1_000_000 for Pro/Max) instead of resetting it every turn.
         health_store = None
-        context_window_size = 200_000
+        context_window_size = int(prev.get("context_window_size", 200_000)) if prev else 200_000
         context_window_pct  = 0.0
         try:
             health_store = self._store or _get_default_store()
