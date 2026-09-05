@@ -382,8 +382,4 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 
 ## Last updated
 
-<<<<<<< HEAD
-2026-09-05 – Auto-synced 1 commit(s) to 1b13731
-=======
-2026-09-05 – Adaptive context window thresholds for 200K vs 1M models
->>>>>>> 69cbdf2 (feat(health): adaptive context window thresholds for 200K vs 1M models)
+2026-09-05 – Auto-synced 1 commit(s) to 3fe90b3
