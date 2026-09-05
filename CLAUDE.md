@@ -186,3 +186,11 @@ This project is governed by AgentGuard. The following rules apply:
 
 ## ─────────────────────────────────────────
 ## End AgentGuard Governance Block
+
+## Harness
+
+- attempt_count: track how many times the same approach has been tried
+- max_attempts: 3 — after 3 failed attempts, stop and propose a different approach
+- retry_count: reset to 0 on each new task
+- action_log: append timestamp | action | result to ~/.trace/agentguard_actions.log
+- log_action: after every significant action, log what was done and the result
