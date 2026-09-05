@@ -362,6 +362,57 @@ def test_auto_commit_diff_check_failure_does_not_raise(tmp_synth, monkeypatch):
     tmp_synth._auto_commit_context()  # must not raise
 
 
+def test_auto_commit_advances_trace_sync_to_include_itself(tmp_synth):
+    """.trace_sync must be advanced to the auto-commit's own hash, not left
+    pointing at the pre-auto-commit HEAD (which would make the very next
+    drift check see the auto-commit itself as unsynced – see the recursion
+    regression test below for why that matters)."""
+    repo = tmp_synth.watcher.repo
+    (tmp_synth.project_path / "AI_CONTEXT.md").write_text("modified content\n", encoding="utf-8")
+
+    tmp_synth._auto_commit_context()
+
+    assert tmp_synth.get_last_synced() == repo.head.commit.hexsha
+
+
+def test_update_if_stale_reentrant_guard_env_var_short_circuits(tmp_path, tmp_synth, monkeypatch):
+    """When the reentrancy guard env var is set, update_if_stale() must bail
+    out immediately without touching AI_CONTEXT.md or the git history."""
+    repo = tmp_synth.watcher.repo
+    initial_hash = repo.head.commit.hexsha
+    tmp_synth.update_last_synced(initial_hash)
+    _add_commit(tmp_path, repo, "engine/module.py", msg="feat: new module")
+    commits_before = len(list(repo.iter_commits()))
+
+    monkeypatch.setenv(doc_synthesizer_module._SYNC_GUARD_ENV_VAR, "1")
+    result = tmp_synth.update_if_stale()
+
+    assert result is False
+    assert len(list(repo.iter_commits())) == commits_before
+
+
+def test_update_if_stale_does_not_recurse_after_auto_commit(tmp_path, tmp_synth):
+    """Regression test for the infinite-loop bug: the auto-commit created by
+    update_if_stale() re-fires this repo's own post-commit hook, which calls
+    update_if_stale() again. Because AI_CONTEXT.md is itself a doc-relevant
+    (.md) file, a naive implementation sees drift again and recurses forever.
+    A second call – simulating that nested hook invocation – must be a no-op."""
+    repo = tmp_synth.watcher.repo
+    initial_hash = repo.head.commit.hexsha
+    tmp_synth.update_last_synced(initial_hash)
+    _add_commit(tmp_path, repo, "engine/module.py", msg="feat: new module")
+
+    result1 = tmp_synth.update_if_stale()
+    assert result1 is True
+    commits_after_first_sync = len(list(repo.iter_commits()))
+
+    # Simulate the auto-commit's own post-commit hook invoking update_if_stale() again
+    result2 = tmp_synth.update_if_stale()
+
+    assert result2 is False
+    assert len(list(repo.iter_commits())) == commits_after_first_sync
+
+
 def test_update_if_stale_auto_commits_context_when_stale(tmp_path, tmp_synth):
     """The full update_if_stale() flow leaves no uncommitted AI_CONTEXT.md diff."""
     repo = tmp_synth.watcher.repo

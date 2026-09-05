@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -10,6 +11,16 @@ import yaml
 from engine.git_watcher import GitWatcher
 
 _log = logging.getLogger(__name__)
+
+# Reentrancy guard: _auto_commit_context() runs `git commit`, which re-fires this
+# repo's own post-commit hook (hook_runner.run() -> update_if_stale()). Since
+# AI_CONTEXT.md is itself a .md file, is_doc_relevant() would otherwise consider
+# the auto-commit doc-relevant too, causing update_if_stale() to recurse forever
+# (observed in production: 100+ nested "chore(context)" commits). Set for the
+# git-commit subprocess call only; children (git, the post-commit hook, the
+# nested hook_runner.py process) inherit it and every nested update_if_stale()
+# call bails out immediately while it's set.
+_SYNC_GUARD_ENV_VAR = "TRACE_DOC_SYNC_ACTIVE"
 
 _CONTEXT_TEMPLATE = """\
 # AI_CONTEXT.md
@@ -191,6 +202,9 @@ class DocSynthesizer:
         context file. Returns True if the file was updated, False otherwise.
         Never raises – callers can wrap in their own try/except for logging.
         """
+        if os.environ.get(_SYNC_GUARD_ENV_VAR):
+            return False  # reentrant call from our own auto-commit – see guard above
+
         last_hash = self.get_last_synced()
         if last_hash is None:
             all_commits = list(self.watcher.repo.iter_commits())
@@ -228,6 +242,15 @@ class DocSynthesizer:
         and commits AI_CONTEXT.md – never any other file. Never raises;
         failures are logged and swallowed so a broken git state (detached
         HEAD, no user.email configured, etc.) never breaks the caller.
+
+        Two independent safeguards against the commit re-triggering this
+        repo's own post-commit hook and recursing:
+        1. The child `git commit` process (and everything it spawns, including
+           a nested hook_runner.py) inherits `_SYNC_GUARD_ENV_VAR`, so any
+           reentrant update_if_stale() call bails out immediately.
+        2. .trace_sync is advanced to the auto-commit's own hash afterwards,
+           so even a call made without the guard set (e.g. a future refactor)
+           would see "not stale" and do nothing.
         """
         try:
             diff = subprocess.run(
@@ -245,12 +268,27 @@ class DocSynthesizer:
                 capture_output=True,
                 timeout=30,
             )
-            subprocess.run(
+            commit_env = {**os.environ, _SYNC_GUARD_ENV_VAR: "1"}
+            commit = subprocess.run(
                 ["git", "commit", "-m", "chore(context): auto-sync AI_CONTEXT.md"],
                 cwd=str(self.project_path),
                 capture_output=True,
                 timeout=30,
+                env=commit_env,
             )
+            if commit.returncode != 0:
+                return
+
+            rev = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(self.project_path),
+                capture_output=True,
+                timeout=30,
+                text=True,
+            )
+            new_hash = rev.stdout.strip() if rev.returncode == 0 else ""
+            if new_hash:
+                self.update_last_synced(new_hash)
         except Exception as exc:
             _log.warning("DocSynthesizer: failed to auto-commit AI_CONTEXT.md: %s", exc)
 

@@ -71,7 +71,7 @@ def test_chore_commit_triggers_synthesis(tmp_path):
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
 
-    new_hash = _add_commit(
+    _add_commit(
         tmp_path, repo, "engine/module.py",
         content="# engine update", msg="chore: tidy engine module",
     )
@@ -79,7 +79,10 @@ def test_chore_commit_triggers_synthesis(tmp_path):
     run(str(tmp_path))
 
     synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
-    assert synced == new_hash
+    # DocSynthesizer now auto-commits AI_CONTEXT.md and advances .trace_sync past
+    # that commit too (not just the triggering commit `new_hash`), so the bookmark
+    # must match the *actual* current HEAD rather than the pre-auto-commit hash.
+    assert synced == repo.head.commit.hexsha
     context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
     assert "Auto-synced" in context_after
 
@@ -90,7 +93,7 @@ def test_docs_commit_triggers_synthesis(tmp_path):
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
 
-    new_hash = _add_commit(
+    _add_commit(
         tmp_path, repo, "engine/doc.py",
         content="# doc update", msg="docs: add docstrings",
     )
@@ -98,7 +101,10 @@ def test_docs_commit_triggers_synthesis(tmp_path):
     run(str(tmp_path))
 
     synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
-    assert synced == new_hash
+    # DocSynthesizer now auto-commits AI_CONTEXT.md and advances .trace_sync past
+    # that commit too (not just the triggering commit `new_hash`), so the bookmark
+    # must match the *actual* current HEAD rather than the pre-auto-commit hash.
+    assert synced == repo.head.commit.hexsha
     context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
     assert "Auto-synced" in context_after
 
@@ -109,7 +115,7 @@ def test_test_commit_triggers_synthesis(tmp_path):
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
 
-    new_hash = _add_commit(
+    _add_commit(
         tmp_path, repo, "tests/test_new.py",
         content="# tests", msg="test: add integration tests",
     )
@@ -117,7 +123,10 @@ def test_test_commit_triggers_synthesis(tmp_path):
     run(str(tmp_path))
 
     synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
-    assert synced == new_hash
+    # DocSynthesizer now auto-commits AI_CONTEXT.md and advances .trace_sync past
+    # that commit too (not just the triggering commit `new_hash`), so the bookmark
+    # must match the *actual* current HEAD rather than the pre-auto-commit hash.
+    assert synced == repo.head.commit.hexsha
     context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
     assert "Auto-synced" in context_after
 
@@ -131,7 +140,7 @@ def test_feat_commit_triggers_synthesis(tmp_path):
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
 
-    new_hash = _add_commit(
+    _add_commit(
         tmp_path, repo, "engine/feature.py",
         content="# new feature", msg="feat: add new engine feature",
     )
@@ -139,7 +148,10 @@ def test_feat_commit_triggers_synthesis(tmp_path):
     run(str(tmp_path))
 
     synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
-    assert synced == new_hash
+    # DocSynthesizer now auto-commits AI_CONTEXT.md and advances .trace_sync past
+    # that commit too (not just the triggering commit `new_hash`), so the bookmark
+    # must match the *actual* current HEAD rather than the pre-auto-commit hash.
+    assert synced == repo.head.commit.hexsha
     context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
     assert "Auto-synced" in context_after
 
@@ -149,7 +161,7 @@ def test_fix_commit_triggers_synthesis(tmp_path):
     initial_hash = repo.head.commit.hexsha[:7]
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
 
-    new_hash = _add_commit(
+    _add_commit(
         tmp_path, repo, "engine/bug_fix.py",
         content="# bug fix", msg="fix: correct off-by-one in store",
     )
@@ -157,7 +169,10 @@ def test_fix_commit_triggers_synthesis(tmp_path):
     run(str(tmp_path))
 
     synced = (tmp_path / ".trace_sync").read_text(encoding="utf-8").strip()
-    assert synced == new_hash
+    # DocSynthesizer now auto-commits AI_CONTEXT.md and advances .trace_sync past
+    # that commit too (not just the triggering commit `new_hash`), so the bookmark
+    # must match the *actual* current HEAD rather than the pre-auto-commit hash.
+    assert synced == repo.head.commit.hexsha
     context_after = (tmp_path / "AI_CONTEXT.md").read_text(encoding="utf-8")
     assert "Auto-synced" in context_after
 

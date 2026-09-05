@@ -98,12 +98,15 @@ def test_run_updates_trace_sync_when_stale(tmp_path):
     (tmp_path / ".trace_sync").write_text(initial_hash, encoding="utf-8")
 
     # Add a doc-relevant commit (engine/ file → is_doc_relevant=True)
-    new_hash = _add_commit(tmp_path, repo, "engine/module.py", msg="feat: new module")
+    _add_commit(tmp_path, repo, "engine/module.py", msg="feat: new module")
 
     run(str(tmp_path))
 
+    # DocSynthesizer now auto-commits AI_CONTEXT.md and advances .trace_sync past
+    # that commit too, so the bookmark must match the actual current HEAD rather
+    # than the pre-auto-commit hash returned by _add_commit().
     synced = (tmp_path / ".trace_sync").read_text().strip()
-    assert synced == new_hash
+    assert synced == repo.head.commit.hexsha
 
 
 def test_run_no_update_when_changes_not_doc_relevant(tmp_path):

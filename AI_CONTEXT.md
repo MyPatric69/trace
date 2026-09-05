@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All phases complete – 642/642 tests green ✓
+**Status:** All phases complete – 645/645 tests green ✓
 
 ---
 
@@ -406,8 +406,19 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - **Safety fix alongside this**: `tests/test_hook_runner.py::test_run_on_trace_repo_does_not_raise` is a smoke test that calls `run()` against the *real* TRACE repo (`REPO_ROOT`) rather than a tmp repo. Before this change that could, in the right stale conditions, silently rewrite the real `AI_CONTEXT.md`; after this change it could additionally create a real commit in this repo's own history as a side effect of running the test suite. Fixed by monkeypatching `DocSynthesizer._auto_commit_context` to a no-op for that one test – it still verifies `run()` doesn't raise, without any risk of the test suite mutating this repo's git history.
 - 6 new tests in `tests/test_doc_synthesizer.py`: skip-when-clean, commit-when-dirty (asserts the commit message and that the working tree is clean afterward), only-`AI_CONTEXT.md`-is-staged (an unrelated dirty file stays untracked), two failure-swallowing tests (commit step fails / diff step fails, via a `subprocess.run` monkeypatch), and one full-flow test driving `update_if_stale()` end-to-end through real drift detection.
 
+**CRITICAL FIX – auto-commit infinite recursion (incident – 2026-09-05, 645 tests green):**
+- **Incident**: shortly after the auto-commit feature above landed (commit `372fb1f`), this repo's live post-commit hook produced **124 consecutive "chore(context): auto-sync AI_CONTEXT.md" commits** in local history (never pushed – `origin/main` was unaffected). Each commit made an identical 1-line change to the "Last updated" line.
+- **Root cause**: `GitWatcher.is_doc_relevant()` treats any `.md` file – including `AI_CONTEXT.md` itself – as doc-relevant. `_auto_commit_context()`'s own commit therefore counted as "doc-relevant drift" for the *next* invocation. Sequence: real commit → post-commit hook → `update_if_stale()` sees drift → rewrites `AI_CONTEXT.md` → `update_last_synced(current_hash)` (the hash *before* the auto-commit) → `_auto_commit_context()` commits → **that commit re-fires the same post-commit hook** → `.trace_sync` still points at the pre-auto-commit hash → drift again (the auto-commit itself now looks unsynced) → rewrite → commit → forever.
+- **Fix, two independent layers** in `engine/doc_synthesizer.py`:
+  1. `_auto_commit_context()` now advances `.trace_sync` to the auto-commit's **own** hash (via `git rev-parse HEAD` after committing), not the pre-auto-commit hash. This is the root-cause fix – the next (nested) `update_if_stale()` call sees `last_synced == current_hash` and stops immediately.
+  2. Defense-in-depth: a `TRACE_DOC_SYNC_ACTIVE` env var guard. `_auto_commit_context()` sets it on the `git commit` subprocess call; `update_if_stale()` checks it first and bails out (`return False`) if set. Git hooks inherit the invoking process's environment, so a recursively-fired post-commit hook sees the guard and no-ops even if the hash-tracking fix above ever has an edge case.
+- **Verified two ways**: (1) a new regression test, `test_update_if_stale_does_not_recurse_after_auto_commit`, calls `update_if_stale()` twice in a row (simulating the nested hook invocation) and asserts the second call is a no-op that creates no commit; (2) manually built a scratch repo with a *real* installed post-commit hook pointing at the actual `hook_runner.py`/`doc_synthesizer.py`, made a real doc-relevant `git commit`, and confirmed exactly one real commit + one auto-sync commit landed, then it stopped – `.trace_sync` ended up correctly equal to the final `HEAD`.
+- **Fallout in pre-existing tests**: 6 tests across `tests/test_hook_runner.py` and `tests/test_hook_refinement.py` asserted `.trace_sync == <hash of the triggering commit>`. That assumption is now wrong by design – `.trace_sync` correctly advances past the auto-commit too. Updated all 6 to assert `.trace_sync == repo.head.commit.hexsha` (the actual final HEAD) instead.
+- 3 new tests in `tests/test_doc_synthesizer.py`: the recursion regression test above, one confirming `.trace_sync` is advanced to include the auto-commit's own hash, and one confirming the env-var guard short-circuits `update_if_stale()`.
+- **Status of the 124 garbage commits**: removed via `git reset --hard 372fb1f` (explicit user direction) followed by re-committing this fix cleanly on top – all local-only, `origin/main` was never affected so nothing needed to be force-pushed.
+
 ---
 
 ## Last updated
 
-2026-09-05 – DocSynthesizer now auto-commits AI_CONTEXT.md after syncing
+2026-09-05 – Fixed critical auto-commit infinite recursion bug
