@@ -398,8 +398,8 @@
       border-radius: 4px;
       overflow: hidden;
     }
-    .eff-bar-fill--actual   { height: 100%; border-radius: 4px; background: #DC2626; }
-    .eff-bar-fill--baseline { height: 100%; border-radius: 4px; background: var(--teal); }
+    .eff-bar-fill--actual,
+    .eff-bar-fill--baseline { height: 100%; border-radius: 4px; }
     .eff-cost {
       font-family: var(--mono);
       font-size: 0.75rem;
@@ -1894,21 +1894,27 @@
           <div class="eff-savings-row"><span style="color:var(--teal);font-size:0.8125rem;">You're already on the most cost-efficient model</span></div>
           <div style="font-size:0.75rem;color:var(--muted);margin-top:0.25rem;">Using ${d.actual_model} · ${fmt(actual)} this week</div>`;
       } else {
+        // Bar width is relative to the more expensive model (100%); the cheaper
+        // model's bar is proportionally shorter — shorter bar = cheaper = better.
         const maxCost     = Math.max(actual, baseline, 0.000001);
         const actualPct   = (actual   / maxCost * 100).toFixed(1);
         const baselinePct = (baseline / maxCost * 100).toFixed(1);
         const isAlreadyCheaper = actual <= baseline;
+        // The actual model is colored by the comparison (teal = cheaper-or-equal,
+        // red = more expensive); the baseline is just a reference point, not a
+        // competitor, so it always stays neutral.
+        const actualColor = isAlreadyCheaper ? 'var(--teal)' : 'var(--red)';
 
         html += `
           <div class="eff-row">
             <span class="eff-badge eff-badge--actual" title="${d.actual_model}">${d.actual_model}</span>
-            <div class="eff-bar-track"><div class="eff-bar-fill--actual" style="width:${actualPct}%"></div></div>
-            <span class="eff-cost" style="color:var(--red)">${fmt(actual)}</span>
+            <div class="eff-bar-track"><div class="eff-bar-fill--actual" style="width:${actualPct}%;background:${actualColor}"></div></div>
+            <span class="eff-cost" style="color:${actualColor}">${fmt(actual)}</span>
           </div>
           <div class="eff-row">
             <span class="eff-badge eff-badge--baseline" title="${d.baseline_model}">${d.baseline_model}</span>
-            <div class="eff-bar-track"><div class="eff-bar-fill--baseline" style="width:${baselinePct}%"></div></div>
-            <span class="eff-cost" style="color:var(--teal)">${fmt(baseline)}</span>
+            <div class="eff-bar-track"><div class="eff-bar-fill--baseline" style="width:${baselinePct}%;background:var(--muted)"></div></div>
+            <span class="eff-cost" style="color:var(--muted)">${fmt(baseline)}</span>
           </div>
           <hr class="eff-divider">`;
 

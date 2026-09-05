@@ -378,8 +378,13 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - `dashboard/index.html` – the Live Session panel's `warnCtxPct`/`critCtxPct` (used for the context bar colour class and the `Request new_session() handoff` link visibility) now read `s.effective_warn_context_pct`/`s.effective_critical_context_pct` first, falling back to the raw `cfg.warn_context_pct`/`cfg.critical_context_pct` for session files written before this change. Settings popover gained a note under the two threshold inputs: *"For 1M context models, thresholds are automatically capped at 20%/40% to maintain the same absolute token quality boundary (~200K tokens)"*.
 - 9 new tests: `tests/test_notifier.py` `TestAdaptiveContextThresholds` (7 – unit tests for `effective_context_thresholds()`, health-state and `notify()` integration at the capped vs. raw threshold for a 1M window) and `tests/test_statusline.py` (`test_statusline_effective_thresholds_capped_for_1m_window`, `test_statusline_effective_thresholds_uncapped_for_200k_window`).
 
+**Cost Efficiency bar colors fixed – no longer inverted (fix – 2026-09-05, 629 tests green):**
+- Problem: in `loadEfficiency()`, the actual-model bar was hardcoded red and the baseline-model bar hardcoded teal regardless of which model actually costs more, so a cheaper actual model showed red (looks bad) while a more expensive baseline showed teal (looks good) – backwards. Bar *widths* were already correct (relative to the more expensive model via `maxCost = Math.max(actual, baseline, …)`, so the pricier model's bar was already 100% and the cheaper one proportionally shorter) – only the color assignment was inverted.
+- `dashboard/index.html` – `.eff-bar-fill--actual` / `.eff-bar-fill--baseline` CSS rules no longer hardcode `background`; color is now set inline in `loadEfficiency()`: the actual-model bar and its cost figure use `var(--teal)` when `actual <= baseline` (cheaper-or-equal) and `var(--red)` when more expensive – reusing the existing `isAlreadyCheaper` boolean. The baseline-model bar and its cost figure always use `var(--muted)` (neutral gray) since it's a reference point, not a competitor in the comparison.
+- No backend changes – `GET /api/efficiency` already returned correct `actual_cost`/`baseline_cost`.
+
 ---
 
 ## Last updated
 
-2026-09-05 – Auto-synced 1 commit(s) to 3fe90b3
+2026-09-05 – Fixed inverted Cost Efficiency bar colors
