@@ -38,7 +38,7 @@ harness:
     format: "timestamp | action | result"
 
 escalation:
-  contact: "patric@hayna.net"
+  contact: "MyPatric69"
   method: "log"
   trigger: "2+ critical failures or loop detected"
 
