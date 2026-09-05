@@ -283,4 +283,27 @@ when no sessions have been recorded yet (fresh install or new project).
 
 ---
 
-**Last updated:** 2026-04-24 (dynamic heatmap width — grows from first data entry)
+## Test 14: Cache, Rate Limits and PR rows in Live Session panel
+
+**Goal:** Verify the three new status-line-sourced rows render correctly and stay hidden when their data is absent.
+
+**Steps:**
+1. Start a Claude Code session with `hooks/statusline_bridge.sh` installed (Option 7)
+2. Open the dashboard's Live Session panel
+3. Trigger a status line update while `prompt_cache`, `rate_limits`, and `pr` data are all present in Claude Code's status line JSON
+
+**Expected:**
+- **Cache row** appears only when `cache_hit_ratio > 0`, showing `{pct}% hit` plus a colored dot (teal when `cache_warm` is true, amber when false) and the word "warm"/"cold"
+- **Rate Limits row** appears only when `rate_limit_5h_pct` is present, showing `5h: X%` and (if present) `7d: Y%`, each colored teal (<70%), amber (70–90%), or red (>90%) independently
+- **PR row** appears only when `pr_number` is present, showing a clickable `#{number}` link to `pr_url` (opens in a new tab) plus a colored `● {review_state}` label — teal for `approved`, amber for `pending` (or missing), red for `changes_requested`
+- None of the three rows render (no empty row, no `undefined`/`null` text) when their corresponding fields are absent from the session data
+
+**Pass Criteria:**
+- Rows appear/disappear correctly as the underlying status line data changes across ticks
+- Colors match the thresholds above
+- PR link opens `pr_url` in a new tab and doesn't navigate the dashboard away
+- No JavaScript console errors
+
+---
+
+**Last updated:** 2026-09-05 (rate_limits, prompt_cache, PR info rows added)

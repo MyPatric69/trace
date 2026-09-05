@@ -40,6 +40,13 @@ API_DURATION_MS="$(printf '%s' "$INPUT" | jq -r '.cost.total_api_duration_ms // 
 LINES_ADDED="$(printf '%s' "$INPUT" | jq -r '.cost.total_lines_added // 0')"
 LINES_REMOVED="$(printf '%s' "$INPUT" | jq -r '.cost.total_lines_removed // 0')"
 PROJECT_DIR="$(printf '%s' "$INPUT" | jq -r '.workspace.project_dir // ""')"
+RATE_LIMIT_5H="$(printf '%s' "$INPUT" | jq -c '.rate_limits.five_hour.used_percentage // null')"
+RATE_LIMIT_7D="$(printf '%s' "$INPUT" | jq -c '.rate_limits.seven_day.used_percentage // null')"
+CACHE_HIT_RATIO="$(printf '%s' "$INPUT" | jq -c '.prompt_cache.hit_ratio // null')"
+CACHE_WARM="$(printf '%s' "$INPUT" | jq -c '.prompt_cache.warm // null')"
+PR_NUMBER="$(printf '%s' "$INPUT" | jq -c '.pr.number // null')"
+PR_URL="$(printf '%s' "$INPUT" | jq -c '.pr.url // null')"
+PR_REVIEW_STATE="$(printf '%s' "$INPUT" | jq -c '.pr.review_state // null')"
 
 # ── Derived display values ────────────────────────────────────────────────────
 # Short model name: claude-sonnet-4-6-20251022 → sonnet-4-6
@@ -87,6 +94,13 @@ PAYLOAD="$(jq -cn \
     --argjson lines_added                 "${LINES_ADDED:-0}" \
     --argjson lines_removed               "${LINES_REMOVED:-0}" \
     --arg     project_dir                 "$PROJECT_DIR" \
+    --argjson rate_limit_5h_pct           "${RATE_LIMIT_5H:-null}" \
+    --argjson rate_limit_7d_pct           "${RATE_LIMIT_7D:-null}" \
+    --argjson cache_hit_ratio             "${CACHE_HIT_RATIO:-null}" \
+    --argjson cache_warm                  "${CACHE_WARM:-null}" \
+    --argjson pr_number                   "${PR_NUMBER:-null}" \
+    --argjson pr_url                      "${PR_URL:-null}" \
+    --argjson pr_review_state             "${PR_REVIEW_STATE:-null}" \
     '{session_id:$session_id,cwd:$cwd,
       context_window_pct:$context_window_pct,
       context_window_size:$context_window_size,
@@ -102,7 +116,14 @@ PAYLOAD="$(jq -cn \
       api_duration_ms:$api_duration_ms,
       lines_added:$lines_added,
       lines_removed:$lines_removed,
-      project_dir:$project_dir}' 2>/dev/null || printf '{}'
+      project_dir:$project_dir,
+      rate_limit_5h_pct:$rate_limit_5h_pct,
+      rate_limit_7d_pct:$rate_limit_7d_pct,
+      cache_hit_ratio:$cache_hit_ratio,
+      cache_warm:$cache_warm,
+      pr_number:$pr_number,
+      pr_url:$pr_url,
+      pr_review_state:$pr_review_state}' 2>/dev/null || printf '{}'
 )"
 
 # ── POST to dashboard (synchronous, max 1 s – connection refused exits fast) ──

@@ -342,3 +342,173 @@ def test_duration_format_ms_to_human_readable():
     assert _fmt_duration(90 * 60_000) == "1h 30m"
     assert _fmt_duration(135 * 60_000) == "2h 15m"
     assert _fmt_duration(120 * 60_000) == "2h"
+
+
+# ---------------------------------------------------------------------------
+# rate_limits, prompt_cache, PR info (new fields from status line)
+# ---------------------------------------------------------------------------
+
+def test_statusline_stores_rate_limit_fields_on_new_session(client, live_dir, monkeypatch):
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "rate-limit-001"
+    res = client.post("/api/statusline", json={
+        "session_id":        session_id,
+        "cwd":               "/projects/myproject",
+        "rate_limit_5h_pct": 23.0,
+        "rate_limit_7d_pct": 12.0,
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["rate_limit_5h_pct"] == 23.0
+    assert data["rate_limit_7d_pct"] == 12.0
+
+
+def test_statusline_stores_rate_limit_fields_on_existing_session(client, live_dir, monkeypatch):
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+
+    session_id = "rate-limit-002"
+    (live_dir / f"{session_id}.json").write_text(json.dumps({
+        "session_id": session_id, "project": "myproject", "cwd": "/projects/myproject",
+        "input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0,
+        "output_tokens": 0, "peak_context_tokens": 0, "context_window_size": 200_000,
+        "context_window_pct": 0.0, "cost_usd": 0.0, "model": "claude-sonnet-4-6",
+        "turns": 0, "health": "green", "initializing": False, "last_byte_offset": 0,
+        "updated_at": "2026-05-04T10:00:00",
+    }))
+
+    res = client.post("/api/statusline", json={
+        "session_id":        session_id,
+        "cwd":               "/projects/myproject",
+        "rate_limit_5h_pct": 91.0,
+        "rate_limit_7d_pct": 55.0,
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["rate_limit_5h_pct"] == 91.0
+    assert data["rate_limit_7d_pct"] == 55.0
+
+
+def test_statusline_stores_prompt_cache_fields(client, live_dir, monkeypatch):
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "cache-001"
+    res = client.post("/api/statusline", json={
+        "session_id":      session_id,
+        "cwd":             "/projects/myproject",
+        "cache_hit_ratio": 0.91,
+        "cache_warm":      True,
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["cache_hit_ratio"] == 0.91
+    assert data["cache_warm"] is True
+
+
+def test_statusline_stores_prompt_cache_fields_cold(client, live_dir, monkeypatch):
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+
+    session_id = "cache-002"
+    (live_dir / f"{session_id}.json").write_text(json.dumps({
+        "session_id": session_id, "project": "myproject", "cwd": "/projects/myproject",
+        "input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0,
+        "output_tokens": 0, "peak_context_tokens": 0, "context_window_size": 200_000,
+        "context_window_pct": 0.0, "cost_usd": 0.0, "model": "claude-sonnet-4-6",
+        "turns": 0, "health": "green", "initializing": False, "last_byte_offset": 0,
+        "updated_at": "2026-05-04T10:00:00", "cache_warm": True,
+    }))
+
+    res = client.post("/api/statusline", json={
+        "session_id":      session_id,
+        "cwd":             "/projects/myproject",
+        "cache_hit_ratio": 0.40,
+        "cache_warm":      False,
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["cache_hit_ratio"] == 0.40
+    assert data["cache_warm"] is False  # explicit False must overwrite the prior True
+
+
+def test_statusline_stores_pr_fields(client, live_dir, monkeypatch):
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "pr-001"
+    res = client.post("/api/statusline", json={
+        "session_id":      session_id,
+        "cwd":             "/projects/myproject",
+        "pr_number":       1234,
+        "pr_url":          "https://github.com/org/repo/pull/1234",
+        "pr_review_state": "pending",
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["pr_number"] == 1234
+    assert data["pr_url"] == "https://github.com/org/repo/pull/1234"
+    assert data["pr_review_state"] == "pending"
+
+
+def test_statusline_new_fields_are_null_when_absent(client, live_dir, monkeypatch):
+    """rate_limits/prompt_cache/PR fields default to None when the status line
+    payload doesn't include them – the dashboard uses this to hide the rows."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "no-extra-fields-001"
+    res = client.post("/api/statusline", json={
+        "session_id": session_id,
+        "cwd":        "/projects/myproject",
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["rate_limit_5h_pct"] is None
+    assert data["rate_limit_7d_pct"] is None
+    assert data["cache_hit_ratio"] is None
+    assert data["cache_warm"] is None
+    assert data["pr_number"] is None
+    assert data["pr_url"] is None
+    assert data["pr_review_state"] is None
+
+
+def test_statusline_existing_session_keeps_new_fields_when_payload_omits_them(client, live_dir, monkeypatch):
+    """A later statusline tick without rate_limits/cache/PR data must not erase
+    values already recorded for this session (avoids row flicker between ticks)."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+
+    session_id = "keep-fields-001"
+    (live_dir / f"{session_id}.json").write_text(json.dumps({
+        "session_id": session_id, "project": "myproject", "cwd": "/projects/myproject",
+        "input_tokens": 0, "cache_creation_tokens": 0, "cache_read_tokens": 0,
+        "output_tokens": 0, "peak_context_tokens": 0, "context_window_size": 200_000,
+        "context_window_pct": 0.0, "cost_usd": 0.0, "model": "claude-sonnet-4-6",
+        "turns": 0, "health": "green", "initializing": False, "last_byte_offset": 0,
+        "updated_at": "2026-05-04T10:00:00",
+        "pr_number": 1234, "pr_url": "https://github.com/org/repo/pull/1234",
+        "pr_review_state": "approved",
+    }))
+
+    res = client.post("/api/statusline", json={
+        "session_id": session_id,
+        "cwd":        "/projects/myproject",
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["pr_number"] == 1234
+    assert data["pr_review_state"] == "approved"

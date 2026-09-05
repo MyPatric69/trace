@@ -1118,6 +1118,7 @@
   const num = n  => n.toLocaleString();
   const usd = v  => '$' + v.toFixed(4);
   const toK = n  => n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);
+  const escAttr = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   function fmtDuration(ms) {
     if (!ms) return null;
     const min = Math.round(ms / 60000);
@@ -1588,6 +1589,36 @@
              </div>`
           : '';
 
+        const cacheRow = (s.cache_hit_ratio != null && s.cache_hit_ratio > 0)
+          ? `<div class="live-stat-row">
+               <span class="live-stat-label">Cache</span>
+               <span class="live-stat-value">${Math.round(s.cache_hit_ratio * 100)}% hit
+                 <span style="color:${s.cache_warm ? 'var(--teal)' : 'var(--amber)'}">●</span> ${s.cache_warm ? 'warm' : 'cold'}</span>
+             </div>`
+          : '';
+
+        const rlColor = pct => pct > 90 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--teal)';
+        const rateLimitsRow = (s.rate_limit_5h_pct != null)
+          ? `<div class="live-stat-row">
+               <span class="live-stat-label">Rate Limits</span>
+               <span class="live-stat-value"><span style="color:${rlColor(s.rate_limit_5h_pct)}">5h: ${Math.round(s.rate_limit_5h_pct)}%</span>${
+                 s.rate_limit_7d_pct != null ? ` · <span style="color:${rlColor(s.rate_limit_7d_pct)}">7d: ${Math.round(s.rate_limit_7d_pct)}%</span>` : ''
+               }</span>
+             </div>`
+          : '';
+
+        const prColor = state => state === 'approved' ? 'var(--teal)' : state === 'changes_requested' ? 'var(--red)' : 'var(--amber)';
+        const prRow = (s.pr_number != null)
+          ? `<div class="live-stat-row">
+               <span class="live-stat-label">PR</span>
+               <span class="live-stat-value">${
+                 s.pr_url
+                   ? `<a href="${escAttr(s.pr_url)}" target="_blank" rel="noopener" style="color:inherit;">#${s.pr_number}</a>`
+                   : '#' + s.pr_number
+               } <span style="color:${prColor(s.pr_review_state)}">● ${escAttr(s.pr_review_state || 'pending')}</span></span>
+             </div>`
+          : '';
+
         body.innerHTML = `
           <div class="live-metrics">
             <div class="live-metric">
@@ -1608,7 +1639,7 @@
             </div>
             <div class="live-health ${healthCls}">${healthLbl}</div>
           </div>
-          ${ctxBar}${durRow}${linesRow}${tokensRow}`;
+          ${ctxBar}${durRow}${linesRow}${tokensRow}${cacheRow}${rateLimitsRow}${prRow}`;
       } else {
         // Multiple sessions – compact list view
         const activeCount = d.sessions.filter(s => !s.stale).length;

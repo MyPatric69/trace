@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All phases complete – 629/629 tests green ✓
+**Status:** All phases complete – 636/636 tests green ✓
 
 ---
 
@@ -383,8 +383,17 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - `dashboard/index.html` – `.eff-bar-fill--actual` / `.eff-bar-fill--baseline` CSS rules no longer hardcode `background`; color is now set inline in `loadEfficiency()`: the actual-model bar and its cost figure use `var(--teal)` when `actual <= baseline` (cheaper-or-equal) and `var(--red)` when more expensive – reusing the existing `isAlreadyCheaper` boolean. The baseline-model bar and its cost figure always use `var(--muted)` (neutral gray) since it's a reference point, not a competitor in the comparison.
 - No backend changes – `GET /api/efficiency` already returned correct `actual_cost`/`baseline_cost`.
 
+**rate_limits, prompt_cache and PR info from status line (feature – 2026-09-05, 636 tests green):**
+- Re-implementation: this feature was built once already (see the now-superseded `ca0ac30` commit) but its code changes were lost in a git conflict before being pushed — only a stray `AI_CONTEXT.md` edit survived. Rebuilt from scratch here.
+- New optional fields surfaced by Claude Code's status line API, extracted and forwarded end-to-end for dashboard display: `rate_limit_5h_pct` / `rate_limit_7d_pct` (`.rate_limits.five_hour|seven_day.used_percentage`), `cache_hit_ratio` / `cache_warm` (`.prompt_cache.hit_ratio|warm`), `pr_number` / `pr_url` / `pr_review_state` (`.pr.number|url|review_state`). All default to `null` when Claude Code doesn't report them (e.g. no open PR, no rate-limit data yet).
+- `hooks/statusline_bridge.sh` – extracts the seven fields via `jq -c '... // null'` (JSON-typed, not `-r`, so `null`/numbers/booleans/strings all round-trip correctly) and adds them to the POST payload.
+- `dashboard/server.py` `StatuslineRequest` – seven new `| None = None` fields. In the **existing-session** branch each is written only `if req.<field> is not None`, so a tick that temporarily omits this data (e.g. status line hasn't recomputed rate limits yet) doesn't erase values already recorded for the session – prevents row flicker. The **new-session** branch writes them directly (including `null`) since there's nothing to preserve yet.
+- `dashboard/index.html` – three new rows in the Live Session panel, appended after the existing Tokens row: **Cache** (shown only when `cache_hit_ratio > 0`: `{pct}% hit ● warm/cold`, dot teal when `cache_warm` else amber), **Rate Limits** (shown when `rate_limit_5h_pct != null`: `5h: X%` and, if present, `7d: Y%`, each independently colored teal <70% / amber 70–90% / red >90%), **PR** (shown when `pr_number != null`: a `#{number}` link to `pr_url` opening in a new tab, plus a `● {review_state}` label colored teal=approved / amber=pending(default) / red=changes_requested). A new `escAttr()` helper escapes `&`/`"`/`<` before interpolating `pr_url`/`pr_review_state` into the `href`/text, since status-line-sourced strings are external input.
+- `tests/FRONTEND_TESTS.md` – Test 14 documents manual verification of the three rows' show/hide and color behavior (no JS test harness exists in this repo for the dashboard UI).
+- 7 new tests in `tests/test_statusline.py`: storage of all three field groups on both the new-session and existing-session branches, explicit-`False`/cold overwrite semantics for `cache_warm`, all seven fields defaulting to `None` when absent from the payload, and existing values surviving a later tick that omits them.
+
 ---
 
 ## Last updated
 
-2026-09-05 – Fixed inverted Cost Efficiency bar colors
+2026-09-05 – Re-implemented rate_limits, prompt_cache and PR info from status line

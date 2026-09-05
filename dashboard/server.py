@@ -567,6 +567,13 @@ class StatuslineRequest(BaseModel):
     lines_added: int = 0
     lines_removed: int = 0
     project_dir: str = ""
+    rate_limit_5h_pct: float | None = None
+    rate_limit_7d_pct: float | None = None
+    cache_hit_ratio: float | None = None
+    cache_warm: bool | None = None
+    pr_number: int | None = None
+    pr_url: str | None = None
+    pr_review_state: str | None = None
 
 
 @app.post("/api/statusline")
@@ -624,6 +631,20 @@ def api_statusline(req: StatuslineRequest):
                     data["lines_added"] = req.lines_added
                 if req.lines_removed:
                     data["lines_removed"] = req.lines_removed
+                if req.rate_limit_5h_pct is not None:
+                    data["rate_limit_5h_pct"] = req.rate_limit_5h_pct
+                if req.rate_limit_7d_pct is not None:
+                    data["rate_limit_7d_pct"] = req.rate_limit_7d_pct
+                if req.cache_hit_ratio is not None:
+                    data["cache_hit_ratio"] = req.cache_hit_ratio
+                if req.cache_warm is not None:
+                    data["cache_warm"] = req.cache_warm
+                if req.pr_number is not None:
+                    data["pr_number"] = req.pr_number
+                if req.pr_url is not None:
+                    data["pr_url"] = req.pr_url
+                if req.pr_review_state is not None:
+                    data["pr_review_state"] = req.pr_review_state
                 session_file.write_text(json.dumps(data, indent=2))
             except Exception:
                 pass
@@ -668,6 +689,13 @@ def api_statusline(req: StatuslineRequest):
                 "api_duration_ms":     req.api_duration_ms,
                 "lines_added":         req.lines_added,
                 "lines_removed":       req.lines_removed,
+                "rate_limit_5h_pct":   req.rate_limit_5h_pct,
+                "rate_limit_7d_pct":   req.rate_limit_7d_pct,
+                "cache_hit_ratio":     req.cache_hit_ratio,
+                "cache_warm":          req.cache_warm,
+                "pr_number":           req.pr_number,
+                "pr_url":              req.pr_url,
+                "pr_review_state":     req.pr_review_state,
             }
             session_file.write_text(json.dumps(data, indent=2))
     except Exception:
