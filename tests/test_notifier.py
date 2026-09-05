@@ -735,6 +735,92 @@ class TestContextPctNotifications:
 
 
 # ---------------------------------------------------------------------------
+# Adaptive context window thresholds (200K vs 1M models)
+# For windows > 200K, warn/critical percentages are capped at 20%/40% so the
+# absolute token count that triggers a warning stays ~constant (~200K/~400K)
+# instead of scaling up with the window (60% of 1M = 600K – already too late).
+# ---------------------------------------------------------------------------
+
+class TestAdaptiveContextThresholds:
+    def test_effective_thresholds_200k_model_uses_raw_pct(self):
+        """A 200K (or smaller) window is unaffected – configured percentages pass through."""
+        from engine.live_tracker import effective_context_thresholds
+        warn, critical = effective_context_thresholds(60.0, 85.0, 200_000)
+        assert warn == 60.0
+        assert critical == 85.0
+
+    def test_effective_thresholds_1m_model_capped_at_20_40(self):
+        """A 1M window caps the configured percentages at 20%/40%."""
+        from engine.live_tracker import effective_context_thresholds
+        warn, critical = effective_context_thresholds(60.0, 85.0, 1_000_000)
+        assert warn == 20.0
+        assert critical == 40.0
+
+    def test_effective_thresholds_1m_model_respects_lower_user_setting(self):
+        """A user setting already below the cap is left untouched (min() semantics)."""
+        from engine.live_tracker import effective_context_thresholds
+        warn, critical = effective_context_thresholds(10.0, 30.0, 1_000_000)
+        assert warn == 10.0
+        assert critical == 30.0
+
+    def test_health_yellow_at_20pct_for_1m_window(self, tmp_path, tmp_store, patched_env, monkeypatch):
+        """200K tokens on a 1M window (20%) is yellow – same absolute boundary as a 200K model,
+        even though the raw configured warn_context_pct (60) would need 600K tokens."""
+        tmp_store.config["context_windows"] = {"claude-": 1_000_000}
+        monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+
+        transcript = _write_transcript(tmp_path, [
+            _assistant_turn("r1", input_tokens=200_000),
+        ])
+        result = LiveTracker(None).update(str(transcript), str(tmp_path))
+        assert result["context_window_size"] == 1_000_000
+        assert result["context_window_pct"] == pytest.approx(20.0)
+        assert result["health"] == "yellow"
+        assert result["effective_warn_context_pct"] == 20.0
+        assert result["effective_critical_context_pct"] == 40.0
+
+    def test_health_still_green_below_effective_threshold_for_1m_window(self, tmp_path, tmp_store, patched_env, monkeypatch):
+        """150K tokens on a 1M window (15%) stays green – below the capped 20% warn threshold."""
+        tmp_store.config["context_windows"] = {"claude-": 1_000_000}
+        monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+
+        transcript = _write_transcript(tmp_path, [
+            _assistant_turn("r1", input_tokens=150_000),
+        ])
+        result = LiveTracker(None).update(str(transcript), str(tmp_path))
+        assert result["health"] == "green"
+
+    def test_notify_fires_at_effective_threshold_not_raw_percentage(self, tmp_path, tmp_store, patched_env, monkeypatch):
+        """notify() must fire once peak reaches the capped 20% boundary of a 1M window,
+        not wait for the raw configured 60% (which would be 600K tokens)."""
+        tmp_store.config["context_windows"] = {"claude-": 1_000_000}
+        monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+
+        transcript = _write_transcript(tmp_path, [
+            _assistant_turn("r1", input_tokens=200_000),  # 20% of 1M – effective warn, not raw 60%
+        ])
+        notify_calls: list[tuple] = []
+        with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
+            LiveTracker(None).update(str(transcript), str(tmp_path))
+        assert len(notify_calls) == 1
+        assert notify_calls[0][0] == "warn"
+
+    def test_notify_does_not_fire_below_effective_threshold_for_1m_window(self, tmp_path, tmp_store, patched_env, monkeypatch):
+        """150K tokens on a 1M window (15%) is below the capped 20% warn threshold – no notification,
+        even though it would also be far below the raw 60% configured threshold."""
+        tmp_store.config["context_windows"] = {"claude-": 1_000_000}
+        monkeypatch.setattr(lt_module, "_get_default_store", lambda: tmp_store)
+
+        transcript = _write_transcript(tmp_path, [
+            _assistant_turn("r1", input_tokens=150_000),
+        ])
+        notify_calls: list[tuple] = []
+        with patch("engine.notifier.notify", side_effect=lambda *a, **kw: notify_calls.append(a)):
+            LiveTracker(None).update(str(transcript), str(tmp_path))
+        assert notify_calls == []
+
+
+# ---------------------------------------------------------------------------
 # Dashboard – /api/status and POST /api/settings expose context_pct thresholds
 # ---------------------------------------------------------------------------
 

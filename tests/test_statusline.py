@@ -193,6 +193,49 @@ def test_statusline_creates_session_if_missing(client, live_dir, monkeypatch):
     assert data["peak_context_tokens"] == 650  # 500 + 100 + 50
 
 
+def test_statusline_effective_thresholds_capped_for_1m_window(client, live_dir, monkeypatch):
+    """A new session created from a 1M-window statusline payload gets warn/critical
+    thresholds capped at 20%/40% instead of the raw configured 60%/85%."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "million-thresholds-001"
+    res = client.post("/api/statusline", json={
+        "session_id":          session_id,
+        "cwd":                 "/projects/myproject",
+        "context_window_pct":  20.0,
+        "context_window_size": 1_000_000,
+        "cost_usd":            0.02,
+        "model":               "claude-sonnet-4-6",
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["effective_warn_context_pct"] == 20.0
+    assert data["effective_critical_context_pct"] == 40.0
+
+
+def test_statusline_effective_thresholds_uncapped_for_200k_window(client, live_dir, monkeypatch):
+    """A 200K-window session keeps the raw configured 60%/85% thresholds."""
+    import engine.live_tracker as lt_module
+    monkeypatch.setattr(lt_module, "_LIVE_DIR", live_dir)
+    monkeypatch.setattr(lt_module, "_get_default_store", lambda: None)
+
+    session_id = "200k-thresholds-001"
+    res = client.post("/api/statusline", json={
+        "session_id":          session_id,
+        "cwd":                 "/projects/myproject",
+        "context_window_size": 200_000,
+        "model":               "claude-sonnet-4-6",
+    })
+    assert res.status_code == 200
+
+    data = json.loads((live_dir / f"{session_id}.json").read_text())
+    assert data["effective_warn_context_pct"] == 60.0
+    assert data["effective_critical_context_pct"] == 85.0
+
+
 def test_statusline_returns_200_for_unknown_session_id(client):
     """Returns 200 OK when session_id is empty or missing – never errors."""
     res = client.post("/api/statusline", json={})

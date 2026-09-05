@@ -990,6 +990,10 @@
             <span class="pop-unit">%</span>
           </div>
         </div>
+        <div style="font-size:0.6875rem;color:var(--muted);line-height:1.4;margin-top:2px;">
+          For 1M context models, thresholds are automatically capped at 20%/40%
+          to maintain the same absolute token quality boundary (~200K tokens)
+        </div>
         <div class="pop-divider"></div>
         <!-- Monthly budget -->
         <div class="pop-section-label" style="font-size:0.6563rem;">Monthly budget</div>
@@ -1533,8 +1537,11 @@
                         : s.health === 'warn'  ? 'Warning'
                         :                        'OK';
 
-        const warnCtxPct = cfg.warn_context_pct     || 60;
-        const critCtxPct = cfg.critical_context_pct || 85;
+        // Effective thresholds are precomputed server-side (capped for >200K windows,
+        // see engine/live_tracker.py effective_context_thresholds()); fall back to the
+        // raw config values for older session files that predate this field.
+        const warnCtxPct = s.effective_warn_context_pct     ?? (cfg.warn_context_pct     || 60);
+        const critCtxPct = s.effective_critical_context_pct ?? (cfg.critical_context_pct || 85);
         const ctxPct  = s.context_window_pct || 0;
         const ctxCls  = ctxPct >= critCtxPct ? 'red' : ctxPct >= warnCtxPct ? 'amber' : '';
         const peakK   = s.peak_context_tokens  ? Math.round(s.peak_context_tokens  / 1000) : 0;

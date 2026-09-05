@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from engine.store import TraceStore, TRACE_HOME
-from engine.live_tracker import LiveTracker
+from engine.live_tracker import LiveTracker, effective_context_thresholds
 from engine.providers import get_provider
 from engine.providers.manual import ManualProvider
 from server.tools.context import check_drift, update_context
@@ -594,12 +594,25 @@ def api_statusline(req: StatuslineRequest):
             + req.cache_read_input_tokens
         )
 
+        warn_pct, critical_pct = 60.0, 85.0
+        try:
+            health_cfg = _store().config.get("session_health", {})
+            warn_pct     = float(health_cfg.get("warn_context_pct", 60))
+            critical_pct = float(health_cfg.get("critical_context_pct", 85))
+        except Exception:
+            pass
+        eff_warn_pct, eff_critical_pct = effective_context_thresholds(
+            warn_pct, critical_pct, req.context_window_size
+        )
+
         if session_file.exists():
             try:
                 data = json.loads(session_file.read_text())
                 existing_peak = int(data.get("peak_context_tokens", 0))
                 data["context_window_pct"] = req.context_window_pct
                 data["context_window_size"] = req.context_window_size
+                data["effective_warn_context_pct"] = eff_warn_pct
+                data["effective_critical_context_pct"] = eff_critical_pct
                 data["peak_context_tokens"] = max(existing_peak, peak)
                 data["cost_usd"] = req.cost_usd
                 data["updated_at"] = now
@@ -642,6 +655,8 @@ def api_statusline(req: StatuslineRequest):
                 "peak_context_tokens": peak,
                 "context_window_size": req.context_window_size,
                 "context_window_pct":  req.context_window_pct,
+                "effective_warn_context_pct":     eff_warn_pct,
+                "effective_critical_context_pct": eff_critical_pct,
                 "cost_usd":            req.cost_usd,
                 "model":               req.model,
                 "turns":               0,

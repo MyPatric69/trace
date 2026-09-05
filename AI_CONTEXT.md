@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All phases complete – 620/620 tests green ✓
+**Status:** All phases complete – 629/629 tests green ✓
 
 ---
 
@@ -371,8 +371,19 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - `dashboard/index.html` already read `s.context_window_size` (defaulting to 200) for the Live Session Context Window bar (`{peak}k / {window}k ({pct}%)`) – no change needed there.
 - 3 new tests: `tests/test_statusline.py` (`test_statusline_updates_context_window_size_on_1m_window_session`, `test_statusline_context_window_size_defaults_to_200k_when_absent` – plus an assertion added to `test_statusline_updates_existing_session`) and `tests/test_live_tracker.py` (`test_update_carries_forward_context_window_size_from_statusline`).
 
+**Adaptive context window thresholds for 200K vs 1M models (feature – 2026-09-05, 629 tests green):**
+- Problem: `warn_context_pct`/`critical_context_pct` are fixed percentages (default 60%/85%) regardless of the model's context window size. For a 1M-token window, 60% is 600K tokens – already deep in context-rot territory by the time a warning fires.
+- `engine/live_tracker.py` – new module-level `effective_context_thresholds(warn_pct, critical_pct, context_window_size) -> (float, float)`: for windows > 200 000 the configured percentages are capped at `min(warn_pct, 20.0)` / `min(critical_pct, 40.0)` (200K / 400K tokens on a 1M window – the same absolute boundary as a 200K model at 60%/85%); windows ≤ 200 000 pass the configured values through unchanged. `LiveTracker.update()` calls this before deriving `health` and before firing `notify()`, and stores the resolved pair as `effective_warn_context_pct` / `effective_critical_context_pct` in the live session file alongside `health`.
+- `dashboard/server.py` `POST /api/statusline` – both branches of `api_statusline()` (existing-session update and new-session creation) now read `warn_context_pct`/`critical_context_pct` from `_store().config["session_health"]`, resolve them through `effective_context_thresholds()` against `req.context_window_size`, and persist `effective_warn_context_pct`/`effective_critical_context_pct` into the session file – so a session created via the statusline bridge (before any PostToolUse tick) already carries the correct capped thresholds.
+- `dashboard/index.html` – the Live Session panel's `warnCtxPct`/`critCtxPct` (used for the context bar colour class and the `Request new_session() handoff` link visibility) now read `s.effective_warn_context_pct`/`s.effective_critical_context_pct` first, falling back to the raw `cfg.warn_context_pct`/`cfg.critical_context_pct` for session files written before this change. Settings popover gained a note under the two threshold inputs: *"For 1M context models, thresholds are automatically capped at 20%/40% to maintain the same absolute token quality boundary (~200K tokens)"*.
+- 9 new tests: `tests/test_notifier.py` `TestAdaptiveContextThresholds` (7 – unit tests for `effective_context_thresholds()`, health-state and `notify()` integration at the capped vs. raw threshold for a 1M window) and `tests/test_statusline.py` (`test_statusline_effective_thresholds_capped_for_1m_window`, `test_statusline_effective_thresholds_uncapped_for_200k_window`).
+
 ---
 
 ## Last updated
 
+<<<<<<< HEAD
 2026-09-05 – Auto-synced 1 commit(s) to 1b13731
+=======
+2026-09-05 – Adaptive context window thresholds for 200K vs 1M models
+>>>>>>> 69cbdf2 (feat(health): adaptive context window thresholds for 200K vs 1M models)

@@ -39,6 +39,29 @@ _HEALTH_ORD: dict[str, int] = {"green": 0, "yellow": 1, "red": 2}
 # Maps internal colour names to the status strings used by notifier / last_health
 _HEALTH_STATUS: dict[str, str] = {"green": "ok", "yellow": "warn", "red": "reset"}
 
+# Above this window size, percentage thresholds are capped so the absolute
+# token count that triggers warn/critical stays constant instead of scaling
+# up with the window (60% of a 1M window is 600K tokens – already deep in
+# context-rot territory).
+_LARGE_WINDOW_THRESHOLD = 200_000
+_LARGE_WINDOW_WARN_CAP = 20.0      # 200K tokens / 1M window
+_LARGE_WINDOW_CRITICAL_CAP = 40.0  # 400K tokens / 1M window
+
+
+def effective_context_thresholds(
+    warn_pct: float, critical_pct: float, context_window_size: int
+) -> tuple[float, float]:
+    """Return (warn_pct, critical_pct) adjusted for the model's context window size.
+
+    For windows > 200K (e.g. 1M for Pro/Max), the configured percentages are
+    capped at 20%/40% so the absolute token count that triggers a warning or
+    critical state stays roughly constant (~200K / ~400K tokens) rather than
+    scaling with the window size.
+    """
+    if context_window_size > _LARGE_WINDOW_THRESHOLD:
+        return min(warn_pct, _LARGE_WINDOW_WARN_CAP), min(critical_pct, _LARGE_WINDOW_CRITICAL_CAP)
+    return warn_pct, critical_pct
+
 TRACE_HOME.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     filename=str(_LOG_FILE),
@@ -339,15 +362,21 @@ class LiveTracker:
             pass
 
         # Health derived from context_window_pct (not cumulative tokens).
+        # Thresholds are adapted to the window size so a 1M model doesn't wait
+        # until 600K tokens (60%) to warn – see effective_context_thresholds().
         health = "green"
+        effective_warn_pct, effective_critical_pct = effective_context_thresholds(60.0, 85.0, context_window_size)
         try:
             if health_store is not None:
                 health_cfg = health_store.config.get("session_health", {})
                 warn_pct     = float(health_cfg.get("warn_context_pct", 60))
                 critical_pct = float(health_cfg.get("critical_context_pct", 85))
-                if context_window_pct >= critical_pct:
+                effective_warn_pct, effective_critical_pct = effective_context_thresholds(
+                    warn_pct, critical_pct, context_window_size
+                )
+                if context_window_pct >= effective_critical_pct:
                     health = "red"
-                elif context_window_pct >= warn_pct:
+                elif context_window_pct >= effective_warn_pct:
                     health = "yellow"
         except Exception:
             pass
@@ -381,6 +410,8 @@ class LiveTracker:
             "peak_context_tokens":   peak_context_tokens,
             "context_window_size":   context_window_size,
             "context_window_pct":    context_window_pct,
+            "effective_warn_context_pct":     effective_warn_pct,
+            "effective_critical_context_pct": effective_critical_pct,
             "cost_usd":              cost_usd,
             "model":                 model,
             "turns":                 turns,
