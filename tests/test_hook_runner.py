@@ -4,6 +4,7 @@ from pathlib import Path
 import git
 import pytest
 
+from engine.doc_synthesizer import DocSynthesizer
 from engine.hook_runner import run
 
 REPO_ROOT = Path(__file__).parents[1]
@@ -120,6 +121,13 @@ def test_run_no_update_when_changes_not_doc_relevant(tmp_path):
     assert synced == initial_hash  # unchanged
 
 
-def test_run_on_trace_repo_does_not_raise():
-    """Smoke test: run() on the real TRACE repo completes without error."""
+def test_run_on_trace_repo_does_not_raise(monkeypatch):
+    """Smoke test: run() on the real TRACE repo completes without error.
+
+    Auto-commit is neutralised here: if the real repo's .trace_sync happens to
+    be behind HEAD with doc-relevant changes, update_if_stale() would rewrite
+    AND commit the real AI_CONTEXT.md as a side effect of running the test
+    suite. That's out of scope for a smoke test that only checks "doesn't raise".
+    """
+    monkeypatch.setattr(DocSynthesizer, "_auto_commit_context", lambda self: None)
     run(str(REPO_ROOT))

@@ -1,9 +1,11 @@
 """Tests for engine/doc_synthesizer.py."""
+import subprocess
 from pathlib import Path
 
 import git
 import pytest
 
+import engine.doc_synthesizer as doc_synthesizer_module
 from engine.doc_synthesizer import DocSynthesizer
 
 REPO_ROOT = Path(__file__).parents[1]
@@ -61,6 +63,16 @@ def tmp_synth(tmp_path) -> DocSynthesizer:
     repo.index.commit("Initial commit")
 
     return DocSynthesizer(str(tmp_path), config_path=REAL_CONFIG)
+
+
+def _add_commit(tmp_path, repo, filename: str, content: str = "# x", msg: str = "update") -> str:
+    """Write filename with content and commit it. Returns the new commit hexsha."""
+    filepath = tmp_path / filename
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    filepath.write_text(content, encoding="utf-8")
+    repo.index.add([filename])
+    repo.index.commit(msg)
+    return repo.head.commit.hexsha
 
 
 # ---------------------------------------------------------------------------
@@ -277,3 +289,97 @@ def test_apply_section_update_heading_preserved(tmp_synth):
     tmp_synth.apply_section_update("Project", "New content.")
     content = tmp_synth.read_context()
     assert "## Project" in content
+
+
+# ---------------------------------------------------------------------------
+# _auto_commit_context / update_if_stale auto-commit integration
+# ---------------------------------------------------------------------------
+
+def test_auto_commit_skipped_when_no_changes(tmp_synth):
+    """No commit is made when AI_CONTEXT.md has no uncommitted diff."""
+    repo = tmp_synth.watcher.repo
+    commits_before = len(list(repo.iter_commits()))
+
+    tmp_synth._auto_commit_context()
+
+    assert len(list(repo.iter_commits())) == commits_before
+
+
+def test_auto_commit_runs_when_context_has_changes(tmp_synth):
+    """A dirty AI_CONTEXT.md is staged and committed with the expected message."""
+    repo = tmp_synth.watcher.repo
+    commits_before = len(list(repo.iter_commits()))
+
+    (tmp_synth.project_path / "AI_CONTEXT.md").write_text("modified content\n", encoding="utf-8")
+    tmp_synth._auto_commit_context()
+
+    assert len(list(repo.iter_commits())) == commits_before + 1
+    assert repo.head.commit.message.strip() == "chore(context): auto-sync AI_CONTEXT.md"
+    # Working tree is clean again – nothing left uncommitted
+    diff = subprocess.run(
+        ["git", "diff", "--quiet", "AI_CONTEXT.md"],
+        cwd=str(tmp_synth.project_path),
+    )
+    assert diff.returncode == 0
+
+
+def test_auto_commit_only_commits_ai_context(tmp_synth):
+    """Other dirty files in the working tree are left untouched/uncommitted."""
+    repo = tmp_synth.watcher.repo
+    (tmp_synth.project_path / "other.txt").write_text("unrelated change", encoding="utf-8")
+    (tmp_synth.project_path / "AI_CONTEXT.md").write_text("modified content\n", encoding="utf-8")
+
+    tmp_synth._auto_commit_context()
+
+    assert repo.head.commit.message.strip() == "chore(context): auto-sync AI_CONTEXT.md"
+    # other.txt must still be untracked – never staged or committed
+    assert "other.txt" in repo.untracked_files
+
+
+def test_auto_commit_failure_does_not_raise(tmp_synth, monkeypatch):
+    """A git failure during add/commit is logged and swallowed, never raised."""
+    (tmp_synth.project_path / "AI_CONTEXT.md").write_text("modified content\n", encoding="utf-8")
+
+    real_run = doc_synthesizer_module.subprocess.run
+
+    def _fake_run(cmd, **kwargs):
+        if "commit" in cmd:
+            raise RuntimeError("simulated git commit failure")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(doc_synthesizer_module.subprocess, "run", _fake_run)
+
+    tmp_synth._auto_commit_context()  # must not raise
+
+
+def test_auto_commit_diff_check_failure_does_not_raise(tmp_synth, monkeypatch):
+    """A git failure during the diff check itself is also swallowed."""
+    def _boom(*args, **kwargs):
+        raise RuntimeError("git not found")
+
+    monkeypatch.setattr(doc_synthesizer_module.subprocess, "run", _boom)
+
+    tmp_synth._auto_commit_context()  # must not raise
+
+
+def test_update_if_stale_auto_commits_context_when_stale(tmp_path, tmp_synth):
+    """The full update_if_stale() flow leaves no uncommitted AI_CONTEXT.md diff."""
+    repo = tmp_synth.watcher.repo
+    initial_hash = repo.head.commit.hexsha
+    tmp_synth.update_last_synced(initial_hash)
+
+    # Doc-relevant commit so update_if_stale() actually rewrites AI_CONTEXT.md
+    _add_commit(tmp_path, repo, "engine/module.py", msg="feat: new module")
+
+    commits_before = len(list(repo.iter_commits()))
+    result = tmp_synth.update_if_stale()
+
+    assert result is True
+    assert len(list(repo.iter_commits())) == commits_before + 1
+    assert repo.head.commit.message.strip() == "chore(context): auto-sync AI_CONTEXT.md"
+
+    diff = subprocess.run(
+        ["git", "diff", "--quiet", "AI_CONTEXT.md"],
+        cwd=str(tmp_synth.project_path),
+    )
+    assert diff.returncode == 0

@@ -13,7 +13,7 @@
 **Type:** MCP Server (Python / FastMCP)
 **License:** MIT
 **Repo:** github.com/MyPatric69/trace
-**Status:** All phases complete – 636/636 tests green ✓
+**Status:** All phases complete – 642/642 tests green ✓
 
 ---
 
@@ -400,8 +400,14 @@ Review recent changes to: engine/config.py, engine/live_tracker.py, engine/notif
 - Duration (`cost.total_duration_ms`) formats as `Xh Ym` once an hour is crossed, `Xm Ys` below that (e.g. `6120000` ms → `1h 42m`).
 - No pytest coverage – this repo has no shell test harness (see `tests/FRONTEND_TESTS.md` for the equivalent manual-verification convention used for JS-only dashboard changes); verified manually by piping sample status-line JSON through the script against an unreachable port to avoid touching the live dashboard.
 
+**DocSynthesizer auto-commits AI_CONTEXT.md after update (fix – 2026-09-05, 642 tests green):**
+- Problem: `DocSynthesizer.update_if_stale()` wrote a new `AI_CONTEXT.md` (via `apply_section_update()`) but never committed it, so every hook-driven sync (post-commit hook, SessionEnd hook) left a dangling uncommitted change – the recurring cause of git conflicts on the next push/pull.
+- `engine/doc_synthesizer.py` – new `DocSynthesizer._auto_commit_context()`: runs `git diff --quiet AI_CONTEXT.md` first and returns immediately if there's nothing to commit; otherwise `git add AI_CONTEXT.md` + `git commit -m "chore(context): auto-sync AI_CONTEXT.md"`. All three git calls use `subprocess.run(cwd=project_path, capture_output=True, timeout=30)`; only `AI_CONTEXT.md` is ever staged – no other working-tree changes are touched. Wrapped in try/except – any failure (git missing, no `user.email` configured, detached HEAD, etc.) is logged via `logging.getLogger(__name__)` and swallowed, never raised. `update_if_stale()` calls it once, right after `update_last_synced()`, only on the path where a real update happened.
+- **Safety fix alongside this**: `tests/test_hook_runner.py::test_run_on_trace_repo_does_not_raise` is a smoke test that calls `run()` against the *real* TRACE repo (`REPO_ROOT`) rather than a tmp repo. Before this change that could, in the right stale conditions, silently rewrite the real `AI_CONTEXT.md`; after this change it could additionally create a real commit in this repo's own history as a side effect of running the test suite. Fixed by monkeypatching `DocSynthesizer._auto_commit_context` to a no-op for that one test – it still verifies `run()` doesn't raise, without any risk of the test suite mutating this repo's git history.
+- 6 new tests in `tests/test_doc_synthesizer.py`: skip-when-clean, commit-when-dirty (asserts the commit message and that the working tree is clean afterward), only-`AI_CONTEXT.md`-is-staged (an unrelated dirty file stays untracked), two failure-swallowing tests (commit step fails / diff step fails, via a `subprocess.run` monkeypatch), and one full-flow test driving `update_if_stale()` end-to-end through real drift detection.
+
 ---
 
 ## Last updated
 
-2026-09-05 – Added two-line terminal status line output
+2026-09-05 – DocSynthesizer now auto-commits AI_CONTEXT.md after syncing

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
+import subprocess
 from datetime import date
 from pathlib import Path
 
 import yaml
 
 from engine.git_watcher import GitWatcher
+
+_log = logging.getLogger(__name__)
 
 _CONTEXT_TEMPLATE = """\
 # AI_CONTEXT.md
@@ -212,7 +216,43 @@ class DocSynthesizer:
             f"to {drift['current_hash']}",
         )
         self.update_last_synced(drift["current_hash"])
+        self._auto_commit_context()
         return True
+
+    def _auto_commit_context(self) -> None:
+        """Commit AI_CONTEXT.md if it has uncommitted changes.
+
+        Keeps the hook-driven update flow (post-commit / SessionEnd) from
+        leaving a dangling working-tree change after every sync, which
+        otherwise causes conflicts on the next push/pull. Only ever stages
+        and commits AI_CONTEXT.md – never any other file. Never raises;
+        failures are logged and swallowed so a broken git state (detached
+        HEAD, no user.email configured, etc.) never breaks the caller.
+        """
+        try:
+            diff = subprocess.run(
+                ["git", "diff", "--quiet", "AI_CONTEXT.md"],
+                cwd=str(self.project_path),
+                capture_output=True,
+                timeout=30,
+            )
+            if diff.returncode == 0:
+                return  # no changes to commit
+
+            subprocess.run(
+                ["git", "add", "AI_CONTEXT.md"],
+                cwd=str(self.project_path),
+                capture_output=True,
+                timeout=30,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "chore(context): auto-sync AI_CONTEXT.md"],
+                cwd=str(self.project_path),
+                capture_output=True,
+                timeout=30,
+            )
+        except Exception as exc:
+            _log.warning("DocSynthesizer: failed to auto-commit AI_CONTEXT.md: %s", exc)
 
     def apply_section_update(self, section: str, new_content: str) -> bool:
         """Replace the body of a ## section in AI_CONTEXT.md with new_content.
