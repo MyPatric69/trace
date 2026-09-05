@@ -7,16 +7,35 @@ owner: "Patric"
 
 scope:
   authorized:
-    - action: "mplement features in engine/, dashboard/, hooks/, server/, tests/. Read and write trace_config.yaml, ~/.trace/user_config.yaml, ~/.claude/settings.json, ~/.claude/statusline_bridge.sh. Run pytest tests/ -v. Execute git add/commit/push/pull. Manage LaunchAgents via launchctl. One external API call permitted: api.anthropic.com/v1/messages/count_tokens. No direct access to ~/.trace/trace.db."
-      reason: "Extracted from governance definition — review and refine"
+    - action: "implement features in engine/, dashboard/, hooks/, server/, tests/. Read and write trace_config.yaml, ~/.trace/user_config.yaml, ~/.claude/settings.json, ~/.claude/statusline_bridge.sh. Run pytest tests/ -v. Execute git add/commit/push/pull. Manage LaunchAgents via launchctl. One external API call permitted: api.anthropic.com/v1/messages/count_tokens. No direct access to ~/.trace/trace.db."
+      reason: "Core TRACE development scope"
       added: "2026-09-05"
   prohibited:
     - action: "Never delete or modify ~/.trace/trace.db directly. Never push to main without explicit user approval. Never execute git reset --hard or any history-rewriting command without explicit user confirmation. Never call external APIs other than api.anthropic.com/v1/messages/count_tokens. Never modify files outside the project directory, ~/.trace/, or ~/.claude/. Never commit in a loop – maximum one chore(context): auto-sync commit per session end. Never install system packages without explicit user confirmation."
-      reason: "Extracted from governance definition — review and refine"
+      reason: "Hard security and data protection limits"
       severity: "HARD_LIMIT"
       added: "2026-09-05"
   requires_confirmation:
-    []
+    - action: "git push origin main"
+      reason: "Pushing to main affects shared history"
+    - action: "git reset --hard"
+      reason: "Destructive operation – cannot be undone"
+    - action: "launchctl unload"
+      reason: "Stops running services"
+    - action: "rm -rf"
+      reason: "Irreversible deletion"
+    - action: "pip install"
+      reason: "System package installation"
+
+harness:
+  attempt_counter:
+    max_attempts: 3
+    reset_on: "new_task"
+    action_on_exceed: "escalate"
+  action_log:
+    enabled: true
+    path: "~/.trace/agentguard_actions.log"
+    format: "timestamp | action | result"
 
 escalation:
   contact: "patric@hayna.net"
@@ -55,6 +74,12 @@ path_policy:
       reason: "Auto-detected project directory"
     - pattern: "*.md"
       reason: "Documentation"
+    - pattern: "governance.yaml"
+      reason: "AgentGuard governance file"
+    - pattern: "trace.sh"
+      reason: "Lifecycle manager"
+    - pattern: "trace_config.yaml"
+      reason: "Model pricing config"
   default_for_unmatched: "ask"
 
 cost_awareness:
@@ -63,8 +88,13 @@ cost_awareness:
       level: warn
   repeat_last_threshold: true
   repeat_interval_usd: 10.0
+
 governance_history:
   - date: "2026-09-05"
     action: "Initial governance created"
     tool: "agentguard init --guided"
+    version: "1.0.8"
+  - date: "2026-09-05"
+    action: "Added requires_confirmation, harness with attempt_counter and action_log"
+    tool: "manual"
     version: "1.0.8"

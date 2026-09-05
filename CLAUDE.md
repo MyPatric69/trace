@@ -58,6 +58,14 @@ shown as a muted info row inside the **Live Session** panel.
 - Conventional Commits: feat/fix/docs/chore/refactor
 - YAGNI, KISS, DRY, Single Responsibility
 
+## AgentGuard Harness
+
+- **attempt_count:** max 3 attempts per task before escalating
+- **max_attempts:** 3 – if exceeded, stop and report to Patric
+- **action_log:** all tool calls logged to ~/.trace/agentguard_actions.log
+- **log_action:** append each executed action with timestamp and result
+- **retry_count:** reset on each new task
+
 ## Dev Commands
 
 ```bash
