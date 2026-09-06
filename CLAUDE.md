@@ -66,6 +66,21 @@ shown as a muted info row inside the **Live Session** panel.
 - **log_action:** append each executed action with timestamp and result
 - **retry_count:** reset on each new task
 
+## AgentGuard — Key Governance Rules
+
+The following actions require confirmation (will trigger AgentGuard ask):
+- `git push origin main` — pushing to main requires owner approval
+- `git push --tags` — tag pushes trigger CI/CD releases
+- `pip install` — system package installation requires confirmation
+- `git reset --hard` — destructive, cannot be undone
+- `rm -rf` — irreversible deletion
+
+The following actions are HARD_LIMIT (will be denied):
+- Any access to `~/.trace/trace.db` directly
+- Pushing to main without explicit approval
+- Calling external APIs other than api.anthropic.com/v1/messages/count_tokens
+- Modifying files outside project directory, ~/.trace/, or ~/.claude/
+
 ## Dev Commands
 
 ```bash
